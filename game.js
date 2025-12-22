@@ -34,7 +34,9 @@ const game = {
     swordCollected: false,
     equippedSwordMesh: null,
     isAttacking: false,
-    attackCooldown: 0
+    attackCooldown: 0,
+    walkTime: 0,
+    isMoving: false
 };
 
 // Initialize the game
@@ -400,7 +402,7 @@ function attackWithSword() {
     // Check if hit enemy
     if (game.enemy) {
         const distance = game.camera.position.distanceTo(game.enemy.position);
-        if (distance < 5) {
+        if (distance < 10) { // Increased range from 5 to 10
             // Calculate if enemy is in front of player
             const directionToEnemy = new THREE.Vector3();
             directionToEnemy.subVectors(game.enemy.position, game.camera.position);
@@ -411,7 +413,7 @@ function attackWithSword() {
 
             const angle = forward.angleTo(directionToEnemy);
 
-            if (angle < Math.PI / 4) { // 45 degree cone in front
+            if (angle < Math.PI / 3) { // Wider 60 degree cone in front
                 defeatEnemy();
             }
         }
@@ -436,14 +438,102 @@ function updateEnemy(delta) {
     if (!game.enemy || game.isGameOver || !game.isPointerLocked || game.inventory.isOpen) return;
 
     // Calculate direction to player
-    const direction = new THREE.Vector3();
-    direction.subVectors(game.camera.position, game.enemy.position);
-    direction.y = 0; // Keep enemy on ground level
-    direction.normalize();
+    const directionToPlayer = new THREE.Vector3();
+    directionToPlayer.subVectors(game.camera.position, game.enemy.position);
+    directionToPlayer.y = 0; // Keep enemy on ground level
+    directionToPlayer.normalize();
 
-    // Move enemy towards player
-    game.enemy.position.x += direction.x * game.enemySpeed * delta;
-    game.enemy.position.z += direction.z * game.enemySpeed * delta;
+    // Store old position for collision detection
+    const oldPos = game.enemy.position.clone();
+
+    // Try to move towards player
+    let moveDirection = directionToPlayer.clone();
+    const moveSpeed = game.enemySpeed * delta;
+
+    // Check if path to player is blocked
+    let pathBlocked = false;
+    const enemyRadius = 2.5; // Enemy collision radius
+
+    // Test the intended move position
+    const testPos = new THREE.Vector3(
+        game.enemy.position.x + moveDirection.x * moveSpeed,
+        game.enemy.position.y,
+        game.enemy.position.z + moveDirection.z * moveSpeed
+    );
+
+    // Check collision with objects
+    for (let obj of game.objects) {
+        const box = new THREE.Box3().setFromObject(obj);
+        const enemyBox = new THREE.Box3(
+            new THREE.Vector3(
+                testPos.x - enemyRadius,
+                testPos.y - 2,
+                testPos.z - enemyRadius
+            ),
+            new THREE.Vector3(
+                testPos.x + enemyRadius,
+                testPos.y + 2,
+                testPos.z + enemyRadius
+            )
+        );
+
+        if (box.intersectsBox(enemyBox)) {
+            pathBlocked = true;
+
+            // Try to find alternative path - slide around obstacle
+            const objCenter = new THREE.Vector3();
+            box.getCenter(objCenter);
+
+            // Calculate perpendicular directions
+            const toObstacle = new THREE.Vector3();
+            toObstacle.subVectors(objCenter, game.enemy.position);
+            toObstacle.y = 0;
+            toObstacle.normalize();
+
+            // Try moving perpendicular to obstacle
+            const perpendicular1 = new THREE.Vector3(-toObstacle.z, 0, toObstacle.x);
+            const perpendicular2 = new THREE.Vector3(toObstacle.z, 0, -toObstacle.x);
+
+            // Choose the perpendicular direction closer to player
+            const dot1 = perpendicular1.dot(directionToPlayer);
+            const dot2 = perpendicular2.dot(directionToPlayer);
+
+            if (dot1 > dot2) {
+                moveDirection = perpendicular1;
+            } else {
+                moveDirection = perpendicular2;
+            }
+
+            break;
+        }
+    }
+
+    // Apply movement
+    game.enemy.position.x += moveDirection.x * moveSpeed;
+    game.enemy.position.z += moveDirection.z * moveSpeed;
+
+    // Final collision check and correction
+    for (let obj of game.objects) {
+        const box = new THREE.Box3().setFromObject(obj);
+        const enemyBox = new THREE.Box3(
+            new THREE.Vector3(
+                game.enemy.position.x - enemyRadius,
+                game.enemy.position.y - 2,
+                game.enemy.position.z - enemyRadius
+            ),
+            new THREE.Vector3(
+                game.enemy.position.x + enemyRadius,
+                game.enemy.position.y + 2,
+                game.enemy.position.z + enemyRadius
+            )
+        );
+
+        if (box.intersectsBox(enemyBox)) {
+            // Revert to old position if still colliding
+            game.enemy.position.copy(oldPos);
+            break;
+        }
+    }
 
     // Make enemy look at player
     game.enemy.lookAt(game.camera.position.x, game.enemy.position.y, game.camera.position.z);
@@ -593,6 +683,14 @@ function updateMovement(delta) {
     game.direction.x = Number(game.controls.moveRight) - Number(game.controls.moveLeft);
     game.direction.normalize();
 
+    // Track if player is moving
+    game.isMoving = game.controls.moveForward || game.controls.moveBackward ||
+                    game.controls.moveLeft || game.controls.moveRight;
+
+    if (game.isMoving) {
+        game.walkTime += delta * 10; // Speed of bobbing
+    }
+
     // Apply movement
     const moveSpeed = game.playerSpeed * delta;
 
@@ -620,35 +718,47 @@ function updateMovement(delta) {
         game.controls.canJump = true;
     }
 
-    // Simple collision detection with objects
+    // Improved collision detection with objects
+    const playerRadius = 0.8; // Larger collision radius for better feel
     game.objects.forEach(obj => {
         const box = new THREE.Box3().setFromObject(obj);
+
+        // Expand the bounding box slightly for smoother collision
+        box.expandByScalar(0.1);
+
         const playerBox = new THREE.Box3(
             new THREE.Vector3(
-                game.camera.position.x - 0.5,
+                game.camera.position.x - playerRadius,
                 game.camera.position.y - game.playerHeight,
-                game.camera.position.z - 0.5
+                game.camera.position.z - playerRadius
             ),
             new THREE.Vector3(
-                game.camera.position.x + 0.5,
+                game.camera.position.x + playerRadius,
                 game.camera.position.y,
-                game.camera.position.z + 0.5
+                game.camera.position.z + playerRadius
             )
         );
 
         if (box.intersectsBox(playerBox)) {
-            // Simple push-back collision response
+            // Better collision response - slide along walls
             const objCenter = new THREE.Vector3();
             box.getCenter(objCenter);
-            const playerCenter = new THREE.Vector3();
-            playerBox.getCenter(playerCenter);
 
-            const pushDir = new THREE.Vector3()
-                .subVectors(playerCenter, objCenter)
-                .normalize();
+            const dx = game.camera.position.x - objCenter.x;
+            const dz = game.camera.position.z - objCenter.z;
 
-            game.camera.position.x += pushDir.x * 0.5;
-            game.camera.position.z += pushDir.z * 0.5;
+            const boxHalfX = (box.max.x - box.min.x) / 2;
+            const boxHalfZ = (box.max.z - box.min.z) / 2;
+
+            const overlapX = playerRadius + boxHalfX - Math.abs(dx);
+            const overlapZ = playerRadius + boxHalfZ - Math.abs(dz);
+
+            // Push out on the axis with smallest overlap
+            if (overlapX < overlapZ) {
+                game.camera.position.x += overlapX * Math.sign(dx);
+            } else {
+                game.camera.position.z += overlapZ * Math.sign(dz);
+            }
         }
     });
 
@@ -663,6 +773,24 @@ function updateMovement(delta) {
         `${pos.x.toFixed(1)}, ${pos.y.toFixed(1)}, ${pos.z.toFixed(1)}`;
 }
 
+// Update sword bobbing animation
+function updateSwordBobbing() {
+    if (!game.equippedSwordMesh || game.isAttacking) return;
+
+    if (game.isMoving && game.isPointerLocked && !game.inventory.isOpen) {
+        // Bob up and down
+        const bobAmount = Math.sin(game.walkTime) * 0.03;
+        const swayAmount = Math.cos(game.walkTime * 0.5) * 0.02;
+
+        game.equippedSwordMesh.position.y = -0.5 + bobAmount;
+        game.equippedSwordMesh.position.x = 0.3 + swayAmount;
+    } else {
+        // Gradually return to rest position
+        game.equippedSwordMesh.position.y = THREE.MathUtils.lerp(game.equippedSwordMesh.position.y, -0.5, 0.1);
+        game.equippedSwordMesh.position.x = THREE.MathUtils.lerp(game.equippedSwordMesh.position.x, 0.3, 0.1);
+    }
+}
+
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
@@ -673,6 +801,7 @@ function animate() {
         updateMovement(delta);
         updateEnemy(delta);
         checkSwordPickup();
+        updateSwordBobbing();
 
         // Reduce attack cooldown
         if (game.attackCooldown > 0) {
