@@ -21,7 +21,10 @@ const game = {
     objects: [],
     raycaster: new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0), 0, 10),
     clock: new THREE.Clock(),
-    isPointerLocked: false
+    isPointerLocked: false,
+    enemy: null,
+    enemySpeed: 8.0,
+    isGameOver: false
 };
 
 // Initialize the game
@@ -95,6 +98,9 @@ function init() {
         createBox(x, 0, z, 3, 3, 3, 0xff6347);
     }
 
+    // Create enemy
+    createEnemy(-70, -70);
+
     // Set up event listeners
     setupControls();
 
@@ -127,6 +133,72 @@ function createBox(x, z, y, width, height, depth, color) {
     box.receiveShadow = true;
     game.scene.add(box);
     game.objects.push(box);
+}
+
+// Create enemy
+function createEnemy(x, z) {
+    const enemyGeometry = new THREE.SphereGeometry(2, 16, 16);
+    const enemyMaterial = new THREE.MeshLambertMaterial({
+        color: 0xff0000,
+        emissive: 0x330000
+    });
+    game.enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+    game.enemy.position.set(x, 2, z);
+    game.enemy.castShadow = true;
+    game.scene.add(game.enemy);
+
+    // Add glowing eyes
+    const eyeGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.6, 0.3, 1.5);
+    game.enemy.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.6, 0.3, 1.5);
+    game.enemy.add(rightEye);
+}
+
+// Update enemy AI
+function updateEnemy(delta) {
+    if (!game.enemy || game.isGameOver || !game.isPointerLocked) return;
+
+    // Calculate direction to player
+    const direction = new THREE.Vector3();
+    direction.subVectors(game.camera.position, game.enemy.position);
+    direction.y = 0; // Keep enemy on ground level
+    direction.normalize();
+
+    // Move enemy towards player
+    game.enemy.position.x += direction.x * game.enemySpeed * delta;
+    game.enemy.position.z += direction.z * game.enemySpeed * delta;
+
+    // Make enemy look at player
+    game.enemy.lookAt(game.camera.position.x, game.enemy.position.y, game.camera.position.z);
+
+    // Add bobbing animation
+    game.enemy.position.y = 2 + Math.sin(Date.now() * 0.003) * 0.3;
+
+    // Check collision with player
+    const distance = game.camera.position.distanceTo(game.enemy.position);
+    if (distance < 3) {
+        gameOver();
+    }
+}
+
+// Game over function
+function gameOver() {
+    game.isGameOver = true;
+    document.exitPointerLock();
+
+    const instructions = document.getElementById('instructions');
+    instructions.innerHTML = `
+        <h1 style="color: #ff0000;">GAME OVER!</h1>
+        <p>The enemy caught you!</p>
+        <p>Refresh the page to try again</p>
+    `;
+    instructions.classList.remove('hidden');
 }
 
 // Set up controls
@@ -226,7 +298,7 @@ function onWindowResize() {
 
 // Update player movement
 function updateMovement(delta) {
-    if (!game.isPointerLocked) return;
+    if (!game.isPointerLocked || game.isGameOver) return;
 
     // Apply gravity
     game.velocity.y -= game.gravity * delta;
@@ -312,6 +384,7 @@ function animate() {
 
     const delta = game.clock.getDelta();
     updateMovement(delta);
+    updateEnemy(delta);
 
     game.renderer.render(game.scene, game.camera);
 }
