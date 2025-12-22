@@ -305,35 +305,41 @@ function equipSword() {
     // Create sword mesh for first person view
     game.equippedSwordMesh = new THREE.Group();
 
-    // Blade - longer and more visible
-    const bladeGeometry = new THREE.BoxGeometry(0.08, 1.2, 0.04);
+    // Blade - larger and more visible
+    const bladeGeometry = new THREE.BoxGeometry(0.12, 1.5, 0.06);
     const bladeMaterial = new THREE.MeshLambertMaterial({
-        color: 0xc0c0c0,
-        emissive: 0x222222
+        color: 0xd0d0d0,
+        emissive: 0x333333
     });
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.set(0, 0.4, 0);
+    blade.position.set(0, 0.5, 0);
     blade.castShadow = true;
 
     // Handle
-    const handleGeometry = new THREE.BoxGeometry(0.06, 0.3, 0.06);
+    const handleGeometry = new THREE.BoxGeometry(0.08, 0.35, 0.08);
     const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 });
     const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-    handle.position.set(0, -0.35, 0);
+    handle.position.set(0, -0.4, 0);
     handle.castShadow = true;
 
     // Guard (crossguard)
-    const guardGeometry = new THREE.BoxGeometry(0.25, 0.04, 0.06);
-    const guardMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+    const guardGeometry = new THREE.BoxGeometry(0.35, 0.05, 0.08);
+    const guardMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffd700,
+        emissive: 0x332200
+    });
     const guard = new THREE.Mesh(guardGeometry, guardMaterial);
     guard.position.set(0, -0.2, 0);
     guard.castShadow = true;
 
     // Pommel (end of handle)
-    const pommelGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-    const pommelMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+    const pommelGeometry = new THREE.SphereGeometry(0.06, 8, 8);
+    const pommelMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffd700,
+        emissive: 0x332200
+    });
     const pommel = new THREE.Mesh(pommelGeometry, pommelMaterial);
-    pommel.position.set(0, -0.5, 0);
+    pommel.position.set(0, -0.58, 0);
     pommel.castShadow = true;
 
     game.equippedSwordMesh.add(blade);
@@ -341,10 +347,10 @@ function equipSword() {
     game.equippedSwordMesh.add(guard);
     game.equippedSwordMesh.add(pommel);
 
-    // Better positioning for first-person view
-    // Right side of screen, angled naturally
-    game.equippedSwordMesh.position.set(0.4, -0.4, -0.6);
-    game.equippedSwordMesh.rotation.set(-0.3, 0, 0.1); // x, y, z rotation
+    // Prominent positioning for first-person view
+    // More centered and visible
+    game.equippedSwordMesh.position.set(0.35, -0.25, -0.5);
+    game.equippedSwordMesh.rotation.set(-0.2, 0.05, 0.15); // x, y, z rotation
 
     game.camera.add(game.equippedSwordMesh);
 }
@@ -410,12 +416,12 @@ function attackWithSword() {
     // Enhanced swing animation
     if (game.equippedSwordMesh) {
         // Store original positions (matching equipSword)
-        const originalRotationX = -0.3;
-        const originalRotationY = 0;
-        const originalRotationZ = 0.1;
-        const originalPosX = 0.4;
-        const originalPosY = -0.4;
-        const originalPosZ = -0.6;
+        const originalRotationX = -0.2;
+        const originalRotationY = 0.05;
+        const originalRotationZ = 0.15;
+        const originalPosX = 0.35;
+        const originalPosY = -0.25;
+        const originalPosZ = -0.5;
 
         // Get current bobbing position if any
         const startPosX = game.equippedSwordMesh.position.x;
@@ -873,8 +879,8 @@ function updateMovement(delta) {
 function updateSwordBobbing() {
     if (!game.equippedSwordMesh || game.isAttacking) return;
 
-    const restPosX = 0.4;
-    const restPosY = -0.4;
+    const restPosX = 0.35;
+    const restPosY = -0.25;
 
     if (game.isMoving && game.isPointerLocked && !game.inventory.isOpen) {
         // Bob up and down with sway
