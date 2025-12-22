@@ -308,17 +308,25 @@ function equipSword() {
     const bladeGeometry = new THREE.BoxGeometry(0.1, 1, 0.05);
     const bladeMaterial = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 });
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.set(0.3, -0.3, -0.5);
-    blade.rotation.x = -Math.PI / 6;
+    blade.position.set(0, 0.25, 0);
 
     const handleGeometry = new THREE.BoxGeometry(0.08, 0.25, 0.08);
     const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
     const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-    handle.position.set(0.3, -0.8, -0.5);
-    handle.rotation.x = -Math.PI / 6;
+    handle.position.set(0, -0.5, 0);
+
+    const guardGeometry = new THREE.BoxGeometry(0.3, 0.05, 0.08);
+    const guardMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+    const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+    guard.position.set(0, -0.125, 0);
 
     game.equippedSwordMesh.add(blade);
     game.equippedSwordMesh.add(handle);
+    game.equippedSwordMesh.add(guard);
+
+    // Position and rotate the entire group
+    game.equippedSwordMesh.position.set(0.3, -0.5, -0.5);
+    game.equippedSwordMesh.rotation.x = -Math.PI / 6;
 
     game.camera.add(game.equippedSwordMesh);
 }
@@ -369,32 +377,83 @@ function attackWithSword() {
     game.isAttacking = true;
     game.attackCooldown = 0.5; // 0.5 second cooldown
 
-    // Swing animation
+    // Enhanced swing animation
     if (game.equippedSwordMesh) {
-        const originalRotation = game.equippedSwordMesh.rotation.z;
+        // Store original positions
+        const originalRotationZ = 0;
+        const originalRotationX = -Math.PI / 6;
+        const originalPosX = 0.3;
+        const originalPosY = -0.5;
+        const originalPosZ = -0.5;
 
-        // Swing forward
-        let swingProgress = 0;
-        const swingInterval = setInterval(() => {
-            swingProgress += 0.1;
-            game.equippedSwordMesh.rotation.z = originalRotation - (Math.PI / 2) * swingProgress;
+        // Get current bobbing position if any
+        const startPosX = game.equippedSwordMesh.position.x;
+        const startPosY = game.equippedSwordMesh.position.y;
 
-            if (swingProgress >= 1) {
-                clearInterval(swingInterval);
+        // Wind-up phase (pull back)
+        let windupProgress = 0;
+        const windupDuration = 8; // frames
+        const windupInterval = setInterval(() => {
+            windupProgress += 1 / windupDuration;
 
-                // Swing back
-                setTimeout(() => {
-                    let returnProgress = 0;
-                    const returnInterval = setInterval(() => {
-                        returnProgress += 0.1;
-                        game.equippedSwordMesh.rotation.z = originalRotation - (Math.PI / 2) * (1 - returnProgress);
+            // Pull sword back and up
+            game.equippedSwordMesh.rotation.z = originalRotationZ + (Math.PI / 6) * windupProgress;
+            game.equippedSwordMesh.rotation.x = -Math.PI / 6 - (Math.PI / 8) * windupProgress;
+            game.equippedSwordMesh.position.x = startPosX + 0.15 * windupProgress;
+            game.equippedSwordMesh.position.y = startPosY + 0.1 * windupProgress;
+            game.equippedSwordMesh.position.z = originalPosZ + 0.1 * windupProgress;
 
-                        if (returnProgress >= 1) {
-                            clearInterval(returnInterval);
-                            game.isAttacking = false;
-                        }
-                    }, 16);
-                }, 50);
+            if (windupProgress >= 1) {
+                clearInterval(windupInterval);
+
+                // Swing forward phase (fast and powerful)
+                let swingProgress = 0;
+                const swingDuration = 6; // frames - faster than windup
+                const swingInterval = setInterval(() => {
+                    swingProgress += 1 / swingDuration;
+                    const easeOut = 1 - Math.pow(1 - swingProgress, 3); // Ease out cubic
+
+                    // Dramatic diagonal slash
+                    game.equippedSwordMesh.rotation.z = (Math.PI / 6) - (Math.PI * 1.2) * easeOut;
+                    game.equippedSwordMesh.rotation.x = -Math.PI / 6 - Math.PI / 8 + (Math.PI / 4) * easeOut;
+                    game.equippedSwordMesh.position.x = startPosX + 0.15 - 0.5 * easeOut;
+                    game.equippedSwordMesh.position.y = startPosY + 0.1 - 0.4 * easeOut;
+                    game.equippedSwordMesh.position.z = originalPosZ + 0.1 - 0.4 * easeOut;
+
+                    if (swingProgress >= 1) {
+                        clearInterval(swingInterval);
+
+                        // Return to rest position
+                        setTimeout(() => {
+                            let returnProgress = 0;
+                            const returnDuration = 10; // frames - slower return
+                            const returnInterval = setInterval(() => {
+                                returnProgress += 1 / returnDuration;
+                                const easeInOut = returnProgress < 0.5
+                                    ? 2 * returnProgress * returnProgress
+                                    : 1 - Math.pow(-2 * returnProgress + 2, 2) / 2;
+
+                                game.equippedSwordMesh.rotation.z = (Math.PI / 6 - Math.PI * 1.2) * (1 - easeInOut);
+                                game.equippedSwordMesh.rotation.x = -Math.PI / 6 + (Math.PI / 8) * (1 - easeInOut);
+                                game.equippedSwordMesh.position.x = (startPosX + 0.15 - 0.5) + (originalPosX - (startPosX + 0.15 - 0.5)) * easeInOut;
+                                game.equippedSwordMesh.position.y = (startPosY + 0.1 - 0.4) + (originalPosY - (startPosY + 0.1 - 0.4)) * easeInOut;
+                                game.equippedSwordMesh.position.z = (originalPosZ + 0.1 - 0.4) + (originalPosZ - (originalPosZ + 0.1 - 0.4)) * easeInOut;
+
+                                if (returnProgress >= 1) {
+                                    clearInterval(returnInterval);
+                                    game.isAttacking = false;
+
+                                    // Ensure exact reset
+                                    game.equippedSwordMesh.rotation.z = originalRotationZ;
+                                    game.equippedSwordMesh.rotation.x = originalRotationX;
+                                    game.equippedSwordMesh.position.x = originalPosX;
+                                    game.equippedSwordMesh.position.y = originalPosY;
+                                    game.equippedSwordMesh.position.z = originalPosZ;
+                                }
+                            }, 16);
+                        }, 50);
+                    }
+                }, 16);
             }
         }, 16);
     }
