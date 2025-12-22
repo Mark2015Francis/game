@@ -67,6 +67,92 @@
             border-radius: 5px;
             font-size: 14px;
         }
+        #inventory {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            z-index: 100;
+            min-width: 400px;
+            display: none;
+        }
+        #inventory.visible {
+            display: block;
+        }
+        #inventory h2 {
+            margin-top: 0;
+            text-align: center;
+            border-bottom: 2px solid #666;
+            padding-bottom: 10px;
+        }
+        #inventoryItems {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .inventory-slot {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #666;
+            border-radius: 5px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .inventory-slot:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #fff;
+        }
+        .inventory-slot.equipped {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.2);
+        }
+        .inventory-slot.empty {
+            opacity: 0.3;
+            cursor: default;
+        }
+        .inventory-slot.empty:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #666;
+        }
+        .item-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+        .item-name {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .item-status {
+            font-size: 11px;
+            color: #4CAF50;
+            margin-top: 5px;
+        }
+        #inventoryHelp {
+            text-align: center;
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 15px;
+        }
+        #equippedInfo {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 14px;
+            border: 2px solid #4CAF50;
+        }
+        #equippedInfo.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -79,15 +165,25 @@
             WASD - Move<br>
             Mouse - Look around<br>
             Space - Jump<br>
+            I - Inventory<br>
+            Left Click - Attack (when armed)<br>
             ESC - Pause
         </p>
         <p style="font-size: 12px; color: #aaa;">
-            Avoid the red sphere enemy or it's game over!
+            Avoid the red sphere enemy or it's game over! Find the sword to fight back.
         </p>
+    </div>
+    <div id="inventory">
+        <h2>Inventory</h2>
+        <div id="inventoryItems"></div>
+        <div id="inventoryHelp">Click an item to equip/unequip | Press I or ESC to close</div>
     </div>
     <div id="crosshair"></div>
     <div id="info">
         Position: <span id="position">0, 0, 0</span>
+    </div>
+    <div id="equippedInfo" class="hidden">
+        ⚔️ <strong>Sword Equipped</strong> - Click to attack!
     </div>
     <canvas id="gameCanvas"></canvas>
 

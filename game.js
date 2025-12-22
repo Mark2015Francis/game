@@ -24,7 +24,17 @@ const game = {
     isPointerLocked: false,
     enemy: null,
     enemySpeed: 8.0,
-    isGameOver: false
+    isGameOver: false,
+    inventory: {
+        items: [],
+        equippedItem: null,
+        isOpen: false
+    },
+    sword: null,
+    swordCollected: false,
+    equippedSwordMesh: null,
+    isAttacking: false,
+    attackCooldown: 0
 };
 
 // Initialize the game
@@ -101,6 +111,12 @@ function init() {
     // Create enemy
     createEnemy(-70, -70);
 
+    // Create sword pickup item
+    createSwordPickup(40, 40);
+
+    // Initialize inventory UI
+    initInventory();
+
     // Set up event listeners
     setupControls();
 
@@ -160,9 +176,264 @@ function createEnemy(x, z) {
     game.enemy.add(rightEye);
 }
 
+// Create sword pickup
+function createSwordPickup(x, z) {
+    // Create sword group
+    game.sword = new THREE.Group();
+
+    // Sword blade
+    const bladeGeometry = new THREE.BoxGeometry(0.3, 2, 0.1);
+    const bladeMaterial = new THREE.MeshLambertMaterial({
+        color: 0xc0c0c0,
+        emissive: 0x404040
+    });
+    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    blade.position.y = 1;
+    blade.castShadow = true;
+
+    // Sword handle
+    const handleGeometry = new THREE.BoxGeometry(0.2, 0.5, 0.2);
+    const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.y = -0.25;
+    handle.castShadow = true;
+
+    // Sword guard
+    const guardGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.2);
+    const guardMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+    const guard = new THREE.Mesh(guardGeometry, guardMaterial);
+    guard.castShadow = true;
+
+    game.sword.add(blade);
+    game.sword.add(handle);
+    game.sword.add(guard);
+
+    game.sword.position.set(x, 1.5, z);
+    game.sword.rotation.z = Math.PI / 4;
+
+    game.scene.add(game.sword);
+
+    // Add glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffff00,
+        transparent: true,
+        opacity: 0.2
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    game.sword.add(glow);
+}
+
+// Initialize inventory system
+function initInventory() {
+    updateInventoryUI();
+}
+
+// Update inventory UI
+function updateInventoryUI() {
+    const inventoryItems = document.getElementById('inventoryItems');
+    inventoryItems.innerHTML = '';
+
+    // Create 6 inventory slots
+    for (let i = 0; i < 6; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'inventory-slot';
+
+        if (i < game.inventory.items.length) {
+            const item = game.inventory.items[i];
+            slot.classList.remove('empty');
+
+            const icon = document.createElement('div');
+            icon.className = 'item-icon';
+            icon.textContent = item.icon;
+
+            const name = document.createElement('div');
+            name.className = 'item-name';
+            name.textContent = item.name;
+
+            slot.appendChild(icon);
+            slot.appendChild(name);
+
+            if (game.inventory.equippedItem === item) {
+                slot.classList.add('equipped');
+                const status = document.createElement('div');
+                status.className = 'item-status';
+                status.textContent = 'EQUIPPED';
+                slot.appendChild(status);
+            }
+
+            slot.addEventListener('click', () => toggleEquipItem(item));
+        } else {
+            slot.classList.add('empty');
+            slot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+        }
+
+        inventoryItems.appendChild(slot);
+    }
+}
+
+// Toggle equip item
+function toggleEquipItem(item) {
+    if (game.inventory.equippedItem === item) {
+        // Unequip
+        game.inventory.equippedItem = null;
+        if (game.equippedSwordMesh) {
+            game.camera.remove(game.equippedSwordMesh);
+            game.equippedSwordMesh = null;
+        }
+        document.getElementById('equippedInfo').classList.add('hidden');
+    } else {
+        // Equip
+        game.inventory.equippedItem = item;
+        if (item.type === 'sword') {
+            equipSword();
+        }
+        document.getElementById('equippedInfo').classList.remove('hidden');
+    }
+    updateInventoryUI();
+}
+
+// Equip sword to player
+function equipSword() {
+    // Remove old sword if exists
+    if (game.equippedSwordMesh) {
+        game.camera.remove(game.equippedSwordMesh);
+    }
+
+    // Create sword mesh for first person view
+    game.equippedSwordMesh = new THREE.Group();
+
+    const bladeGeometry = new THREE.BoxGeometry(0.1, 1, 0.05);
+    const bladeMaterial = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 });
+    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    blade.position.set(0.3, -0.3, -0.5);
+    blade.rotation.x = -Math.PI / 6;
+
+    const handleGeometry = new THREE.BoxGeometry(0.08, 0.25, 0.08);
+    const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.set(0.3, -0.8, -0.5);
+    handle.rotation.x = -Math.PI / 6;
+
+    game.equippedSwordMesh.add(blade);
+    game.equippedSwordMesh.add(handle);
+
+    game.camera.add(game.equippedSwordMesh);
+}
+
+// Toggle inventory
+function toggleInventory() {
+    game.inventory.isOpen = !game.inventory.isOpen;
+    const inventoryDiv = document.getElementById('inventory');
+
+    if (game.inventory.isOpen) {
+        inventoryDiv.classList.add('visible');
+        document.exitPointerLock();
+    } else {
+        inventoryDiv.classList.remove('visible');
+    }
+}
+
+// Check sword pickup
+function checkSwordPickup() {
+    if (game.swordCollected || !game.sword) return;
+
+    const distance = game.camera.position.distanceTo(game.sword.position);
+
+    if (distance < 3) {
+        // Collect sword
+        game.swordCollected = true;
+        game.scene.remove(game.sword);
+
+        // Add to inventory
+        game.inventory.items.push({
+            name: 'Sword',
+            icon: '⚔️',
+            type: 'sword'
+        });
+
+        updateInventoryUI();
+
+        // Show notification
+        alert('You found a Sword! Press I to open inventory and equip it.');
+    }
+}
+
+// Attack with sword
+function attackWithSword() {
+    if (!game.inventory.equippedItem || game.inventory.equippedItem.type !== 'sword') return;
+    if (game.isAttacking || game.attackCooldown > 0) return;
+
+    game.isAttacking = true;
+    game.attackCooldown = 0.5; // 0.5 second cooldown
+
+    // Swing animation
+    if (game.equippedSwordMesh) {
+        const originalRotation = game.equippedSwordMesh.rotation.z;
+
+        // Swing forward
+        let swingProgress = 0;
+        const swingInterval = setInterval(() => {
+            swingProgress += 0.1;
+            game.equippedSwordMesh.rotation.z = originalRotation - (Math.PI / 2) * swingProgress;
+
+            if (swingProgress >= 1) {
+                clearInterval(swingInterval);
+
+                // Swing back
+                setTimeout(() => {
+                    let returnProgress = 0;
+                    const returnInterval = setInterval(() => {
+                        returnProgress += 0.1;
+                        game.equippedSwordMesh.rotation.z = originalRotation - (Math.PI / 2) * (1 - returnProgress);
+
+                        if (returnProgress >= 1) {
+                            clearInterval(returnInterval);
+                            game.isAttacking = false;
+                        }
+                    }, 16);
+                }, 50);
+            }
+        }, 16);
+    }
+
+    // Check if hit enemy
+    if (game.enemy) {
+        const distance = game.camera.position.distanceTo(game.enemy.position);
+        if (distance < 5) {
+            // Calculate if enemy is in front of player
+            const directionToEnemy = new THREE.Vector3();
+            directionToEnemy.subVectors(game.enemy.position, game.camera.position);
+            directionToEnemy.normalize();
+
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(game.camera.quaternion);
+
+            const angle = forward.angleTo(directionToEnemy);
+
+            if (angle < Math.PI / 4) { // 45 degree cone in front
+                defeatEnemy();
+            }
+        }
+    }
+}
+
+// Defeat enemy
+function defeatEnemy() {
+    if (!game.enemy) return;
+
+    game.scene.remove(game.enemy);
+    game.enemy = null;
+
+    // Show victory message
+    setTimeout(() => {
+        alert('Victory! You defeated the enemy!');
+    }, 100);
+}
+
 // Update enemy AI
 function updateEnemy(delta) {
-    if (!game.enemy || game.isGameOver || !game.isPointerLocked) return;
+    if (!game.enemy || game.isGameOver || !game.isPointerLocked || game.inventory.isOpen) return;
 
     // Calculate direction to player
     const direction = new THREE.Vector3();
@@ -261,8 +532,15 @@ function setupControls() {
                 }
                 game.controls.canJump = false;
                 break;
+            case 'KeyI':
+                toggleInventory();
+                break;
             case 'Escape':
-                document.exitPointerLock();
+                if (game.inventory.isOpen) {
+                    toggleInventory();
+                } else {
+                    document.exitPointerLock();
+                }
                 break;
         }
     });
@@ -285,6 +563,13 @@ function setupControls() {
             case 'ArrowRight':
                 game.controls.moveRight = false;
                 break;
+        }
+    });
+
+    // Mouse click for attacking
+    document.addEventListener('click', (event) => {
+        if (game.isPointerLocked && !game.inventory.isOpen) {
+            attackWithSword();
         }
     });
 }
@@ -383,8 +668,23 @@ function animate() {
     requestAnimationFrame(animate);
 
     const delta = game.clock.getDelta();
-    updateMovement(delta);
-    updateEnemy(delta);
+
+    if (!game.inventory.isOpen) {
+        updateMovement(delta);
+        updateEnemy(delta);
+        checkSwordPickup();
+
+        // Reduce attack cooldown
+        if (game.attackCooldown > 0) {
+            game.attackCooldown -= delta;
+        }
+    }
+
+    // Animate sword pickup (rotate)
+    if (game.sword && !game.swordCollected) {
+        game.sword.rotation.y += delta * 2;
+        game.sword.position.y = 1.5 + Math.sin(Date.now() * 0.002) * 0.3;
+    }
 
     game.renderer.render(game.scene, game.camera);
 }
