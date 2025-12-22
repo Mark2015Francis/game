@@ -347,10 +347,10 @@ function equipSword() {
     game.equippedSwordMesh.add(guard);
     game.equippedSwordMesh.add(pommel);
 
-    // Prominent positioning for first-person view
-    // More centered and visible
-    game.equippedSwordMesh.position.set(0.35, -0.25, -0.5);
-    game.equippedSwordMesh.rotation.set(-0.2, 0.05, 0.15); // x, y, z rotation
+    // Centered positioning directly in front of camera
+    // Right in front of player for better visibility
+    game.equippedSwordMesh.position.set(0.25, -0.3, -0.4);
+    game.equippedSwordMesh.rotation.set(-0.15, 0, 0.05); // x, y, z rotation - minimal tilt
 
     game.camera.add(game.equippedSwordMesh);
 }
@@ -416,12 +416,12 @@ function attackWithSword() {
     // Enhanced swing animation
     if (game.equippedSwordMesh) {
         // Store original positions (matching equipSword)
-        const originalRotationX = -0.2;
-        const originalRotationY = 0.05;
-        const originalRotationZ = 0.15;
-        const originalPosX = 0.35;
-        const originalPosY = -0.25;
-        const originalPosZ = -0.5;
+        const originalRotationX = -0.15;
+        const originalRotationY = 0;
+        const originalRotationZ = 0.05;
+        const originalPosX = 0.25;
+        const originalPosY = -0.3;
+        const originalPosZ = -0.4;
 
         // Get current bobbing position if any
         const startPosX = game.equippedSwordMesh.position.x;
@@ -506,7 +506,7 @@ function attackWithSword() {
     // Check if hit enemy
     if (game.enemy) {
         const distance = game.camera.position.distanceTo(game.enemy.position);
-        if (distance < 10) { // Increased range from 5 to 10
+        if (distance < 15) { // Large attack range of 15 units
             // Calculate if enemy is in front of player
             const directionToEnemy = new THREE.Vector3();
             directionToEnemy.subVectors(game.enemy.position, game.camera.position);
@@ -517,7 +517,7 @@ function attackWithSword() {
 
             const angle = forward.angleTo(directionToEnemy);
 
-            if (angle < Math.PI / 3) { // Wider 60 degree cone in front
+            if (angle < Math.PI / 2.5) { // Wide 72 degree cone in front
                 defeatEnemy();
             }
         }
@@ -879,8 +879,8 @@ function updateMovement(delta) {
 function updateSwordBobbing() {
     if (!game.equippedSwordMesh || game.isAttacking) return;
 
-    const restPosX = 0.35;
-    const restPosY = -0.25;
+    const restPosX = 0.25;
+    const restPosY = -0.3;
 
     if (game.isMoving && game.isPointerLocked && !game.inventory.isOpen) {
         // Bob up and down with sway
