@@ -27,12 +27,14 @@ const game = {
     isGameOver: false,
     inventory: {
         items: [],
-        equippedItem: null,
+        equippedSword: false,
+        equippedShield: false,
         isOpen: false
     },
-    sword: null,
-    swordCollected: false,
+    shield: null,
+    shieldCollected: false,
     equippedSwordMesh: null,
+    hasShieldProtection: false,
     isAttacking: false,
     attackCooldown: 0,
     walkTime: 0,
@@ -113,11 +115,15 @@ function init() {
     // Create enemy
     createEnemy(-70, -70);
 
-    // Create sword pickup item
-    createSwordPickup(40, 40);
+    // Create shield pickup item
+    createShieldPickup(40, 40);
 
     // Initialize inventory UI
     initInventory();
+
+    // Equip sword at start
+    game.inventory.equippedSword = true;
+    equipSword();
 
     // Set up event listeners
     setupControls();
@@ -178,52 +184,44 @@ function createEnemy(x, z) {
     game.enemy.add(rightEye);
 }
 
-// Create sword pickup
-function createSwordPickup(x, z) {
-    // Create sword group
-    game.sword = new THREE.Group();
+// Create shield pickup
+function createShieldPickup(x, z) {
+    // Create shield group
+    game.shield = new THREE.Group();
 
-    // Sword blade
-    const bladeGeometry = new THREE.BoxGeometry(0.3, 2, 0.1);
-    const bladeMaterial = new THREE.MeshLambertMaterial({
-        color: 0xc0c0c0,
-        emissive: 0x404040
+    // Shield body - circular
+    const shieldGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
+    const shieldMaterial = new THREE.MeshLambertMaterial({
+        color: 0x4169e1,
+        emissive: 0x0000ff
     });
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.y = 1;
-    blade.castShadow = true;
+    const shieldBody = new THREE.Mesh(shieldGeometry, shieldMaterial);
+    shieldBody.rotation.x = Math.PI / 2;
+    shieldBody.castShadow = true;
 
-    // Sword handle
-    const handleGeometry = new THREE.BoxGeometry(0.2, 0.5, 0.2);
-    const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
-    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-    handle.position.y = -0.25;
-    handle.castShadow = true;
+    // Shield boss (center)
+    const bossGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const bossMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
+    boss.castShadow = true;
 
-    // Sword guard
-    const guardGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.2);
-    const guardMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
-    const guard = new THREE.Mesh(guardGeometry, guardMaterial);
-    guard.castShadow = true;
+    game.shield.add(shieldBody);
+    game.shield.add(boss);
 
-    game.sword.add(blade);
-    game.sword.add(handle);
-    game.sword.add(guard);
+    game.shield.position.set(x, 1.5, z);
+    game.shield.rotation.z = Math.PI / 4;
 
-    game.sword.position.set(x, 1.5, z);
-    game.sword.rotation.z = Math.PI / 4;
-
-    game.scene.add(game.sword);
+    game.scene.add(game.shield);
 
     // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff00,
+        color: 0x4169e1,
         transparent: true,
         opacity: 0.2
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.sword.add(glow);
+    game.shield.add(glow);
 }
 
 // Initialize inventory system
@@ -236,8 +234,22 @@ function updateInventoryUI() {
     const inventoryItems = document.getElementById('inventoryItems');
     inventoryItems.innerHTML = '';
 
-    // Create 6 inventory slots
-    for (let i = 0; i < 6; i++) {
+    // Always show sword in first slot (equipped at start)
+    const swordSlot = document.createElement('div');
+    swordSlot.className = 'inventory-slot';
+    if (game.inventory.equippedSword) {
+        swordSlot.classList.add('equipped');
+    }
+    swordSlot.innerHTML = `
+        <div class="item-icon">⚔️</div>
+        <div class="item-name">Sword</div>
+        ${game.inventory.equippedSword ? '<div class="item-status">EQUIPPED</div>' : ''}
+    `;
+    swordSlot.addEventListener('click', () => toggleEquipSword());
+    inventoryItems.appendChild(swordSlot);
+
+    // Create remaining slots for other items
+    for (let i = 0; i < 5; i++) {
         const slot = document.createElement('div');
         slot.className = 'inventory-slot';
 
@@ -256,7 +268,8 @@ function updateInventoryUI() {
             slot.appendChild(icon);
             slot.appendChild(name);
 
-            if (game.inventory.equippedItem === item) {
+            const isEquipped = (item.type === 'shield' && game.inventory.equippedShield);
+            if (isEquipped) {
                 slot.classList.add('equipped');
                 const status = document.createElement('div');
                 status.className = 'item-status';
@@ -274,25 +287,39 @@ function updateInventoryUI() {
     }
 }
 
-// Toggle equip item
-function toggleEquipItem(item) {
-    if (game.inventory.equippedItem === item) {
-        // Unequip
-        game.inventory.equippedItem = null;
+// Toggle equip sword
+function toggleEquipSword() {
+    if (game.inventory.equippedSword) {
+        // Unequip sword
+        game.inventory.equippedSword = false;
         if (game.equippedSwordMesh) {
             game.camera.remove(game.equippedSwordMesh);
             game.equippedSwordMesh = null;
         }
-        document.getElementById('equippedInfo').classList.add('hidden');
     } else {
-        // Equip
-        game.inventory.equippedItem = item;
-        if (item.type === 'sword') {
-            equipSword();
-        }
-        document.getElementById('equippedInfo').classList.remove('hidden');
+        // Equip sword
+        game.inventory.equippedSword = true;
+        equipSword();
     }
     updateInventoryUI();
+    toggleInventory(); // Close inventory after equipping
+}
+
+// Toggle equip item (for shield and other items)
+function toggleEquipItem(item) {
+    if (item.type === 'shield') {
+        if (game.inventory.equippedShield) {
+            // Unequip shield
+            game.inventory.equippedShield = false;
+            game.hasShieldProtection = false;
+        } else {
+            // Equip shield
+            game.inventory.equippedShield = true;
+            game.hasShieldProtection = true;
+        }
+        updateInventoryUI();
+        toggleInventory(); // Close inventory after equipping
+    }
 }
 
 // Equip sword to player
@@ -382,34 +409,38 @@ function showNotification(message) {
     }, 3000);
 }
 
-// Check sword pickup
-function checkSwordPickup() {
-    if (game.swordCollected || !game.sword) return;
+// Check shield pickup
+function checkShieldPickup() {
+    if (game.shieldCollected || !game.shield) return;
 
-    const distance = game.camera.position.distanceTo(game.sword.position);
+    const distance = game.camera.position.distanceTo(game.shield.position);
 
     if (distance < 3) {
-        // Collect sword
-        game.swordCollected = true;
-        game.scene.remove(game.sword);
+        // Collect shield
+        game.shieldCollected = true;
+        game.scene.remove(game.shield);
 
         // Add to inventory
         game.inventory.items.push({
-            name: 'Sword',
-            icon: '⚔️',
-            type: 'sword'
+            name: 'Shield',
+            icon: '🛡️',
+            type: 'shield'
         });
+
+        // Auto-equip shield
+        game.inventory.equippedShield = true;
+        game.hasShieldProtection = true;
 
         updateInventoryUI();
 
         // Show notification (non-blocking)
-        showNotification('⚔️ Sword collected! Press I to open inventory and equip it.');
+        showNotification('🛡️ Shield collected and equipped! Protects you from one enemy hit.');
     }
 }
 
 // Attack with sword
 function attackWithSword() {
-    if (!game.inventory.equippedItem || game.inventory.equippedItem.type !== 'sword') return;
+    if (!game.inventory.equippedSword) return;
     if (game.isAttacking || game.attackCooldown > 0) return;
 
     game.isAttacking = true;
@@ -648,7 +679,29 @@ function updateEnemy(delta) {
     // Check collision with player
     const distance = game.camera.position.distanceTo(game.enemy.position);
     if (distance < 3) {
-        gameOver();
+        if (game.hasShieldProtection) {
+            // Shield protects - teleport player and enemy apart
+            game.hasShieldProtection = false;
+            game.inventory.equippedShield = false;
+
+            // Calculate direction from enemy to player
+            const pushDirection = new THREE.Vector3();
+            pushDirection.subVectors(game.camera.position, game.enemy.position);
+            pushDirection.y = 0;
+            pushDirection.normalize();
+
+            // Move player 6 steps away
+            game.camera.position.x += pushDirection.x * 12;
+            game.camera.position.z += pushDirection.z * 12;
+
+            // Move enemy 6 steps in opposite direction
+            game.enemy.position.x -= pushDirection.x * 12;
+            game.enemy.position.z -= pushDirection.z * 12;
+
+            showNotification('🛡️ Shield absorbed the hit! Find another shield for protection.');
+        } else {
+            gameOver();
+        }
     }
 }
 
@@ -907,7 +960,7 @@ function animate() {
     if (!game.inventory.isOpen) {
         updateMovement(delta);
         updateEnemy(delta);
-        checkSwordPickup();
+        checkShieldPickup();
         updateSwordBobbing();
 
         // Reduce attack cooldown
@@ -916,10 +969,10 @@ function animate() {
         }
     }
 
-    // Animate sword pickup (rotate)
-    if (game.sword && !game.swordCollected) {
-        game.sword.rotation.y += delta * 2;
-        game.sword.position.y = 1.5 + Math.sin(Date.now() * 0.002) * 0.3;
+    // Animate shield pickup (rotate)
+    if (game.shield && !game.shieldCollected) {
+        game.shield.rotation.y += delta * 2;
+        game.shield.position.y = 1.5 + Math.sin(Date.now() * 0.002) * 0.3;
     }
 
     game.renderer.render(game.scene, game.camera);
