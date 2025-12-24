@@ -609,13 +609,19 @@ function attackWithSword() {
                 // Deal 1 damage
                 enemy.hp -= 1;
 
-                // Visual feedback - flash red
-                enemy.material.emissive.setHex(0xff0000);
+                // Visual feedback - flash bright white for visibility
+                const originalColor = enemy.material.color.getHex();
+                enemy.material.color.setHex(0xffffff);
+                enemy.material.emissive.setHex(0xffffff);
                 setTimeout(() => {
                     if (enemy && enemy.material) {
+                        enemy.material.color.setHex(originalColor);
                         enemy.material.emissive.setHex(0x330000);
                     }
-                }, 100);
+                }, 150);
+
+                // Show damage feedback
+                showNotification(`⚔️ Hit! Enemy HP: ${enemy.hp}/5`);
 
                 if (enemy.hp <= 0) {
                     defeatEnemy(enemy, i);
