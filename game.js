@@ -1,3 +1,6 @@
+// Game version
+const GAME_VERSION = "v1.0.0";
+
 // Game state
 const game = {
     scene: null,
