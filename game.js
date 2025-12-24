@@ -640,15 +640,13 @@ function shootArrow() {
     // Position at camera
     arrow.position.copy(game.camera.position);
 
-    // Set velocity in camera direction (clone quaternion to protect it)
-    const direction = new THREE.Vector3(0, 0, -1);
-    const cameraQuat = game.camera.quaternion.clone();
-    direction.applyQuaternion(cameraQuat);
+    // Get camera direction using getWorldDirection (safer method)
+    const direction = new THREE.Vector3();
+    game.camera.getWorldDirection(direction);
 
-    console.log('Camera quaternion:', game.camera.quaternion);
-    console.log('Direction:', direction);
+    console.log('Camera direction:', direction);
 
-    // Create velocity vector without modifying direction
+    // Create velocity vector
     arrow.velocity = new THREE.Vector3(
         direction.x * 50,
         direction.y * 50,
