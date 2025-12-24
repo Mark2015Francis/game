@@ -1259,6 +1259,12 @@ function enterWorldTwo() {
         game.enemies.forEach(enemy => game.scene.remove(enemy));
         game.enemies = [];
 
+        // Remove boss if it exists
+        if (game.boss) {
+            game.scene.remove(game.boss);
+            game.boss = null;
+        }
+
         // Remove portal
         if (game.portal) {
             game.scene.remove(game.portal);
