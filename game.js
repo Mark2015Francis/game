@@ -1,5 +1,5 @@
 // Game version
-const GAME_VERSION = "v1.1.0";
+const GAME_VERSION = "v2.2.0";
 
 // Game state
 const game = {
