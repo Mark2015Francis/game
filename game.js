@@ -1660,7 +1660,8 @@ function updateEnemy(delta) {
     const moveSpeed = game.enemySpeed * delta;
 
     // Helper function to test if a position is valid (no collision)
-    function isPositionValid(testPos) {
+    function isPositionValid(testPos, currentEnemy) {
+        // Check collision with walls/objects
         for (let obj of game.objects) {
             const box = new THREE.Box3().setFromObject(obj);
             const enemyBox = new THREE.Box3(
@@ -1679,6 +1680,19 @@ function updateEnemy(delta) {
                 return false;
             }
         }
+
+        // Check collision with other enemies
+        for (let otherEnemy of game.enemies) {
+            if (otherEnemy === currentEnemy) continue; // Skip self
+
+            const distance = testPos.distanceTo(otherEnemy.position);
+            const minDistance = 2.0; // Minimum distance between enemies (prevents phasing)
+
+            if (distance < minDistance) {
+                return false; // Too close to another enemy
+            }
+        }
+
         return true;
     }
 
@@ -1714,7 +1728,7 @@ function updateEnemy(delta) {
                     enemy.position.y,
                     enemy.position.z - directionToPlayer.z * moveSpeed * 0.5
                 );
-                if (isPositionValid(backupMove)) {
+                if (isPositionValid(backupMove, enemy)) {
                     enemy.position.copy(backupMove);
                 }
             } else if (distanceToPlayer > preferredDistance + 10) {
@@ -1724,7 +1738,7 @@ function updateEnemy(delta) {
                     enemy.position.y,
                     enemy.position.z + directionToPlayer.z * moveSpeed * 0.3
                 );
-                if (isPositionValid(approachMove)) {
+                if (isPositionValid(approachMove, enemy)) {
                     enemy.position.copy(approachMove);
                 }
             }
@@ -1768,7 +1782,7 @@ function updateEnemy(delta) {
                 enemy.position.z + strategy.z * moveSpeed
             );
 
-            if (isPositionValid(testPos)) {
+            if (isPositionValid(testPos, enemy)) {
                 // Score based on how much it moves toward the player
                 const score = strategy.dot(directionToPlayer);
                 if (score > bestScore) {
@@ -1789,7 +1803,7 @@ function updateEnemy(delta) {
                 enemy.position.y,
                 enemy.position.z
             );
-            if (isPositionValid(slideX)) {
+            if (isPositionValid(slideX, enemy)) {
                 enemy.position.copy(slideX);
             } else {
                 // Try Z-axis only movement
@@ -1798,7 +1812,7 @@ function updateEnemy(delta) {
                     enemy.position.y,
                     enemy.position.z + directionToPlayer.z * moveSpeed
                 );
-                if (isPositionValid(slideZ)) {
+                if (isPositionValid(slideZ, enemy)) {
                     enemy.position.copy(slideZ);
                 }
                 // If both fail, enemy stays in place this frame
