@@ -378,49 +378,67 @@ function equipSword() {
     const armGeometry = new THREE.CylinderGeometry(0.08, 0.1, 0.8, 8);
     const armMaterial = new THREE.MeshBasicMaterial({
         color: 0xffdbac, // Skin tone
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        depthTest: false, // Always render on top
+        depthWrite: false
     });
     const arm = new THREE.Mesh(armGeometry, armMaterial);
-    arm.position.set(0.2, -0.5, -0.2); // Moved z from 0 to -0.2
+    arm.position.set(0.2, -0.5, -0.2);
     arm.rotation.z = -0.2;
+    arm.renderOrder = 999; // Render last
 
     // Hand/fist
     const handGeometry = new THREE.SphereGeometry(0.12, 8, 8);
     const hand = new THREE.Mesh(handGeometry, armMaterial);
-    hand.position.set(0.15, -0.8, -0.1); // Moved z from 0 to -0.1
+    hand.position.set(0.15, -0.8, -0.1);
+    hand.renderOrder = 999;
 
     // Blade - large, bright white for maximum visibility
     const bladeGeometry = new THREE.BoxGeometry(0.15, 2.5, 0.08);
     const bladeMaterial = new THREE.MeshBasicMaterial({
         color: 0xffffff,
-        side: THREE.DoubleSide  // Visible from both sides
+        side: THREE.DoubleSide,
+        depthTest: false, // Always render on top
+        depthWrite: false
     });
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.set(0, 0.8, -0.1); // Moved z to -0.1
+    blade.position.set(0, 0.8, -0.1);
+    blade.renderOrder = 999;
 
     // Handle - brown wood
     const handleGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.1);
     const handleMaterial = new THREE.MeshBasicMaterial({
         color: 0x8b4513,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
     });
     const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-    handle.position.set(0, -0.5, -0.1); // Moved z to -0.1
+    handle.position.set(0, -0.5, -0.1);
+    handle.renderOrder = 999;
 
     // Guard (crossguard) - bright gold
     const guardGeometry = new THREE.BoxGeometry(0.5, 0.08, 0.1);
     const guardMaterial = new THREE.MeshBasicMaterial({
         color: 0xffff00,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
     });
     const guard = new THREE.Mesh(guardGeometry, guardMaterial);
-    guard.position.set(0, -0.25, -0.1); // Moved z to -0.1
+    guard.position.set(0, -0.25, -0.1);
+    guard.renderOrder = 999;
 
     // Pommel - bright gold sphere
     const pommelGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-    const pommelMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    const pommelMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffff00,
+        depthTest: false,
+        depthWrite: false
+    });
     const pommel = new THREE.Mesh(pommelGeometry, pommelMaterial);
-    pommel.position.set(0, -0.75, -0.1); // Moved z to -0.1
+    pommel.position.set(0, -0.75, -0.1);
+    pommel.renderOrder = 999;
 
     game.equippedSwordMesh.add(arm);
     game.equippedSwordMesh.add(hand);
