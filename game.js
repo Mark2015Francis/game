@@ -645,6 +645,9 @@ function shootArrow() {
             game.camera.position.z
         );
 
+        // Store starting position to track distance traveled
+        arrow.startPosition = arrow.position.clone();
+
         // Get camera direction WITHOUT using getWorldDirection
         // Calculate from camera rotation manually
         const pitch = game.camera.rotation.x;
@@ -1467,10 +1470,12 @@ function updateProjectiles(delta) {
             }
         }
 
-        // Remove arrow if it hit, hit the ground, or went too far
-        if (hitEnemy || arrow.position.y < 0 || arrow.position.length() > 200) {
+        // Remove arrow if it hit, hit the ground, or traveled too far
+        const distanceTraveled = arrow.position.distanceTo(arrow.startPosition);
+        if (hitEnemy || arrow.position.y < 0 || distanceTraveled > 200) {
             game.scene.remove(arrow);
             game.projectiles.splice(i, 1);
+            console.log('Arrow removed. Reason:', hitEnemy ? 'hit enemy' : arrow.position.y < 0 ? 'hit ground' : 'traveled too far');
         }
     }
 }
