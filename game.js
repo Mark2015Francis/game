@@ -381,13 +381,13 @@ function equipSword() {
         side: THREE.DoubleSide
     });
     const arm = new THREE.Mesh(armGeometry, armMaterial);
-    arm.position.set(0.2, -0.5, 0);
+    arm.position.set(0.2, -0.5, -0.2); // Moved z from 0 to -0.2
     arm.rotation.z = -0.2;
 
     // Hand/fist
     const handGeometry = new THREE.SphereGeometry(0.12, 8, 8);
     const hand = new THREE.Mesh(handGeometry, armMaterial);
-    hand.position.set(0.15, -0.8, 0);
+    hand.position.set(0.15, -0.8, -0.1); // Moved z from 0 to -0.1
 
     // Blade - large, bright white for maximum visibility
     const bladeGeometry = new THREE.BoxGeometry(0.15, 2.5, 0.08);
@@ -396,7 +396,7 @@ function equipSword() {
         side: THREE.DoubleSide  // Visible from both sides
     });
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.set(0, 0.8, 0);
+    blade.position.set(0, 0.8, -0.1); // Moved z to -0.1
 
     // Handle - brown wood
     const handleGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.1);
@@ -405,7 +405,7 @@ function equipSword() {
         side: THREE.DoubleSide
     });
     const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-    handle.position.set(0, -0.5, 0);
+    handle.position.set(0, -0.5, -0.1); // Moved z to -0.1
 
     // Guard (crossguard) - bright gold
     const guardGeometry = new THREE.BoxGeometry(0.5, 0.08, 0.1);
@@ -414,13 +414,13 @@ function equipSword() {
         side: THREE.DoubleSide
     });
     const guard = new THREE.Mesh(guardGeometry, guardMaterial);
-    guard.position.set(0, -0.25, 0);
+    guard.position.set(0, -0.25, -0.1); // Moved z to -0.1
 
     // Pommel - bright gold sphere
     const pommelGeometry = new THREE.SphereGeometry(0.1, 8, 8);
     const pommelMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
     const pommel = new THREE.Mesh(pommelGeometry, pommelMaterial);
-    pommel.position.set(0, -0.75, 0);
+    pommel.position.set(0, -0.75, -0.1); // Moved z to -0.1
 
     game.equippedSwordMesh.add(arm);
     game.equippedSwordMesh.add(hand);
@@ -432,6 +432,15 @@ function equipSword() {
     // Position sword with arm clearly visible in camera view (right side)
     game.equippedSwordMesh.position.set(0.3, -0.3, -0.5);
     game.equippedSwordMesh.rotation.set(-0.2, 0.1, 0.05);
+
+    // Disable frustum culling for all sword parts to ensure they're always rendered
+    arm.frustumCulled = false;
+    hand.frustumCulled = false;
+    blade.frustumCulled = false;
+    handle.frustumCulled = false;
+    guard.frustumCulled = false;
+    pommel.frustumCulled = false;
+    game.equippedSwordMesh.frustumCulled = false;
 
     // Add to camera so it moves with player's view
     game.camera.add(game.equippedSwordMesh);
