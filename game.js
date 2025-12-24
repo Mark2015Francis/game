@@ -1339,6 +1339,13 @@ function enterWorldTwo() {
         // Change scene background to indicate new world
         game.scene.background = new THREE.Color(0x4a0e4e); // Purple sky for world 2
 
+        // Spawn initial enemies in World 2
+        spawnEnemy();
+        spawnEnemy();
+        spawnEnemy();
+        spawnEnemy();
+        spawnEnemy(); // 5 initial enemies in World 2 (more than World 1's 3)
+
         showNotification('🎮 Welcome to World 2! Enemies are stronger here!');
         console.log('Entered World 2');
     }, 1000);
