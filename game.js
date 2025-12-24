@@ -399,7 +399,14 @@ function toggleEquipSword() {
             game.equippedSwordMesh = null;
         }
     } else {
-        // Equip sword
+        // Equip sword - unequip bow first if equipped
+        if (game.equippedBow) {
+            game.equippedBow = false;
+            if (game.equippedBowMesh) {
+                game.camera.remove(game.equippedBowMesh);
+                game.equippedBowMesh = null;
+            }
+        }
         game.inventory.equippedSword = true;
         equipSword();
     }
