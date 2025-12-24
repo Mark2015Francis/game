@@ -228,8 +228,8 @@ function spawnEnemy() {
     const spawnX = distToPlayer < 50 ? Math.cos(Math.random() * Math.PI * 2) * (100 + Math.random() * 100) : x;
     const spawnZ = distToPlayer < 50 ? Math.sin(Math.random() * Math.PI * 2) * (100 + Math.random() * 100) : z;
 
-    // In World 2, 30% chance to spawn projectile enemy instead of regular enemy
-    if (game.currentWorld === 2 && Math.random() < 0.3) {
+    // In World 2, 50% chance to spawn projectile enemy instead of regular enemy
+    if (game.currentWorld === 2 && Math.random() < 0.5) {
         createProjectileEnemy(spawnX, spawnZ);
     } else {
         createEnemy(spawnX, spawnZ);
