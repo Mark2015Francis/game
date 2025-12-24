@@ -63,7 +63,10 @@ const game = {
     bossJumpCooldown: 10,
     bossStunned: false,
     bossStunTimer: 0,
-    bossIsJumping: false
+    bossIsJumping: false,
+    portal: null,
+    portalSpawned: false,
+    currentWorld: 1
 };
 
 // Initialize the game
@@ -205,12 +208,7 @@ function spawnEnemy() {
     // Check if we should spawn the boss instead
     if (game.totalEnemiesSpawned >= 20 && !game.bossSpawned) {
         spawnBoss();
-        return;
-    }
-
-    // Don't spawn more regular enemies if boss is active
-    if (game.bossSpawned) {
-        return;
+        // Don't return - continue spawning regular enemies
     }
 
     const x = (Math.random() * 600 - 300);
@@ -1017,6 +1015,7 @@ function attackWithSword() {
 function defeatBoss() {
     if (!game.boss) return;
 
+    const bossPos = game.boss.position.clone();
     game.scene.remove(game.boss);
     game.boss = null;
     game.bossSpawned = false;
@@ -1028,6 +1027,151 @@ function defeatBoss() {
 
     showNotification('🎉 BOSS DEFEATED! +1000 EXP!');
     console.log('Boss defeated!');
+
+    // Spawn portal to world 2
+    setTimeout(() => {
+        spawnPortal(bossPos.x, bossPos.z);
+    }, 2000); // Spawn portal 2 seconds after boss defeat
+}
+
+// Spawn portal to next world
+function spawnPortal(x, z) {
+    if (game.portalSpawned) return;
+
+    // Create portal group
+    game.portal = new THREE.Group();
+
+    // Outer ring - rotating
+    const outerRingGeometry = new THREE.TorusGeometry(3, 0.3, 16, 100);
+    const outerRingMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        transparent: true,
+        opacity: 0.8
+    });
+    const outerRing = new THREE.Mesh(outerRingGeometry, outerRingMaterial);
+    outerRing.rotation.x = Math.PI / 2;
+
+    // Inner portal surface - swirling effect
+    const portalGeometry = new THREE.CircleGeometry(2.7, 32);
+    const portalMaterial = new THREE.MeshBasicMaterial({
+        color: 0x0088ff,
+        emissive: 0x0044ff,
+        transparent: true,
+        opacity: 0.7,
+        side: THREE.DoubleSide
+    });
+    const portalSurface = new THREE.Mesh(portalGeometry, portalMaterial);
+    portalSurface.rotation.x = Math.PI / 2;
+
+    // Add particle effects around portal
+    const particleCount = 50;
+    const particlesGeometry = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (i / particleCount) * Math.PI * 2;
+        const radius = 4 + Math.random() * 2;
+        particlePositions[i * 3] = Math.cos(angle) * radius;
+        particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 2;
+        particlePositions[i * 3 + 2] = Math.sin(angle) * radius;
+    }
+
+    particlesGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    const particlesMaterial = new THREE.PointsMaterial({
+        color: 0x00ffff,
+        size: 0.3,
+        transparent: true,
+        opacity: 0.8
+    });
+    const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+
+    game.portal.add(outerRing);
+    game.portal.add(portalSurface);
+    game.portal.add(particles);
+
+    game.portal.position.set(x, 4, z);
+    game.portal.userData.outerRing = outerRing;
+    game.portal.userData.portalSurface = portalSurface;
+    game.portal.userData.particles = particles;
+
+    game.scene.add(game.portal);
+    game.portalSpawned = true;
+
+    showNotification('🌀 Portal to World 2 has appeared!');
+    console.log('Portal spawned at', x, z);
+}
+
+// Check portal interaction
+function checkPortalPickup() {
+    if (!game.portal || !game.portalSpawned) return;
+
+    const distance = game.camera.position.distanceTo(game.portal.position);
+    if (distance < 5) {
+        // Player entered portal
+        enterWorldTwo();
+    }
+}
+
+// Animate portal
+function updatePortal(delta) {
+    if (!game.portal) return;
+
+    // Rotate outer ring
+    if (game.portal.userData.outerRing) {
+        game.portal.userData.outerRing.rotation.z += delta * 2;
+    }
+
+    // Rotate portal surface (opposite direction)
+    if (game.portal.userData.portalSurface) {
+        game.portal.userData.portalSurface.rotation.x += delta * 0.5;
+    }
+
+    // Animate particles
+    if (game.portal.userData.particles) {
+        game.portal.userData.particles.rotation.y += delta;
+    }
+
+    // Pulse opacity
+    const pulseSpeed = 2;
+    const opacity = 0.5 + Math.sin(Date.now() * 0.001 * pulseSpeed) * 0.3;
+    if (game.portal.userData.portalSurface) {
+        game.portal.userData.portalSurface.material.opacity = opacity;
+    }
+}
+
+// Enter world two
+function enterWorldTwo() {
+    showNotification('🌀 Entering World 2...');
+
+    setTimeout(() => {
+        // Clear all enemies
+        game.enemies.forEach(enemy => game.scene.remove(enemy));
+        game.enemies = [];
+
+        // Remove portal
+        if (game.portal) {
+            game.scene.remove(game.portal);
+            game.portal = null;
+            game.portalSpawned = false;
+        }
+
+        // Reset boss spawn state
+        game.bossSpawned = false;
+        game.totalEnemiesSpawned = 0;
+
+        // Teleport player to spawn
+        game.camera.position.set(0, game.playerHeight, 0);
+
+        // Change world
+        game.currentWorld = 2;
+
+        // Change scene background to indicate new world
+        game.scene.background = new THREE.Color(0x4a0e4e); // Purple sky for world 2
+
+        showNotification('🎮 Welcome to World 2! Enemies are stronger here!');
+        console.log('Entered World 2');
+    }, 1000);
 }
 
 // Defeat enemy
@@ -1053,6 +1197,11 @@ function checkLevelUp() {
         game.playerDamage++;
         game.playerEXP -= game.expToNextLevel;
 
+        // Increase max HP by 5 and heal to full
+        game.maxPlayerHP += 5;
+        game.playerHP = game.maxPlayerHP;
+        updateHPDisplay();
+
         // Set EXP requirement for next level
         if (game.playerLevel === 2) {
             game.expToNextLevel = 1000; // Level 2->3 requires 1000 EXP
@@ -1064,8 +1213,8 @@ function checkLevelUp() {
 
         updateEXPDisplay();
 
-        // Show level up notification
-        showNotification(`🎉 LEVEL UP! Now Level ${game.playerLevel} | Damage: ${game.playerDamage}`);
+        // Show level up notification with HP increase
+        showNotification(`🎉 LEVEL UP! Level ${game.playerLevel} | DMG: ${game.playerDamage} | HP: ${game.playerHP}/${game.maxPlayerHP}`);
 
         // Check if we leveled up again (in case of overflow EXP)
         if (game.playerEXP >= game.expToNextLevel && game.playerLevel < 4) {
@@ -1844,8 +1993,10 @@ function animate() {
         updateBoss(delta);
         checkShieldPickup();
         checkBowPickup();
+        checkPortalPickup();
         updateProjectiles(delta);
         updateSwordBobbing();
+        updatePortal(delta);
 
         // Reduce attack cooldown
         if (game.attackCooldown > 0) {
