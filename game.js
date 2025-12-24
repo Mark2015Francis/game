@@ -66,7 +66,9 @@ const game = {
     bossIsJumping: false,
     portal: null,
     portalSpawned: false,
-    currentWorld: 1
+    currentWorld: 1,
+    food: null,
+    foodCollected: false
 };
 
 // Initialize the game
@@ -161,6 +163,11 @@ function init() {
     const bowX = (Math.random() * 600 - 300);
     const bowZ = (Math.random() * 600 - 300);
     createBowPickup(bowX, bowZ);
+
+    // Create food pickup item at random position
+    const foodX = (Math.random() * 600 - 300);
+    const foodZ = (Math.random() * 600 - 300);
+    createFoodPickup(foodX, foodZ);
 
     // Initialize inventory UI
     initInventory();
@@ -415,6 +422,53 @@ function createBowPickup(x, z) {
     game.bow.add(glow);
 }
 
+// Create food pickup
+function createFoodPickup(x, z) {
+    // Create food group - looks like an apple
+    game.food = new THREE.Group();
+
+    // Apple body - red sphere
+    const appleGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+    const appleMaterial = new THREE.MeshLambertMaterial({
+        color: 0xff0000,
+        emissive: 0x440000
+    });
+    const appleBody = new THREE.Mesh(appleGeometry, appleMaterial);
+    appleBody.scale.set(1, 1.2, 1); // Slightly elongated
+    appleBody.castShadow = true;
+
+    // Stem - small brown cylinder
+    const stemGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
+    const stemMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+    const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+    stem.position.y = 0.75;
+
+    // Leaf - small green diamond
+    const leafGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.15);
+    const leafMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+    const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+    leaf.position.set(0.1, 0.85, 0);
+    leaf.rotation.z = 0.3;
+
+    game.food.add(appleBody);
+    game.food.add(stem);
+    game.food.add(leaf);
+
+    game.food.position.set(x, 1, z);
+
+    game.scene.add(game.food);
+
+    // Add glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff6666,
+        transparent: true,
+        opacity: 0.2
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    game.food.add(glow);
+}
+
 // Initialize inventory system
 function initInventory() {
     updateInventoryUI();
@@ -503,6 +557,15 @@ function toggleEquipSword() {
     toggleInventory(); // Close inventory after equipping
 }
 
+// Remove item from inventory
+function removeItemFromInventory(itemType) {
+    const index = game.inventory.items.findIndex(item => item.type === itemType);
+    if (index !== -1) {
+        game.inventory.items.splice(index, 1);
+        updateInventoryUI();
+    }
+}
+
 // Toggle equip item (for shield, bow and other items)
 function toggleEquipItem(item) {
     if (item.type === 'shield') {
@@ -540,6 +603,28 @@ function toggleEquipItem(item) {
         }
         updateInventoryUI();
         toggleInventory(); // Close inventory after equipping
+    } else if (item.type === 'food') {
+        // Use food - heal 10 HP
+        const healAmount = 10;
+        const previousHP = game.playerHP;
+        game.playerHP = Math.min(game.playerHP + healAmount, game.maxPlayerHP);
+        const actualHeal = game.playerHP - previousHP;
+
+        updateHPDisplay();
+
+        // Remove food from inventory
+        removeItemFromInventory('food');
+
+        // Allow food to be collected again
+        game.foodCollected = false;
+
+        // Spawn new food at random location
+        const foodX = (Math.random() * 600 - 300);
+        const foodZ = (Math.random() * 600 - 300);
+        createFoodPickup(foodX, foodZ);
+
+        showNotification(`🍎 Food consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP})`);
+        toggleInventory(); // Close inventory after using
     }
 }
 
@@ -829,6 +914,31 @@ function checkBowPickup() {
 
         // Show notification (non-blocking)
         showNotification('🏹 Bow collected! Equip it to shoot arrows.');
+    }
+}
+
+// Check food pickup
+function checkFoodPickup() {
+    if (game.foodCollected || !game.food) return;
+
+    const distance = game.camera.position.distanceTo(game.food.position);
+
+    if (distance < 3) {
+        // Collect food
+        game.foodCollected = true;
+        game.scene.remove(game.food);
+
+        // Add to inventory
+        game.inventory.items.push({
+            name: 'Food',
+            icon: '🍎',
+            type: 'food'
+        });
+
+        updateInventoryUI();
+
+        // Show notification (non-blocking)
+        showNotification('🍎 Food collected! Use it to heal 10 HP.');
     }
 }
 
@@ -1345,6 +1455,7 @@ function updateEnemy(delta) {
                     // Shield protects - teleport player and enemy apart
                     game.hasShieldProtection = false;
                     game.inventory.equippedShield = false;
+                    removeItemFromInventory('shield'); // Remove shield from inventory
 
                     // Calculate direction from enemy to player
                     const pushDirection = new THREE.Vector3();
@@ -1485,6 +1596,7 @@ function checkBossCollision() {
                 // Shield protects
                 game.hasShieldProtection = false;
                 game.inventory.equippedShield = false;
+                removeItemFromInventory('shield'); // Remove shield from inventory
 
                 const pushDirection = new THREE.Vector3();
                 pushDirection.subVectors(game.camera.position, boss.position);
@@ -1568,6 +1680,7 @@ function createShockwave(x, z) {
                 if (game.hasShieldProtection) {
                     game.hasShieldProtection = false;
                     game.inventory.equippedShield = false;
+                    removeItemFromInventory('shield'); // Remove shield from inventory
                     showNotification('🛡️ Shield absorbed shockwave!');
                 } else {
                     game.playerHP -= 3;
@@ -1993,6 +2106,7 @@ function animate() {
         updateBoss(delta);
         checkShieldPickup();
         checkBowPickup();
+        checkFoodPickup();
         checkPortalPickup();
         updateProjectiles(delta);
         updateSwordBobbing();
