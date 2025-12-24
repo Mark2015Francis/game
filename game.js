@@ -949,8 +949,16 @@ function shootArrow() {
         dirZ * 50
     );
 
-    // Rotate arrow to point forward
+    // Rotate arrow to point in the direction of travel
+    // Cylinder's default orientation is along Y-axis, so we rotate it to align with velocity
+    const direction = arrow.velocity.clone().normalize();
+    const targetPosition = new THREE.Vector3().addVectors(arrow.position, direction);
+
+    // First rotate cylinder to point along Z axis
     arrow.rotation.x = Math.PI / 2;
+
+    // Then use lookAt to orient toward the target direction
+    arrow.lookAt(targetPosition);
 
     game.scene.add(arrow);
     game.projectiles.push(arrow);
