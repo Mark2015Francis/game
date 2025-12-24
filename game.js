@@ -711,66 +711,48 @@ function equipBow() {
 
 // Shoot arrow
 function shootArrow() {
-    try {
-        console.log('shootArrow called, equippedBow:', game.equippedBow, 'cooldown:', game.shootCooldown);
-        if (!game.equippedBow) {
-            console.log('Bow not equipped, returning');
-            return;
-        }
-        if (game.shootCooldown > 0) {
-            console.log('Cooldown active, returning');
-            return;
-        }
+    if (!game.equippedBow) return;
+    if (game.shootCooldown > 0) return;
 
-        game.shootCooldown = 0.5; // 0.5 second cooldown
+    game.shootCooldown = 0.5; // 0.5 second cooldown
 
-        // Create arrow projectile
-        const arrowGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
-        const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
-        const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+    // Create arrow projectile
+    const arrowGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+    const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
 
-        // Position at camera
-        arrow.position.set(
-            game.camera.position.x,
-            game.camera.position.y,
-            game.camera.position.z
-        );
+    // Position at camera
+    arrow.position.set(
+        game.camera.position.x,
+        game.camera.position.y,
+        game.camera.position.z
+    );
 
-        // Store starting position to track distance traveled
-        arrow.startPosition = arrow.position.clone();
+    // Store starting position to track distance traveled
+    arrow.startPosition = arrow.position.clone();
 
-        // Get camera direction WITHOUT using getWorldDirection
-        // Calculate from camera rotation manually
-        const pitch = game.camera.rotation.x;
-        const yaw = game.camera.rotation.y;
+    // Calculate arrow direction from camera rotation
+    const pitch = game.camera.rotation.x;
+    const yaw = game.camera.rotation.y;
 
-        const dirX = -Math.sin(yaw) * Math.cos(pitch);
-        const dirY = Math.sin(pitch);
-        const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+    const dirX = -Math.sin(yaw) * Math.cos(pitch);
+    const dirY = Math.sin(pitch);
+    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
 
-        console.log('Camera rotation:', game.camera.rotation);
-        console.log('Direction calculated:', dirX, dirY, dirZ);
+    // Create velocity vector
+    arrow.velocity = new THREE.Vector3(
+        dirX * 50,
+        dirY * 50,
+        dirZ * 50
+    );
 
-        // Create velocity vector
-        arrow.velocity = new THREE.Vector3(
-            dirX * 50,
-            dirY * 50,
-            dirZ * 50
-        );
+    // Rotate arrow to point forward
+    arrow.rotation.x = Math.PI / 2;
 
-        console.log('Arrow velocity:', arrow.velocity);
+    game.scene.add(arrow);
+    game.projectiles.push(arrow);
 
-        // Rotate arrow to point forward
-        arrow.rotation.x = Math.PI / 2;
-
-        game.scene.add(arrow);
-        game.projectiles.push(arrow);
-
-        console.log('✓ Arrow shot! Total projectiles:', game.projectiles.length);
-        showNotification('🏹 Arrow shot!');
-    } catch (error) {
-        console.error('ERROR in shootArrow:', error);
-    }
+    showNotification('🏹 Arrow shot!');
 }
 
 // Toggle inventory
@@ -1758,12 +1740,10 @@ function updateSwordBobbing() {
 
 // Update projectiles
 function updateProjectiles(delta) {
-    console.log('updateProjectiles called, projectiles count:', game.projectiles.length);
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
         const arrow = game.projectiles[i];
 
         if (!arrow || !arrow.velocity) {
-            console.error('Invalid arrow at index', i, arrow);
             game.scene.remove(arrow);
             game.projectiles.splice(i, 1);
             continue;
@@ -1772,19 +1752,11 @@ function updateProjectiles(delta) {
         // Apply gravity (arrows fall down)
         arrow.velocity.y -= game.gravity * delta;
 
-        // Apply air resistance (arrows slow down) - check for valid values
+        // Apply air resistance (arrows slow down)
         const drag = 0.98;
         arrow.velocity.x *= drag;
         arrow.velocity.y *= drag;
         arrow.velocity.z *= drag;
-
-        // Check for NaN
-        if (isNaN(arrow.velocity.x) || isNaN(arrow.velocity.y) || isNaN(arrow.velocity.z)) {
-            console.error('Arrow velocity became NaN!', arrow.velocity);
-            game.scene.remove(arrow);
-            game.projectiles.splice(i, 1);
-            continue;
-        }
 
         // Update position
         arrow.position.x += arrow.velocity.x * delta;
@@ -1856,7 +1828,6 @@ function updateProjectiles(delta) {
         if (hitEnemy || arrow.position.y < 0 || distanceTraveled > 200) {
             game.scene.remove(arrow);
             game.projectiles.splice(i, 1);
-            console.log('Arrow removed. Reason:', hitEnemy ? 'hit enemy' : arrow.position.y < 0 ? 'hit ground' : 'traveled too far');
         }
     }
 }
