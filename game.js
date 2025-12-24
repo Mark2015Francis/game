@@ -581,95 +581,94 @@ function updateEnemy(delta) {
     directionToPlayer.y = 0; // Keep enemy on ground level
     directionToPlayer.normalize();
 
-    // Store old position for collision detection
-    const oldPos = game.enemy.position.clone();
-
-    // Try to move towards player
-    let moveDirection = directionToPlayer.clone();
+    const enemyRadius = 2.5; // Enemy collision radius
     const moveSpeed = game.enemySpeed * delta;
 
-    // Check if path to player is blocked
-    let pathBlocked = false;
-    const enemyRadius = 2.5; // Enemy collision radius
+    // Helper function to test if a position is valid (no collision)
+    function isPositionValid(testPos) {
+        for (let obj of game.objects) {
+            const box = new THREE.Box3().setFromObject(obj);
+            const enemyBox = new THREE.Box3(
+                new THREE.Vector3(
+                    testPos.x - enemyRadius,
+                    testPos.y - 2,
+                    testPos.z - enemyRadius
+                ),
+                new THREE.Vector3(
+                    testPos.x + enemyRadius,
+                    testPos.y + 2,
+                    testPos.z + enemyRadius
+                )
+            );
+            if (box.intersectsBox(enemyBox)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
-    // Test the intended move position
-    const testPos = new THREE.Vector3(
-        game.enemy.position.x + moveDirection.x * moveSpeed,
-        game.enemy.position.y,
-        game.enemy.position.z + moveDirection.z * moveSpeed
-    );
+    // Try multiple movement strategies in order of preference
+    const strategies = [
+        directionToPlayer.clone(), // 1. Direct path to player
+        new THREE.Vector3(-directionToPlayer.z, 0, directionToPlayer.x), // 2. Left perpendicular
+        new THREE.Vector3(directionToPlayer.z, 0, -directionToPlayer.x), // 3. Right perpendicular
+        new THREE.Vector3( // 4. Diagonal left
+            directionToPlayer.x - directionToPlayer.z,
+            0,
+            directionToPlayer.z + directionToPlayer.x
+        ).normalize(),
+        new THREE.Vector3( // 5. Diagonal right
+            directionToPlayer.x + directionToPlayer.z,
+            0,
+            directionToPlayer.z - directionToPlayer.x
+        ).normalize()
+    ];
 
-    // Check collision with objects
-    for (let obj of game.objects) {
-        const box = new THREE.Box3().setFromObject(obj);
-        const enemyBox = new THREE.Box3(
-            new THREE.Vector3(
-                testPos.x - enemyRadius,
-                testPos.y - 2,
-                testPos.z - enemyRadius
-            ),
-            new THREE.Vector3(
-                testPos.x + enemyRadius,
-                testPos.y + 2,
-                testPos.z + enemyRadius
-            )
+    let bestMove = null;
+    let bestScore = -Infinity;
+
+    // Test each strategy and pick the best one
+    for (let strategy of strategies) {
+        const testPos = new THREE.Vector3(
+            game.enemy.position.x + strategy.x * moveSpeed,
+            game.enemy.position.y,
+            game.enemy.position.z + strategy.z * moveSpeed
         );
 
-        if (box.intersectsBox(enemyBox)) {
-            pathBlocked = true;
-
-            // Try to find alternative path - slide around obstacle
-            const objCenter = new THREE.Vector3();
-            box.getCenter(objCenter);
-
-            // Calculate perpendicular directions
-            const toObstacle = new THREE.Vector3();
-            toObstacle.subVectors(objCenter, game.enemy.position);
-            toObstacle.y = 0;
-            toObstacle.normalize();
-
-            // Try moving perpendicular to obstacle
-            const perpendicular1 = new THREE.Vector3(-toObstacle.z, 0, toObstacle.x);
-            const perpendicular2 = new THREE.Vector3(toObstacle.z, 0, -toObstacle.x);
-
-            // Choose the perpendicular direction closer to player
-            const dot1 = perpendicular1.dot(directionToPlayer);
-            const dot2 = perpendicular2.dot(directionToPlayer);
-
-            if (dot1 > dot2) {
-                moveDirection = perpendicular1;
-            } else {
-                moveDirection = perpendicular2;
+        if (isPositionValid(testPos)) {
+            // Score based on how much it moves toward the player
+            const score = strategy.dot(directionToPlayer);
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = testPos;
             }
-
-            break;
         }
     }
 
-    // Apply movement
-    game.enemy.position.x += moveDirection.x * moveSpeed;
-    game.enemy.position.z += moveDirection.z * moveSpeed;
-
-    // Final collision check and correction
-    for (let obj of game.objects) {
-        const box = new THREE.Box3().setFromObject(obj);
-        const enemyBox = new THREE.Box3(
-            new THREE.Vector3(
-                game.enemy.position.x - enemyRadius,
-                game.enemy.position.y - 2,
-                game.enemy.position.z - enemyRadius
-            ),
-            new THREE.Vector3(
-                game.enemy.position.x + enemyRadius,
-                game.enemy.position.y + 2,
-                game.enemy.position.z + enemyRadius
-            )
+    // If we found a valid move, use it
+    if (bestMove) {
+        game.enemy.position.copy(bestMove);
+    } else {
+        // If completely stuck, try wall-sliding
+        // Try X-axis only movement
+        const slideX = new THREE.Vector3(
+            game.enemy.position.x + directionToPlayer.x * moveSpeed,
+            game.enemy.position.y,
+            game.enemy.position.z
         );
-
-        if (box.intersectsBox(enemyBox)) {
-            // Revert to old position if still colliding
-            game.enemy.position.copy(oldPos);
-            break;
+        if (isPositionValid(slideX)) {
+            game.enemy.position.copy(slideX);
+        } else {
+            // Try Z-axis only movement
+            const slideZ = new THREE.Vector3(
+                game.enemy.position.x,
+                game.enemy.position.y,
+                game.enemy.position.z + directionToPlayer.z * moveSpeed
+            );
+            if (isPositionValid(slideZ)) {
+                game.enemy.position.copy(slideZ);
+            }
+            // If both fail, enemy stays in place this frame
         }
     }
 
