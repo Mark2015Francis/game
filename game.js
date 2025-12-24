@@ -215,7 +215,7 @@ function createBox(x, z, y, width, height, depth, color) {
 // Spawn enemy at random position
 function spawnEnemy() {
     // Check if we should spawn the boss instead
-    if (game.totalEnemiesSpawned >= 20 && !game.bossSpawned) {
+    if (game.totalEnemiesSpawned >= 40 && !game.bossSpawned) {
         spawnBoss();
         // Don't return - continue spawning regular enemies
     }
@@ -264,7 +264,7 @@ function createEnemy(x, z) {
 
     game.enemies.push(enemy);
     game.totalEnemiesSpawned++;
-    console.log(`Enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/20`);
+    console.log(`Enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
 // Create projectile enemy - shoots at player, only 1 HP
@@ -310,7 +310,7 @@ function createProjectileEnemy(x, z) {
 
     game.enemies.push(enemy);
     game.totalEnemiesSpawned++;
-    console.log(`Projectile enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/20`);
+    console.log(`Projectile enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
 // Spawn boss
