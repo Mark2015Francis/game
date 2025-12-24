@@ -45,7 +45,11 @@ const game = {
     walkTime: 0,
     isMoving: false,
     playerHP: 20,
-    maxPlayerHP: 20
+    maxPlayerHP: 20,
+    playerLevel: 1,
+    playerEXP: 0,
+    playerDamage: 1,
+    expToNextLevel: 500 // Level 1->2 requires 500 EXP
 };
 
 // Initialize the game
@@ -606,8 +610,8 @@ function attackWithSword() {
             const angle = forward.angleTo(directionToEnemy);
 
             if (angle < Math.PI / 2.5) { // Wide 72 degree cone in front
-                // Deal 1 damage
-                enemy.hp -= 1;
+                // Deal damage based on player level
+                enemy.hp -= game.playerDamage;
 
                 // Visual feedback - flash bright white for visibility
                 const originalColor = enemy.material.color.getHex();
@@ -621,7 +625,7 @@ function attackWithSword() {
                 }, 150);
 
                 // Show damage feedback
-                showNotification(`⚔️ Hit! Enemy HP: ${enemy.hp}/5`);
+                showNotification(`⚔️ -${game.playerDamage} DMG! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
 
                 if (enemy.hp <= 0) {
                     defeatEnemy(enemy, i);
@@ -638,8 +642,43 @@ function defeatEnemy(enemy, index) {
     game.scene.remove(enemy);
     game.enemies.splice(index, 1);
 
+    // Award EXP
+    game.playerEXP += 100;
+    updateEXPDisplay();
+
+    // Check for level up
+    checkLevelUp();
+
     // Show notification
-    showNotification(`💀 Enemy defeated! ${game.enemies.length} remaining`);
+    showNotification(`💀 Enemy defeated! +100 EXP | ${game.enemies.length} remaining`);
+}
+
+// Check and handle level up
+function checkLevelUp() {
+    if (game.playerEXP >= game.expToNextLevel) {
+        game.playerLevel++;
+        game.playerDamage++;
+        game.playerEXP -= game.expToNextLevel;
+
+        // Set EXP requirement for next level
+        if (game.playerLevel === 2) {
+            game.expToNextLevel = 1000; // Level 2->3 requires 1000 EXP
+        } else if (game.playerLevel === 3) {
+            game.expToNextLevel = 3000; // Level 3->4 requires 3000 EXP
+        } else if (game.playerLevel >= 4) {
+            game.expToNextLevel = 999999; // Max level reached
+        }
+
+        updateEXPDisplay();
+
+        // Show level up notification
+        showNotification(`🎉 LEVEL UP! Now Level ${game.playerLevel} | Damage: ${game.playerDamage}`);
+
+        // Check if we leveled up again (in case of overflow EXP)
+        if (game.playerEXP >= game.expToNextLevel && game.playerLevel < 4) {
+            setTimeout(() => checkLevelUp(), 100);
+        }
+    }
 }
 
 // Update all enemies AI
@@ -820,11 +859,32 @@ function updateHPDisplay() {
         // Change color based on HP
         if (game.playerHP <= 5) {
             hpDisplay.style.color = '#ff4444';
+            hpDisplay.style.borderColor = '#ff4444';
         } else if (game.playerHP <= 10) {
             hpDisplay.style.color = '#ffaa44';
+            hpDisplay.style.borderColor = '#ffaa44';
         } else {
             hpDisplay.style.color = '#44ff44';
+            hpDisplay.style.borderColor = '#44ff44';
         }
+    }
+}
+
+// Update EXP display
+function updateEXPDisplay() {
+    const expDisplay = document.getElementById('expDisplay');
+    if (expDisplay) {
+        const expPercent = (game.playerEXP / game.expToNextLevel) * 100;
+        const levelText = game.playerLevel >= 4 ? 'MAX' : `Lv.${game.playerLevel}`;
+        const expText = game.playerLevel >= 4 ? 'MAX LEVEL' : `${game.playerEXP}/${game.expToNextLevel} EXP`;
+
+        expDisplay.innerHTML = `
+            <div style="margin-bottom: 5px;">${levelText} | DMG: ${game.playerDamage}</div>
+            <div style="font-size: 12px;">${expText}</div>
+            ${game.playerLevel < 4 ? `<div style="background: rgba(255,255,255,0.2); height: 8px; border-radius: 4px; margin-top: 5px; overflow: hidden;">
+                <div style="background: #44ff44; height: 100%; width: ${expPercent}%; transition: width 0.3s;"></div>
+            </div>` : ''}
+        `;
     }
 }
 
@@ -1114,4 +1174,5 @@ function animate() {
 window.addEventListener('load', () => {
     init();
     updateHPDisplay(); // Initialize HP display
+    updateEXPDisplay(); // Initialize EXP display
 });
