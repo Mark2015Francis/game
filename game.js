@@ -1,5 +1,5 @@
 // Game version
-const GAME_VERSION = "v1.0.0";
+const GAME_VERSION = "v1.1.0";
 
 // Game state
 const game = {
@@ -374,20 +374,20 @@ function equipSword() {
     // Create sword mesh for first person view
     game.equippedSwordMesh = new THREE.Group();
 
-    // ARM - positioned in bottom right corner
+    // ARM - visible in camera view
     const armGeometry = new THREE.CylinderGeometry(0.08, 0.1, 0.8, 8);
     const armMaterial = new THREE.MeshBasicMaterial({
         color: 0xffdbac, // Skin tone
         side: THREE.DoubleSide
     });
     const arm = new THREE.Mesh(armGeometry, armMaterial);
-    arm.position.set(0.15, -0.6, 0.2);
-    arm.rotation.z = -0.3;
+    arm.position.set(0.2, -0.5, 0);
+    arm.rotation.z = -0.2;
 
     // Hand/fist
     const handGeometry = new THREE.SphereGeometry(0.12, 8, 8);
     const hand = new THREE.Mesh(handGeometry, armMaterial);
-    hand.position.set(0.05, -0.95, 0.2);
+    hand.position.set(0.15, -0.8, 0);
 
     // Blade - large, bright white for maximum visibility
     const bladeGeometry = new THREE.BoxGeometry(0.15, 2.5, 0.08);
@@ -429,9 +429,9 @@ function equipSword() {
     game.equippedSwordMesh.add(guard);
     game.equippedSwordMesh.add(pommel);
 
-    // Position sword with arm in bottom right corner of camera view
-    game.equippedSwordMesh.position.set(0.5, -0.5, -0.8);
-    game.equippedSwordMesh.rotation.set(-0.25, 0.15, 0.1);
+    // Position sword with arm clearly visible in camera view (right side)
+    game.equippedSwordMesh.position.set(0.3, -0.3, -0.5);
+    game.equippedSwordMesh.rotation.set(-0.2, 0.1, 0.05);
 
     // Add to camera so it moves with player's view
     game.camera.add(game.equippedSwordMesh);
@@ -507,12 +507,12 @@ function attackWithSword() {
     // Enhanced swing animation
     if (game.equippedSwordMesh) {
         // Store original positions (matching equipSword)
-        const originalRotationX = -0.25;
-        const originalRotationY = 0.15;
-        const originalRotationZ = 0.1;
-        const originalPosX = 0.5; // Updated for new arm position
-        const originalPosY = -0.5; // Updated for new arm position
-        const originalPosZ = -0.8;
+        const originalRotationX = -0.2;
+        const originalRotationY = 0.1;
+        const originalRotationZ = 0.05;
+        const originalPosX = 0.3; // Updated for visible position
+        const originalPosY = -0.3; // Updated for visible position
+        const originalPosZ = -0.5;
 
         // Get current bobbing position if any
         const startPosX = game.equippedSwordMesh.position.x;
@@ -1117,8 +1117,8 @@ function updateMovement(delta) {
 function updateSwordBobbing() {
     if (!game.equippedSwordMesh || game.isAttacking) return;
 
-    const restPosX = 0.5;  // Updated for new arm position
-    const restPosY = -0.5; // Updated for new arm position
+    const restPosX = 0.3;  // Updated for visible position
+    const restPosY = -0.3; // Updated for visible position
 
     if (game.isMoving && game.isPointerLocked && !game.inventory.isOpen) {
         // Bob up and down with sway
