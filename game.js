@@ -55,7 +55,15 @@ const game = {
     bowCollected: false,
     equippedBow: false,
     projectiles: [],
-    shootCooldown: 0
+    shootCooldown: 0,
+    totalEnemiesSpawned: 0,
+    boss: null,
+    bossSpawned: false,
+    bossJumpTimer: 0,
+    bossJumpCooldown: 10,
+    bossStunned: false,
+    bossStunTimer: 0,
+    bossIsJumping: false
 };
 
 // Initialize the game
@@ -194,6 +202,17 @@ function createBox(x, z, y, width, height, depth, color) {
 
 // Spawn enemy at random position
 function spawnEnemy() {
+    // Check if we should spawn the boss instead
+    if (game.totalEnemiesSpawned >= 20 && !game.bossSpawned) {
+        spawnBoss();
+        return;
+    }
+
+    // Don't spawn more regular enemies if boss is active
+    if (game.bossSpawned) {
+        return;
+    }
+
     const x = (Math.random() * 600 - 300);
     const z = (Math.random() * 600 - 300);
 
@@ -236,6 +255,78 @@ function createEnemy(x, z) {
     enemy.add(rightEye);
 
     game.enemies.push(enemy);
+    game.totalEnemiesSpawned++;
+    console.log(`Enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/20`);
+}
+
+// Spawn boss
+function spawnBoss() {
+    const x = (Math.random() * 400 - 200);
+    const z = (Math.random() * 400 - 200);
+
+    // Don't spawn too close to player
+    const distToPlayer = Math.sqrt(x * x + z * z);
+    if (distToPlayer < 100) {
+        // Spawn at safe distance
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 150;
+        createBoss(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    } else {
+        createBoss(x, z);
+    }
+}
+
+// Create boss enemy
+function createBoss(x, z) {
+    // Boss is much larger - radius 3 instead of 1
+    const bossGeometry = new THREE.SphereGeometry(3, 32, 32);
+    const bossMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b0000, // Dark red
+        emissive: 0x660000
+    });
+    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
+    boss.position.set(x, 3, z);
+    boss.castShadow = true;
+    boss.hp = 100; // Boss HP
+    boss.maxHP = 100;
+    boss.isBoss = true;
+    boss.jumpTimer = game.bossJumpCooldown; // First jump after 10 seconds
+    boss.isJumping = false;
+    boss.stunned = false;
+    boss.stunnedTimer = 0;
+    boss.jumpHeight = 0;
+    boss.jumpStartY = 3;
+
+    game.scene.add(boss);
+
+    // Add glowing eyes - larger for boss
+    const eyeGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red eyes
+
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.9, 0.5, 2.2);
+    boss.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.9, 0.5, 2.2);
+    boss.add(rightEye);
+
+    // Add crown-like spikes on top
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const spikeGeometry = new THREE.ConeGeometry(0.3, 1, 8);
+        const spikeMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 }); // Gold
+        const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+        spike.position.set(Math.cos(angle) * 1.5, 3, Math.sin(angle) * 1.5);
+        spike.rotation.x = Math.PI;
+        boss.add(spike);
+    }
+
+    game.boss = boss;
+    game.bossSpawned = true;
+
+    showNotification('⚠️ BOSS APPEARED! 100 HP');
+    console.log('BOSS SPAWNED at', x, z);
 }
 
 // Create shield pickup
@@ -900,6 +991,61 @@ function attackWithSword() {
             }
         }
     }
+
+    // Check if hit boss
+    if (game.boss) {
+        const distance = game.camera.position.distanceTo(game.boss.position);
+        if (distance < 20) { // Boss has larger hit range
+            // Calculate if boss is in front of player
+            const directionToBoss = new THREE.Vector3();
+            directionToBoss.subVectors(game.boss.position, game.camera.position);
+            directionToBoss.normalize();
+
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(game.camera.quaternion);
+
+            const angle = forward.angleTo(directionToBoss);
+
+            if (angle < Math.PI / 2.5) {
+                // Deal damage to boss
+                game.boss.hp -= game.playerDamage;
+
+                // Visual feedback
+                const originalColor = game.boss.material.color.getHex();
+                game.boss.material.color.setHex(0xffffff);
+                game.boss.material.emissive.setHex(0xffffff);
+                setTimeout(() => {
+                    if (game.boss && game.boss.material) {
+                        game.boss.material.color.setHex(originalColor);
+                        game.boss.material.emissive.setHex(0x660000);
+                    }
+                }, 150);
+
+                showNotification(`⚔️ BOSS -${game.playerDamage} DMG! HP: ${Math.max(0, game.boss.hp)}/100`);
+
+                if (game.boss.hp <= 0) {
+                    defeatBoss();
+                }
+            }
+        }
+    }
+}
+
+// Defeat boss
+function defeatBoss() {
+    if (!game.boss) return;
+
+    game.scene.remove(game.boss);
+    game.boss = null;
+    game.bossSpawned = false;
+
+    // Award massive EXP
+    game.playerEXP += 1000;
+    updateEXPDisplay();
+    checkLevelUp();
+
+    showNotification('🎉 BOSS DEFEATED! +1000 EXP!');
+    console.log('Boss defeated!');
 }
 
 // Defeat enemy
@@ -1113,6 +1259,213 @@ function updateEnemy(delta) {
             }
         }
     }
+}
+
+// Update boss behavior
+function updateBoss(delta) {
+    if (!game.boss || game.isGameOver || !game.isPointerLocked || game.inventory.isOpen) return;
+
+    const boss = game.boss;
+
+    // Update stun timer
+    if (boss.stunned) {
+        boss.stunnedTimer -= delta;
+        if (boss.stunnedTimer <= 0) {
+            boss.stunned = false;
+            showNotification('⚠️ Boss recovered!');
+        }
+        // Boss doesn't move when stunned, but still check collision
+        checkBossCollision();
+        return;
+    }
+
+    // Update jump timer
+    if (!boss.isJumping) {
+        boss.jumpTimer -= delta;
+        if (boss.jumpTimer <= 0) {
+            // Start jump attack
+            boss.isJumping = true;
+            boss.jumpStartY = boss.position.y;
+            boss.jumpHeight = 0;
+            boss.jumpVelocity = 30; // Initial upward velocity
+            showNotification('⚠️ Boss is jumping!');
+        }
+    }
+
+    // Handle jump physics
+    if (boss.isJumping) {
+        // Apply gravity to jump
+        boss.jumpVelocity -= game.gravity * delta;
+        boss.jumpHeight += boss.jumpVelocity * delta;
+        boss.position.y = boss.jumpStartY + boss.jumpHeight;
+
+        // Check if boss landed
+        if (boss.position.y <= boss.jumpStartY) {
+            boss.position.y = boss.jumpStartY;
+            boss.isJumping = false;
+            boss.jumpTimer = game.bossJumpCooldown; // Reset jump timer
+
+            // Create shockwave on landing
+            createShockwave(boss.position.x, boss.position.z);
+
+            // Stun boss for 5 seconds
+            boss.stunned = true;
+            boss.stunnedTimer = 5;
+            showNotification('💥 SHOCKWAVE! Boss stunned for 5 seconds');
+        }
+    } else {
+        // Normal movement when not jumping or stunned
+        const bossRadius = 3.5; // Boss collision radius
+        const moveSpeed = (game.enemySpeed * 0.5) * delta; // Boss moves slower than regular enemies
+
+        // Calculate direction to player
+        const directionToPlayer = new THREE.Vector3();
+        directionToPlayer.subVectors(game.camera.position, boss.position);
+        directionToPlayer.y = 0;
+        directionToPlayer.normalize();
+
+        // Move boss toward player (simplified pathfinding for boss)
+        boss.position.x += directionToPlayer.x * moveSpeed;
+        boss.position.z += directionToPlayer.z * moveSpeed;
+
+        // Make boss look at player
+        boss.lookAt(game.camera.position.x, boss.position.y, game.camera.position.z);
+
+        // Subtle bobbing for boss
+        boss.position.y = boss.jumpStartY + Math.sin(Date.now() * 0.002) * 0.3;
+    }
+
+    // Check collision with player
+    checkBossCollision();
+}
+
+// Check boss collision with player
+function checkBossCollision() {
+    const boss = game.boss;
+    if (!boss) return;
+
+    const distance = game.camera.position.distanceTo(boss.position);
+    if (distance < 5) {
+        // Boss hits player
+        if (!boss.hasHitPlayer) {
+            boss.hasHitPlayer = true;
+
+            if (game.hasShieldProtection) {
+                // Shield protects
+                game.hasShieldProtection = false;
+                game.inventory.equippedShield = false;
+
+                const pushDirection = new THREE.Vector3();
+                pushDirection.subVectors(game.camera.position, boss.position);
+                pushDirection.y = 0;
+                pushDirection.normalize();
+
+                game.camera.position.x += pushDirection.x * 20;
+                game.camera.position.z += pushDirection.z * 20;
+
+                boss.position.x -= pushDirection.x * 20;
+                boss.position.z -= pushDirection.z * 20;
+
+                showNotification('🛡️ Shield absorbed the boss hit!');
+            } else {
+                // Take 2 damage from boss
+                game.playerHP -= 2;
+                updateHPDisplay();
+
+                // Push player back
+                const pushDirection = new THREE.Vector3();
+                pushDirection.subVectors(game.camera.position, boss.position);
+                pushDirection.y = 0;
+                pushDirection.normalize();
+                game.camera.position.x += pushDirection.x * 10;
+                game.camera.position.z += pushDirection.z * 10;
+
+                if (game.playerHP <= 0) {
+                    gameOver();
+                } else {
+                    showNotification(`⚠️ Boss hit! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                }
+            }
+
+            // Reset hit flag
+            setTimeout(() => {
+                if (boss) {
+                    boss.hasHitPlayer = false;
+                }
+            }, 1000);
+        }
+    }
+}
+
+// Create shockwave effect
+function createShockwave(x, z) {
+    // Visual shockwave ring
+    const ringGeometry = new THREE.RingGeometry(1, 2, 32);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+    });
+    const shockwave = new THREE.Mesh(ringGeometry, ringMaterial);
+    shockwave.position.set(x, 0.5, z);
+    shockwave.rotation.x = -Math.PI / 2;
+    game.scene.add(shockwave);
+
+    // Animate shockwave expansion
+    let radius = 1;
+    const maxRadius = 30;
+    const expandSpeed = 40;
+
+    const expandInterval = setInterval(() => {
+        radius += expandSpeed * 0.016; // Roughly 60fps
+        shockwave.geometry.dispose();
+        shockwave.geometry = new THREE.RingGeometry(radius, radius + 2, 32);
+        shockwave.material.opacity = 0.8 * (1 - radius / maxRadius);
+
+        // Check if shockwave hits player
+        const distToPlayer = Math.sqrt(
+            (game.camera.position.x - x) ** 2 +
+            (game.camera.position.z - z) ** 2
+        );
+
+        if (distToPlayer <= radius && distToPlayer >= radius - 2) {
+            // Player is in shockwave range
+            if (!shockwave.hitPlayer) {
+                shockwave.hitPlayer = true;
+
+                if (game.hasShieldProtection) {
+                    game.hasShieldProtection = false;
+                    game.inventory.equippedShield = false;
+                    showNotification('🛡️ Shield absorbed shockwave!');
+                } else {
+                    game.playerHP -= 3;
+                    updateHPDisplay();
+
+                    // Knock player back
+                    const pushDir = new THREE.Vector3();
+                    pushDir.subVectors(game.camera.position, new THREE.Vector3(x, game.camera.position.y, z));
+                    pushDir.y = 0;
+                    pushDir.normalize();
+                    game.camera.position.x += pushDir.x * 15;
+                    game.camera.position.z += pushDir.z * 15;
+
+                    if (game.playerHP <= 0) {
+                        gameOver();
+                    } else {
+                        showNotification(`💥 Shockwave hit! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                    }
+                }
+            }
+        }
+
+        if (radius >= maxRadius) {
+            clearInterval(expandInterval);
+            game.scene.remove(shockwave);
+            shockwave.geometry.dispose();
+            shockwave.material.dispose();
+        }
+    }, 16); // ~60fps
 }
 
 // Update HP display
@@ -1470,6 +1823,34 @@ function updateProjectiles(delta) {
             }
         }
 
+        // Check collision with boss
+        if (!hitEnemy && game.boss) {
+            const distance = arrow.position.distanceTo(game.boss.position);
+            if (distance < 4) { // Boss has larger hitbox
+                // Hit boss
+                game.boss.hp -= 1; // Arrows deal 1 damage
+
+                // Visual feedback
+                const originalColor = game.boss.material.color.getHex();
+                game.boss.material.color.setHex(0xffffff);
+                game.boss.material.emissive.setHex(0xffffff);
+                setTimeout(() => {
+                    if (game.boss && game.boss.material) {
+                        game.boss.material.color.setHex(originalColor);
+                        game.boss.material.emissive.setHex(0x660000);
+                    }
+                }, 150);
+
+                showNotification(`🏹 BOSS Hit! HP: ${Math.max(0, game.boss.hp)}/100`);
+
+                if (game.boss.hp <= 0) {
+                    defeatBoss();
+                }
+
+                hitEnemy = true; // Use same flag to remove arrow
+            }
+        }
+
         // Remove arrow if it hit, hit the ground, or traveled too far
         const distanceTraveled = arrow.position.distanceTo(arrow.startPosition);
         if (hitEnemy || arrow.position.y < 0 || distanceTraveled > 200) {
@@ -1489,6 +1870,7 @@ function animate() {
     if (!game.inventory.isOpen) {
         updateMovement(delta);
         updateEnemy(delta);
+        updateBoss(delta);
         checkShieldPickup();
         checkBowPickup();
         updateProjectiles(delta);
