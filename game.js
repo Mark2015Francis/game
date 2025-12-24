@@ -39,6 +39,7 @@ const game = {
     shield: null,
     shieldCollected: false,
     equippedSwordMesh: null,
+    equippedBowMesh: null,
     hasShieldProtection: false,
     isAttacking: false,
     attackCooldown: 0,
@@ -49,7 +50,12 @@ const game = {
     playerLevel: 1,
     playerEXP: 0,
     playerDamage: 1,
-    expToNextLevel: 500 // Level 1->2 requires 500 EXP
+    expToNextLevel: 500, // Level 1->2 requires 500 EXP
+    bow: null,
+    bowCollected: false,
+    equippedBow: false,
+    projectiles: [],
+    shootCooldown: 0
 };
 
 // Initialize the game
@@ -74,6 +80,7 @@ function init() {
     game.renderer.setSize(window.innerWidth, window.innerHeight);
     game.renderer.shadowMap.enabled = true;
     game.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    game.renderer.sortObjects = true; // Enable object sorting for renderOrder
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -138,6 +145,11 @@ function init() {
     const randomX = (Math.random() * 600 - 300);
     const randomZ = (Math.random() * 600 - 300);
     createShieldPickup(randomX, randomZ);
+
+    // Create bow pickup item at random position
+    const bowX = (Math.random() * 600 - 300);
+    const bowZ = (Math.random() * 600 - 300);
+    createBowPickup(bowX, bowZ);
 
     // Initialize inventory UI
     initInventory();
@@ -266,6 +278,54 @@ function createShieldPickup(x, z) {
     game.shield.add(glow);
 }
 
+// Create bow pickup
+function createBowPickup(x, z) {
+    // Create bow group
+    game.bow = new THREE.Group();
+
+    // Bow body - curved shape
+    const bowCurve = new THREE.Shape();
+    bowCurve.moveTo(0, -1);
+    bowCurve.quadraticCurveTo(-0.3, 0, 0, 1);
+
+    const extrudeSettings = { depth: 0.1, bevelEnabled: false };
+    const bowGeometry = new THREE.ExtrudeGeometry(bowCurve, extrudeSettings);
+    const bowMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b4513,
+        emissive: 0x442200
+    });
+    const bowBody = new THREE.Mesh(bowGeometry, bowMaterial);
+    bowBody.castShadow = true;
+
+    // String
+    const stringGeometry = new THREE.BufferGeometry();
+    const stringVertices = new Float32Array([
+        0, -1, 0.05,
+        0, 1, 0.05
+    ]);
+    stringGeometry.setAttribute('position', new THREE.BufferAttribute(stringVertices, 3));
+    const stringMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+    const bowString = new THREE.Line(stringGeometry, stringMaterial);
+
+    game.bow.add(bowBody);
+    game.bow.add(bowString);
+
+    game.bow.position.set(x, 1.5, z);
+    game.bow.rotation.y = Math.PI / 4;
+
+    game.scene.add(game.bow);
+
+    // Add glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x8b4513,
+        transparent: true,
+        opacity: 0.2
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    game.bow.add(glow);
+}
+
 // Initialize inventory system
 function initInventory() {
     updateInventoryUI();
@@ -347,7 +407,7 @@ function toggleEquipSword() {
     toggleInventory(); // Close inventory after equipping
 }
 
-// Toggle equip item (for shield and other items)
+// Toggle equip item (for shield, bow and other items)
 function toggleEquipItem(item) {
     if (item.type === 'shield') {
         if (game.inventory.equippedShield) {
@@ -358,6 +418,29 @@ function toggleEquipItem(item) {
             // Equip shield
             game.inventory.equippedShield = true;
             game.hasShieldProtection = true;
+        }
+        updateInventoryUI();
+        toggleInventory(); // Close inventory after equipping
+    } else if (item.type === 'bow') {
+        if (game.equippedBow) {
+            // Unequip bow
+            game.equippedBow = false;
+            if (game.equippedBowMesh) {
+                game.camera.remove(game.equippedBowMesh);
+                game.equippedBowMesh = null;
+            }
+            // Re-equip sword
+            game.inventory.equippedSword = true;
+            equipSword();
+        } else {
+            // Equip bow - unequip sword first
+            game.equippedBow = true;
+            game.inventory.equippedSword = false;
+            if (game.equippedSwordMesh) {
+                game.camera.remove(game.equippedSwordMesh);
+                game.equippedSwordMesh = null;
+            }
+            equipBow();
         }
         updateInventoryUI();
         toggleInventory(); // Close inventory after equipping
@@ -469,6 +552,95 @@ function equipSword() {
     console.log('  Visible:', game.equippedSwordMesh.visible);
 }
 
+// Equip bow to player
+function equipBow() {
+    // Remove old bow if exists
+    if (game.equippedBowMesh) {
+        game.camera.remove(game.equippedBowMesh);
+    }
+
+    // Create bow mesh for first person view
+    game.equippedBowMesh = new THREE.Group();
+
+    // Bow limb (simplified as rectangle)
+    const bowLimbGeometry = new THREE.BoxGeometry(0.1, 1.5, 0.05);
+    const bowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x8b4513,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const bowLimb = new THREE.Mesh(bowLimbGeometry, bowMaterial);
+    bowLimb.position.set(-0.2, 0, -0.1);
+    bowLimb.renderOrder = 999;
+
+    // Bow string - left side
+    const stringGeometry1 = new THREE.BoxGeometry(0.02, 0.75, 0.02);
+    const stringMaterial = new THREE.MeshBasicMaterial({
+        color: 0xeeeeee,
+        depthTest: false,
+        depthWrite: false
+    });
+    const string1 = new THREE.Mesh(stringGeometry1, stringMaterial);
+    string1.position.set(-0.15, 0.35, -0.1);
+    string1.rotation.z = 0.3;
+    string1.renderOrder = 999;
+
+    const string2 = new THREE.Mesh(stringGeometry1, stringMaterial);
+    string2.position.set(-0.15, -0.35, -0.1);
+    string2.rotation.z = -0.3;
+    string2.renderOrder = 999;
+
+    game.equippedBowMesh.add(bowLimb);
+    game.equippedBowMesh.add(string1);
+    game.equippedBowMesh.add(string2);
+
+    // Position bow in left side of view
+    game.equippedBowMesh.position.set(-0.3, -0.2, -0.5);
+    game.equippedBowMesh.rotation.set(0, 0.2, 0);
+
+    // Disable frustum culling
+    bowLimb.frustumCulled = false;
+    string1.frustumCulled = false;
+    string2.frustumCulled = false;
+    game.equippedBowMesh.frustumCulled = false;
+
+    // Add to camera
+    game.camera.add(game.equippedBowMesh);
+
+    console.log('✓ Bow equipped successfully');
+}
+
+// Shoot arrow
+function shootArrow() {
+    if (!game.equippedBow) return;
+    if (game.shootCooldown > 0) return;
+
+    game.shootCooldown = 0.5; // 0.5 second cooldown
+
+    // Create arrow projectile
+    const arrowGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+    const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+
+    // Position at camera
+    arrow.position.copy(game.camera.position);
+
+    // Set velocity in camera direction
+    const direction = new THREE.Vector3(0, 0, -1);
+    direction.applyQuaternion(game.camera.quaternion);
+    arrow.velocity = direction.multiplyScalar(50); // Arrow speed
+
+    // Rotate arrow to point forward
+    arrow.rotation.x = Math.PI / 2;
+    arrow.quaternion.copy(game.camera.quaternion);
+
+    game.scene.add(arrow);
+    game.projectiles.push(arrow);
+
+    showNotification('🏹 Arrow shot!');
+}
+
 // Toggle inventory
 function toggleInventory() {
     game.inventory.isOpen = !game.inventory.isOpen;
@@ -520,6 +692,31 @@ function checkShieldPickup() {
 
         // Show notification (non-blocking)
         showNotification('🛡️ Shield collected and equipped! Protects you from one enemy hit.');
+    }
+}
+
+// Check bow pickup
+function checkBowPickup() {
+    if (game.bowCollected || !game.bow) return;
+
+    const distance = game.camera.position.distanceTo(game.bow.position);
+
+    if (distance < 3) {
+        // Collect bow
+        game.bowCollected = true;
+        game.scene.remove(game.bow);
+
+        // Add to inventory
+        game.inventory.items.push({
+            name: 'Bow',
+            icon: '🏹',
+            type: 'bow'
+        });
+
+        updateInventoryUI();
+
+        // Show notification (non-blocking)
+        showNotification('🏹 Bow collected! Equip it to shoot arrows.');
     }
 }
 
@@ -1026,7 +1223,11 @@ function setupControls() {
     // Mouse click for attacking
     document.addEventListener('click', (event) => {
         if (game.isPointerLocked && !game.inventory.isOpen) {
-            attackWithSword();
+            if (game.equippedBow) {
+                shootArrow();
+            } else {
+                attackWithSword();
+            }
         }
     });
 }
@@ -1161,6 +1362,56 @@ function updateSwordBobbing() {
     }
 }
 
+// Update projectiles
+function updateProjectiles(delta) {
+    for (let i = game.projectiles.length - 1; i >= 0; i--) {
+        const arrow = game.projectiles[i];
+
+        // Update position
+        arrow.position.x += arrow.velocity.x * delta;
+        arrow.position.y += arrow.velocity.y * delta;
+        arrow.position.z += arrow.velocity.z * delta;
+
+        // Check collision with enemies
+        let hitEnemy = false;
+        for (let j = 0; j < game.enemies.length; j++) {
+            const enemy = game.enemies[j];
+            const distance = arrow.position.distanceTo(enemy.position);
+
+            if (distance < 1.5) {
+                // Hit enemy
+                enemy.hp -= 1; // Arrows deal 1 damage
+
+                // Visual feedback
+                const originalColor = enemy.material.color.getHex();
+                enemy.material.color.setHex(0xffffff);
+                enemy.material.emissive.setHex(0xffffff);
+                setTimeout(() => {
+                    if (enemy && enemy.material) {
+                        enemy.material.color.setHex(originalColor);
+                        enemy.material.emissive.setHex(0x330000);
+                    }
+                }, 150);
+
+                showNotification(`🏹 Hit! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
+
+                if (enemy.hp <= 0) {
+                    defeatEnemy(enemy, j);
+                }
+
+                hitEnemy = true;
+                break;
+            }
+        }
+
+        // Remove arrow if it hit or went too far
+        if (hitEnemy || arrow.position.length() > 200) {
+            game.scene.remove(arrow);
+            game.projectiles.splice(i, 1);
+        }
+    }
+}
+
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
@@ -1171,11 +1422,18 @@ function animate() {
         updateMovement(delta);
         updateEnemy(delta);
         checkShieldPickup();
+        checkBowPickup();
+        updateProjectiles(delta);
         updateSwordBobbing();
 
         // Reduce attack cooldown
         if (game.attackCooldown > 0) {
             game.attackCooldown -= delta;
+        }
+
+        // Reduce shoot cooldown
+        if (game.shootCooldown > 0) {
+            game.shootCooldown -= delta;
         }
 
         // Enemy spawner
@@ -1192,6 +1450,12 @@ function animate() {
     if (game.shield && !game.shieldCollected) {
         game.shield.rotation.y += delta * 2;
         game.shield.position.y = 1.5 + Math.sin(Date.now() * 0.002) * 0.3;
+    }
+
+    // Animate bow pickup (rotate)
+    if (game.bow && !game.bowCollected) {
+        game.bow.rotation.y += delta * 2;
+        game.bow.position.y = 1.5 + Math.sin(Date.now() * 0.002) * 0.3;
     }
 
     game.renderer.render(game.scene, game.camera);
