@@ -18,7 +18,7 @@ const game = {
     direction: new THREE.Vector3(),
     rotation: { x: 0, y: 0 },
     playerHeight: 1.8,
-    playerSpeed: 50.0,
+    playerSpeed: 35.0, // Decreased from 50.0
     jumpHeight: 15.0,
     gravity: 30.0,
     objects: [],
@@ -1957,8 +1957,8 @@ function updateWorld2Boss(delta) {
         boss.shootTimer = game.bossShootCooldown;
     }
 
-    // Slow movement toward player when not teleporting
-    const moveSpeed = (game.enemySpeed * 0.3) * delta;
+    // Fast movement toward player when not teleporting - faster than World 1 boss
+    const moveSpeed = (game.enemySpeed * 0.8) * delta; // Faster than World 1 boss (0.5)
     const directionToPlayer = new THREE.Vector3();
     directionToPlayer.subVectors(game.camera.position, boss.position);
     directionToPlayer.y = 0;
