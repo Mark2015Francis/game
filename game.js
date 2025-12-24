@@ -36,8 +36,7 @@ const game = {
         equippedShield: false,
         isOpen: false
     },
-    shield: null,
-    shieldCollected: false,
+    shields: [],
     equippedSwordMesh: null,
     equippedBowMesh: null,
     hasShieldProtection: false,
@@ -56,6 +55,7 @@ const game = {
     equippedBow: false,
     projectiles: [],
     shootCooldown: 0,
+    enemyProjectiles: [],
     totalEnemiesSpawned: 0,
     boss: null,
     bossSpawned: false,
@@ -154,10 +154,12 @@ function init() {
     spawnEnemy();
     spawnEnemy();
 
-    // Create shield pickup item at random position
-    const randomX = (Math.random() * 600 - 300);
-    const randomZ = (Math.random() * 600 - 300);
-    createShieldPickup(randomX, randomZ);
+    // Create multiple shield pickups at random positions
+    for (let i = 0; i < 3; i++) {
+        const randomX = (Math.random() * 600 - 300);
+        const randomZ = (Math.random() * 600 - 300);
+        createShieldPickup(randomX, randomZ);
+    }
 
     // Create bow pickup item at random position
     const bowX = (Math.random() * 600 - 300);
@@ -223,13 +225,14 @@ function spawnEnemy() {
 
     // Don't spawn too close to player
     const distToPlayer = Math.sqrt(x * x + z * z);
-    if (distToPlayer < 50) {
-        // Spawn at safe distance
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 100 + Math.random() * 100;
-        createEnemy(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    const spawnX = distToPlayer < 50 ? Math.cos(Math.random() * Math.PI * 2) * (100 + Math.random() * 100) : x;
+    const spawnZ = distToPlayer < 50 ? Math.sin(Math.random() * Math.PI * 2) * (100 + Math.random() * 100) : z;
+
+    // In World 2, 30% chance to spawn projectile enemy instead of regular enemy
+    if (game.currentWorld === 2 && Math.random() < 0.3) {
+        createProjectileEnemy(spawnX, spawnZ);
     } else {
-        createEnemy(x, z);
+        createEnemy(spawnX, spawnZ);
     }
 }
 
@@ -262,6 +265,52 @@ function createEnemy(x, z) {
     game.enemies.push(enemy);
     game.totalEnemiesSpawned++;
     console.log(`Enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/20`);
+}
+
+// Create projectile enemy - shoots at player, only 1 HP
+function createProjectileEnemy(x, z) {
+    const enemyGeometry = new THREE.SphereGeometry(0.8, 16, 16); // Slightly smaller
+    const enemyMaterial = new THREE.MeshLambertMaterial({
+        color: 0xff00ff, // Magenta/purple color
+        emissive: 0x660066
+    });
+    const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+    enemy.position.set(x, 1, z);
+    enemy.castShadow = true;
+    enemy.hp = 1; // Only 1 HP
+    enemy.maxHP = 1;
+    enemy.isProjectileEnemy = true; // Mark as projectile enemy
+    enemy.shootTimer = 2; // Shoot every 2 seconds
+    enemy.shootCooldown = 2;
+    game.scene.add(enemy);
+
+    // Add glowing eyes - cyan/blue to differentiate
+    const eyeGeometry = new THREE.SphereGeometry(0.12, 8, 8);
+    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // Cyan eyes
+
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.25, 0.1, 0.6);
+    enemy.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.25, 0.1, 0.6);
+    enemy.add(rightEye);
+
+    // Add antenna to show it's a ranged enemy
+    const antennaGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8);
+    const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+    antenna.position.set(0, 1, 0);
+    enemy.add(antenna);
+
+    const antennaTop = new THREE.SphereGeometry(0.1, 8, 8);
+    const antennaTopMesh = new THREE.Mesh(antennaTop, new THREE.MeshBasicMaterial({ color: 0x00ffff }));
+    antennaTopMesh.position.set(0, 1.4, 0);
+    enemy.add(antennaTopMesh);
+
+    game.enemies.push(enemy);
+    game.totalEnemiesSpawned++;
+    console.log(`Projectile enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/20`);
 }
 
 // Spawn boss
@@ -337,7 +386,7 @@ function createBoss(x, z) {
 // Create shield pickup
 function createShieldPickup(x, z) {
     // Create shield group
-    game.shield = new THREE.Group();
+    const shield = new THREE.Group();
 
     // Shield body - circular
     const shieldGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
@@ -355,13 +404,13 @@ function createShieldPickup(x, z) {
     const boss = new THREE.Mesh(bossGeometry, bossMaterial);
     boss.castShadow = true;
 
-    game.shield.add(shieldBody);
-    game.shield.add(boss);
+    shield.add(shieldBody);
+    shield.add(boss);
 
-    game.shield.position.set(x, 1.5, z);
-    game.shield.rotation.z = Math.PI / 4;
+    shield.position.set(x, 1.5, z);
+    shield.rotation.z = Math.PI / 4;
 
-    game.scene.add(game.shield);
+    game.scene.add(shield);
 
     // Add glow effect
     const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
@@ -371,7 +420,10 @@ function createShieldPickup(x, z) {
         opacity: 0.2
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.shield.add(glow);
+    shield.add(glow);
+
+    // Add to shields array
+    game.shields.push(shield);
 }
 
 // Create bow pickup
@@ -865,30 +917,32 @@ function showNotification(message) {
 
 // Check shield pickup
 function checkShieldPickup() {
-    if (game.shieldCollected || !game.shield) return;
+    for (let i = game.shields.length - 1; i >= 0; i--) {
+        const shield = game.shields[i];
+        const distance = game.camera.position.distanceTo(shield.position);
 
-    const distance = game.camera.position.distanceTo(game.shield.position);
+        if (distance < 3) {
+            // Collect shield
+            game.scene.remove(shield);
+            game.shields.splice(i, 1);
 
-    if (distance < 3) {
-        // Collect shield
-        game.shieldCollected = true;
-        game.scene.remove(game.shield);
+            // Add to inventory
+            game.inventory.items.push({
+                name: 'Shield',
+                icon: '🛡️',
+                type: 'shield'
+            });
 
-        // Add to inventory
-        game.inventory.items.push({
-            name: 'Shield',
-            icon: '🛡️',
-            type: 'shield'
-        });
+            // Auto-equip shield
+            game.inventory.equippedShield = true;
+            game.hasShieldProtection = true;
 
-        // Auto-equip shield
-        game.inventory.equippedShield = true;
-        game.hasShieldProtection = true;
+            updateInventoryUI();
 
-        updateInventoryUI();
-
-        // Show notification (non-blocking)
-        showNotification('🛡️ Shield collected and equipped! Protects you from one enemy hit.');
+            // Show notification (non-blocking)
+            showNotification('🛡️ Shield collected and equipped! Protects you from one enemy hit.');
+            break; // Only collect one shield per frame
+        }
     }
 }
 
@@ -1306,6 +1360,75 @@ function defeatEnemy(enemy, index) {
     showNotification(`💀 Enemy defeated! +100 EXP | ${game.enemies.length} remaining`);
 }
 
+// Enemy shoots projectile at player
+function shootEnemyProjectile(enemy) {
+    const projectileGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, emissive: 0xff00ff });
+    const projectile = new THREE.Mesh(projectileGeometry, projectileMaterial);
+
+    // Position at enemy
+    projectile.position.copy(enemy.position);
+
+    // Calculate direction to player
+    const direction = new THREE.Vector3();
+    direction.subVectors(game.camera.position, enemy.position);
+    direction.normalize();
+
+    // Set velocity toward player
+    projectile.velocity = new THREE.Vector3(
+        direction.x * 30,
+        direction.y * 30,
+        direction.z * 30
+    );
+
+    game.scene.add(projectile);
+    game.enemyProjectiles.push(projectile);
+}
+
+// Update enemy projectiles
+function updateEnemyProjectiles(delta) {
+    for (let i = game.enemyProjectiles.length - 1; i >= 0; i--) {
+        const projectile = game.enemyProjectiles[i];
+
+        // Update position
+        projectile.position.x += projectile.velocity.x * delta;
+        projectile.position.y += projectile.velocity.y * delta;
+        projectile.position.z += projectile.velocity.z * delta;
+
+        // Check collision with player
+        const distance = game.camera.position.distanceTo(projectile.position);
+        if (distance < 1) {
+            // Hit player
+            if (game.hasShieldProtection) {
+                game.hasShieldProtection = false;
+                game.inventory.equippedShield = false;
+                removeItemFromInventory('shield');
+                showNotification('🛡️ Shield absorbed projectile!');
+            } else {
+                game.playerHP -= 2; // Enemy projectiles deal 2 damage
+                updateHPDisplay();
+
+                if (game.playerHP <= 0) {
+                    gameOver();
+                } else {
+                    showNotification(`💥 Projectile hit! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                }
+            }
+
+            // Remove projectile
+            game.scene.remove(projectile);
+            game.enemyProjectiles.splice(i, 1);
+            continue;
+        }
+
+        // Remove if too far or hit ground
+        if (projectile.position.y < 0 || projectile.position.length() > 500) {
+            game.scene.remove(projectile);
+            game.enemyProjectiles.splice(i, 1);
+        }
+    }
+}
+
 // Check and handle level up
 function checkLevelUp() {
     if (game.playerEXP >= game.expToNextLevel) {
@@ -1377,9 +1500,57 @@ function updateEnemy(delta) {
         const directionToPlayer = new THREE.Vector3();
         directionToPlayer.subVectors(game.camera.position, enemy.position);
         directionToPlayer.y = 0; // Keep enemy on ground level
+        const distanceToPlayer = directionToPlayer.length();
         directionToPlayer.normalize();
 
-        // Try multiple movement strategies in order of preference
+        // Handle projectile enemies differently
+        if (enemy.isProjectileEnemy) {
+            // Projectile enemies keep distance and shoot
+            const preferredDistance = 20; // Keep 20 units away
+
+            // Update shoot timer
+            enemy.shootTimer -= delta;
+            if (enemy.shootTimer <= 0 && distanceToPlayer < 50) {
+                // Shoot projectile at player
+                shootEnemyProjectile(enemy);
+                enemy.shootTimer = enemy.shootCooldown;
+            }
+
+            // Movement: maintain distance
+            if (distanceToPlayer < preferredDistance) {
+                // Too close, back away
+                const backupMove = new THREE.Vector3(
+                    enemy.position.x - directionToPlayer.x * moveSpeed * 0.5,
+                    enemy.position.y,
+                    enemy.position.z - directionToPlayer.z * moveSpeed * 0.5
+                );
+                if (isPositionValid(backupMove)) {
+                    enemy.position.copy(backupMove);
+                }
+            } else if (distanceToPlayer > preferredDistance + 10) {
+                // Too far, move closer
+                const approachMove = new THREE.Vector3(
+                    enemy.position.x + directionToPlayer.x * moveSpeed * 0.3,
+                    enemy.position.y,
+                    enemy.position.z + directionToPlayer.z * moveSpeed * 0.3
+                );
+                if (isPositionValid(approachMove)) {
+                    enemy.position.copy(approachMove);
+                }
+            }
+            // Otherwise stay at current distance
+
+            // Make enemy look at player
+            enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
+
+            // Add bobbing animation
+            enemy.position.y = 1 + Math.sin(Date.now() * 0.003) * 0.15;
+
+            // Skip regular enemy collision check (they don't melee)
+            continue;
+        }
+
+        // Try multiple movement strategies in order of preference (regular enemies only)
         const strategies = [
             directionToPlayer.clone(), // 1. Direct path to player
             new THREE.Vector3(-directionToPlayer.z, 0, directionToPlayer.x), // 2. Left perpendicular
@@ -2115,6 +2286,7 @@ function animate() {
         checkFoodPickup();
         checkPortalPickup();
         updateProjectiles(delta);
+        updateEnemyProjectiles(delta);
         updateSwordBobbing();
         updatePortal(delta);
 
