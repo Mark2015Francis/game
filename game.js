@@ -620,8 +620,15 @@ function equipBow() {
 
 // Shoot arrow
 function shootArrow() {
-    if (!game.equippedBow) return;
-    if (game.shootCooldown > 0) return;
+    console.log('shootArrow called, equippedBow:', game.equippedBow, 'cooldown:', game.shootCooldown);
+    if (!game.equippedBow) {
+        console.log('Bow not equipped, returning');
+        return;
+    }
+    if (game.shootCooldown > 0) {
+        console.log('Cooldown active, returning');
+        return;
+    }
 
     game.shootCooldown = 0.5; // 0.5 second cooldown
 
@@ -636,15 +643,21 @@ function shootArrow() {
     // Set velocity in camera direction
     const direction = new THREE.Vector3(0, 0, -1);
     direction.applyQuaternion(game.camera.quaternion);
+
+    console.log('Camera quaternion:', game.camera.quaternion);
+    console.log('Direction:', direction);
+
     arrow.velocity = direction.multiplyScalar(50); // Arrow speed
 
-    // Rotate arrow to point forward
+    console.log('Arrow velocity:', arrow.velocity);
+
+    // Rotate arrow to point forward (don't copy quaternion)
     arrow.rotation.x = Math.PI / 2;
-    arrow.quaternion.copy(game.camera.quaternion);
 
     game.scene.add(arrow);
     game.projectiles.push(arrow);
 
+    console.log('✓ Arrow shot! Total projectiles:', game.projectiles.length);
     showNotification('🏹 Arrow shot!');
 }
 
