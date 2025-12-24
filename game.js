@@ -1367,10 +1367,22 @@ function updateProjectiles(delta) {
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
         const arrow = game.projectiles[i];
 
+        // Apply gravity (arrows fall down)
+        arrow.velocity.y -= game.gravity * delta;
+
+        // Apply air resistance (arrows slow down)
+        const drag = 0.98; // 2% speed loss per frame
+        arrow.velocity.multiplyScalar(drag);
+
         // Update position
         arrow.position.x += arrow.velocity.x * delta;
         arrow.position.y += arrow.velocity.y * delta;
         arrow.position.z += arrow.velocity.z * delta;
+
+        // Rotate arrow to point in direction of movement
+        const direction = arrow.velocity.clone().normalize();
+        arrow.lookAt(arrow.position.clone().add(direction));
+        arrow.rotateX(Math.PI / 2);
 
         // Check collision with enemies
         let hitEnemy = false;
@@ -1404,8 +1416,8 @@ function updateProjectiles(delta) {
             }
         }
 
-        // Remove arrow if it hit or went too far
-        if (hitEnemy || arrow.position.length() > 200) {
+        // Remove arrow if it hit, hit the ground, or went too far
+        if (hitEnemy || arrow.position.y < 0 || arrow.position.length() > 200) {
             game.scene.remove(arrow);
             game.projectiles.splice(i, 1);
         }
