@@ -56,6 +56,7 @@ const game = {
     projectiles: [],
     shootCooldown: 0,
     enemyProjectiles: [],
+    bossProjectiles: [],
     totalEnemiesSpawned: 0,
     boss: null,
     bossSpawned: false,
@@ -64,6 +65,10 @@ const game = {
     bossStunned: false,
     bossStunTimer: 0,
     bossIsJumping: false,
+    bossTeleportTimer: 10,
+    bossTeleportCooldown: 10,
+    bossShootTimer: 0,
+    bossShootCooldown: 3,
     portal: null,
     portalSpawned: false,
     currentWorld: 1,
@@ -324,9 +329,17 @@ function spawnBoss() {
         // Spawn at safe distance
         const angle = Math.random() * Math.PI * 2;
         const distance = 150;
-        createBoss(Math.cos(angle) * distance, Math.sin(angle) * distance);
+        if (game.currentWorld === 2) {
+            createWorld2Boss(Math.cos(angle) * distance, Math.sin(angle) * distance);
+        } else {
+            createBoss(Math.cos(angle) * distance, Math.sin(angle) * distance);
+        }
     } else {
-        createBoss(x, z);
+        if (game.currentWorld === 2) {
+            createWorld2Boss(x, z);
+        } else {
+            createBoss(x, z);
+        }
     }
 }
 
@@ -381,6 +394,61 @@ function createBoss(x, z) {
 
     showNotification('⚠️ BOSS APPEARED! 100 HP');
     console.log('BOSS SPAWNED at', x, z);
+}
+
+// Create World 2 boss enemy - teleporting projectile shooter
+function createWorld2Boss(x, z) {
+    // Boss is large - radius 2.5
+    const bossGeometry = new THREE.SphereGeometry(2.5, 32, 32);
+    const bossMaterial = new THREE.MeshLambertMaterial({
+        color: 0x4a0e4e, // Dark purple
+        emissive: 0x8b008b
+    });
+    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
+    boss.position.set(x, 2.5, z);
+    boss.castShadow = true;
+    boss.hp = 50; // World 2 boss has 50 HP
+    boss.maxHP = 50;
+    boss.isBoss = true;
+    boss.isWorld2Boss = true; // Mark as World 2 boss
+    boss.teleportTimer = game.bossTeleportCooldown;
+    boss.shootTimer = game.bossShootCooldown;
+    boss.jumpStartY = 2.5;
+
+    game.scene.add(boss);
+
+    // Add glowing purple eyes
+    const eyeGeometry = new THREE.SphereGeometry(0.35, 16, 16);
+    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff }); // Bright purple
+
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.75, 0.4, 1.8);
+    boss.add(leftEye);
+
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.75, 0.4, 1.8);
+    boss.add(rightEye);
+
+    // Add floating energy orbs around the boss
+    for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const orbGeometry = new THREE.SphereGeometry(0.25, 16, 16);
+        const orbMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            emissive: 0x00ffff
+        });
+        const orb = new THREE.Mesh(orbGeometry, orbMaterial);
+        orb.position.set(Math.cos(angle) * 2, 1, Math.sin(angle) * 2);
+        orb.userData.angle = angle;
+        orb.userData.isOrb = true;
+        boss.add(orb);
+    }
+
+    game.boss = boss;
+    game.bossSpawned = true;
+
+    showNotification('⚠️ WORLD 2 BOSS APPEARED! 50 HP - Can teleport and shoot!');
+    console.log('WORLD 2 BOSS SPAWNED at', x, z);
 }
 
 // Create shield pickup
@@ -1392,6 +1460,45 @@ function shootEnemyProjectile(enemy) {
     game.enemyProjectiles.push(projectile);
 }
 
+// Boss shoots high damage projectile at player
+function shootBossProjectile(boss) {
+    const projectileGeometry = new THREE.SphereGeometry(0.5, 16, 16); // Larger than enemy projectiles
+    const projectileMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff00ff,
+        emissive: 0xff00ff
+    });
+    const projectile = new THREE.Mesh(projectileGeometry, projectileMaterial);
+
+    // Position at boss
+    projectile.position.copy(boss.position);
+    projectile.position.y = boss.position.y; // Same height as boss
+
+    // Calculate direction to player
+    const direction = new THREE.Vector3();
+    direction.subVectors(game.camera.position, boss.position);
+    direction.normalize();
+
+    // Set velocity toward player - faster than enemy projectiles
+    projectile.velocity = new THREE.Vector3(
+        direction.x * 40,
+        direction.y * 40,
+        direction.z * 40
+    );
+
+    // Add glow effect
+    const glowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff00ff,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    projectile.add(glow);
+
+    game.scene.add(projectile);
+    game.bossProjectiles.push(projectile);
+}
+
 // Update enemy projectiles
 function updateEnemyProjectiles(delta) {
     for (let i = game.enemyProjectiles.length - 1; i >= 0; i--) {
@@ -1432,6 +1539,50 @@ function updateEnemyProjectiles(delta) {
         if (projectile.position.y < 0 || projectile.position.length() > 500) {
             game.scene.remove(projectile);
             game.enemyProjectiles.splice(i, 1);
+        }
+    }
+}
+
+// Update boss projectiles
+function updateBossProjectiles(delta) {
+    for (let i = game.bossProjectiles.length - 1; i >= 0; i--) {
+        const projectile = game.bossProjectiles[i];
+
+        // Update position
+        projectile.position.x += projectile.velocity.x * delta;
+        projectile.position.y += projectile.velocity.y * delta;
+        projectile.position.z += projectile.velocity.z * delta;
+
+        // Check collision with player
+        const distance = game.camera.position.distanceTo(projectile.position);
+        if (distance < 1.5) {
+            // Hit player
+            if (game.hasShieldProtection) {
+                game.hasShieldProtection = false;
+                game.inventory.equippedShield = false;
+                removeItemFromInventory('shield');
+                showNotification('🛡️ Shield absorbed boss projectile!');
+            } else {
+                game.playerHP -= 5; // Boss projectiles deal 5 damage (high damage)
+                updateHPDisplay();
+
+                if (game.playerHP <= 0) {
+                    gameOver();
+                } else {
+                    showNotification(`💥 BOSS PROJECTILE HIT! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                }
+            }
+
+            // Remove projectile
+            game.scene.remove(projectile);
+            game.bossProjectiles.splice(i, 1);
+            continue;
+        }
+
+        // Remove if too far or hit ground
+        if (projectile.position.y < 0 || projectile.position.length() > 500) {
+            game.scene.remove(projectile);
+            game.bossProjectiles.splice(i, 1);
         }
     }
 }
@@ -1693,6 +1844,13 @@ function updateBoss(delta) {
 
     const boss = game.boss;
 
+    // Handle World 2 boss differently (teleport + projectile shooter)
+    if (boss.isWorld2Boss) {
+        updateWorld2Boss(delta);
+        return;
+    }
+
+    // World 1 Boss logic (jump attack boss)
     // Update stun timer
     if (boss.stunned) {
         boss.stunnedTimer -= delta;
@@ -1760,6 +1918,69 @@ function updateBoss(delta) {
         // Subtle bobbing for boss
         boss.position.y = boss.jumpStartY + Math.sin(Date.now() * 0.002) * 0.3;
     }
+
+    // Check collision with player
+    checkBossCollision();
+}
+
+// Update World 2 boss behavior (teleport + projectile shooter)
+function updateWorld2Boss(delta) {
+    const boss = game.boss;
+    if (!boss) return;
+
+    // Update teleport timer
+    boss.teleportTimer -= delta;
+    if (boss.teleportTimer <= 0) {
+        // Teleport to a new position 15 units away in a random direction
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 15;
+        const newX = game.camera.position.x + Math.cos(angle) * distance;
+        const newZ = game.camera.position.z + Math.sin(angle) * distance;
+
+        // Create teleport effect at old position
+        createTeleportEffect(boss.position.x, boss.position.z);
+
+        boss.position.x = newX;
+        boss.position.z = newZ;
+
+        // Create teleport effect at new position
+        createTeleportEffect(newX, newZ);
+
+        boss.teleportTimer = game.bossTeleportCooldown;
+        showNotification('⚡ Boss teleported!');
+    }
+
+    // Update shoot timer
+    boss.shootTimer -= delta;
+    if (boss.shootTimer <= 0) {
+        shootBossProjectile(boss);
+        boss.shootTimer = game.bossShootCooldown;
+    }
+
+    // Slow movement toward player when not teleporting
+    const moveSpeed = (game.enemySpeed * 0.3) * delta;
+    const directionToPlayer = new THREE.Vector3();
+    directionToPlayer.subVectors(game.camera.position, boss.position);
+    directionToPlayer.y = 0;
+    directionToPlayer.normalize();
+
+    boss.position.x += directionToPlayer.x * moveSpeed;
+    boss.position.z += directionToPlayer.z * moveSpeed;
+
+    // Make boss look at player
+    boss.lookAt(game.camera.position.x, boss.position.y, game.camera.position.z);
+
+    // Rotate orbs around boss
+    boss.children.forEach(child => {
+        if (child.userData.isOrb) {
+            child.userData.angle += delta * 2;
+            child.position.x = Math.cos(child.userData.angle) * 2;
+            child.position.z = Math.sin(child.userData.angle) * 2;
+        }
+    });
+
+    // Floating animation
+    boss.position.y = boss.jumpStartY + Math.sin(Date.now() * 0.003) * 0.4;
 
     // Check collision with player
     checkBossCollision();
@@ -1894,6 +2115,53 @@ function createShockwave(x, z) {
             shockwave.material.dispose();
         }
     }, 16); // ~60fps
+}
+
+// Create teleport effect
+function createTeleportEffect(x, z) {
+    // Create purple particle effect
+    for (let i = 0; i < 10; i++) {
+        const particleGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+        const particleMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff00ff,
+            transparent: true,
+            opacity: 0.8
+        });
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+
+        particle.position.set(
+            x + (Math.random() - 0.5) * 2,
+            Math.random() * 3,
+            z + (Math.random() - 0.5) * 2
+        );
+
+        particle.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 5,
+            Math.random() * 5 + 2,
+            (Math.random() - 0.5) * 5
+        );
+
+        game.scene.add(particle);
+
+        // Animate and remove particle
+        let life = 1.0;
+        const particleInterval = setInterval(() => {
+            particle.position.x += particle.velocity.x * 0.016;
+            particle.position.y += particle.velocity.y * 0.016;
+            particle.position.z += particle.velocity.z * 0.016;
+            particle.velocity.y -= 9.8 * 0.016; // Gravity
+
+            life -= 0.016 * 2;
+            particle.material.opacity = life * 0.8;
+
+            if (life <= 0) {
+                clearInterval(particleInterval);
+                game.scene.remove(particle);
+                particle.geometry.dispose();
+                particle.material.dispose();
+            }
+        }, 16);
+    }
 }
 
 // Update HP display
@@ -2294,6 +2562,7 @@ function animate() {
         checkPortalPickup();
         updateProjectiles(delta);
         updateEnemyProjectiles(delta);
+        updateBossProjectiles(delta);
         updateSwordBobbing();
         updatePortal(delta);
 
