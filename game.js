@@ -1402,15 +1402,33 @@ function updateSwordBobbing() {
 
 // Update projectiles
 function updateProjectiles(delta) {
+    console.log('updateProjectiles called, projectiles count:', game.projectiles.length);
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
         const arrow = game.projectiles[i];
+
+        if (!arrow || !arrow.velocity) {
+            console.error('Invalid arrow at index', i, arrow);
+            game.scene.remove(arrow);
+            game.projectiles.splice(i, 1);
+            continue;
+        }
 
         // Apply gravity (arrows fall down)
         arrow.velocity.y -= game.gravity * delta;
 
-        // Apply air resistance (arrows slow down)
-        const drag = 0.98; // 2% speed loss per frame
-        arrow.velocity.multiplyScalar(drag);
+        // Apply air resistance (arrows slow down) - check for valid values
+        const drag = 0.98;
+        arrow.velocity.x *= drag;
+        arrow.velocity.y *= drag;
+        arrow.velocity.z *= drag;
+
+        // Check for NaN
+        if (isNaN(arrow.velocity.x) || isNaN(arrow.velocity.y) || isNaN(arrow.velocity.z)) {
+            console.error('Arrow velocity became NaN!', arrow.velocity);
+            game.scene.remove(arrow);
+            game.projectiles.splice(i, 1);
+            continue;
+        }
 
         // Update position
         arrow.position.x += arrow.velocity.x * delta;
