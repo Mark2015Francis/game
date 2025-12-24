@@ -25,8 +25,10 @@ const game = {
     raycaster: new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0), 0, 10),
     clock: new THREE.Clock(),
     isPointerLocked: false,
-    enemy: null,
-    enemySpeed: 8.0,
+    enemies: [], // Changed from single enemy to array
+    enemySpeed: 15.0, // Increased from 8.0
+    enemySpawnTimer: 0,
+    enemySpawnInterval: 5, // Spawn every 5 seconds
     isGameOver: false,
     inventory: {
         items: [],
@@ -41,7 +43,9 @@ const game = {
     isAttacking: false,
     attackCooldown: 0,
     walkTime: 0,
-    isMoving: false
+    isMoving: false,
+    playerHP: 20,
+    maxPlayerHP: 20
 };
 
 // Initialize the game
@@ -84,21 +88,21 @@ function init() {
     directionalLight.shadow.camera.bottom = -100;
     game.scene.add(directionalLight);
 
-    // Create ground
-    const groundGeometry = new THREE.PlaneGeometry(200, 200);
+    // Create ground - WAY BIGGER
+    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
     const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3d8c40 });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     game.scene.add(ground);
 
-    // Create walls around the perimeter
-    createWall(0, 100, 5, 200, 10, 0x8b4513);  // Back wall
-    createWall(0, -100, 5, 200, 10, 0x8b4513); // Front wall
-    createWall(100, 0, 5, 10, 200, 0x8b4513);  // Right wall
-    createWall(-100, 0, 5, 10, 200, 0x8b4513); // Left wall
+    // Create walls around the perimeter - WAY BIGGER
+    createWall(0, 500, 5, 1000, 10, 0x8b4513);  // Back wall
+    createWall(0, -500, 5, 1000, 10, 0x8b4513); // Front wall
+    createWall(500, 0, 5, 10, 1000, 0x8b4513);  // Right wall
+    createWall(-500, 0, 5, 10, 1000, 0x8b4513); // Left wall
 
-    // Create some obstacles/buildings
+    // Create some obstacles/buildings scattered across the larger area
     createBox(-30, 0, -30, 15, 10, 15, 0x808080);
     createBox(30, 0, -30, 12, 8, 12, 0x606060);
     createBox(-30, 0, 30, 10, 15, 10, 0x707070);
@@ -107,19 +111,29 @@ function init() {
     createBox(-50, 0, 0, 10, 7, 15, 0x8b7355);
     createBox(50, 0, 10, 12, 9, 12, 0x696969);
 
+    // Add more obstacles for the bigger area
+    createBox(-100, 0, -100, 20, 12, 20, 0x808080);
+    createBox(150, 0, -150, 25, 15, 25, 0x606060);
+    createBox(-200, 0, 200, 18, 10, 18, 0x707070);
+    createBox(200, 0, 200, 15, 8, 15, 0x909090);
+
     // Create some decorative objects
-    for (let i = 0; i < 10; i++) {
-        const x = Math.random() * 160 - 80;
-        const z = Math.random() * 160 - 80;
-        if (Math.abs(x) < 10 && Math.abs(z) < 10) continue; // Don't spawn near player
+    for (let i = 0; i < 30; i++) {
+        const x = Math.random() * 800 - 400;
+        const z = Math.random() * 800 - 400;
+        if (Math.abs(x) < 20 && Math.abs(z) < 20) continue; // Don't spawn near player
         createBox(x, 0, z, 3, 3, 3, 0xff6347);
     }
 
-    // Create enemy
-    createEnemy(-70, -70);
+    // Spawn initial enemies
+    spawnEnemy();
+    spawnEnemy();
+    spawnEnemy();
 
-    // Create shield pickup item
-    createShieldPickup(40, 40);
+    // Create shield pickup item at random position
+    const randomX = (Math.random() * 600 - 300);
+    const randomZ = (Math.random() * 600 - 300);
+    createShieldPickup(randomX, randomZ);
 
     // Initialize inventory UI
     initInventory();
@@ -162,29 +176,50 @@ function createBox(x, z, y, width, height, depth, color) {
     game.objects.push(box);
 }
 
-// Create enemy
+// Spawn enemy at random position
+function spawnEnemy() {
+    const x = (Math.random() * 600 - 300);
+    const z = (Math.random() * 600 - 300);
+
+    // Don't spawn too close to player
+    const distToPlayer = Math.sqrt(x * x + z * z);
+    if (distToPlayer < 50) {
+        // Spawn at safe distance
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 100 + Math.random() * 100;
+        createEnemy(Math.cos(angle) * distance, Math.sin(angle) * distance);
+    } else {
+        createEnemy(x, z);
+    }
+}
+
+// Create enemy - smaller and with HP
 function createEnemy(x, z) {
-    const enemyGeometry = new THREE.SphereGeometry(2, 16, 16);
+    const enemyGeometry = new THREE.SphereGeometry(1, 16, 16); // Smaller: 1 instead of 2
     const enemyMaterial = new THREE.MeshLambertMaterial({
         color: 0xff0000,
         emissive: 0x330000
     });
-    game.enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
-    game.enemy.position.set(x, 2, z);
-    game.enemy.castShadow = true;
-    game.scene.add(game.enemy);
+    const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+    enemy.position.set(x, 1, z);
+    enemy.castShadow = true;
+    enemy.hp = 5; // Enemy HP
+    enemy.maxHP = 5;
+    game.scene.add(enemy);
 
-    // Add glowing eyes
-    const eyeGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    // Add glowing eyes - smaller for smaller enemy
+    const eyeGeometry = new THREE.SphereGeometry(0.15, 8, 8);
     const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
 
     const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.6, 0.3, 1.5);
-    game.enemy.add(leftEye);
+    leftEye.position.set(-0.3, 0.15, 0.75);
+    enemy.add(leftEye);
 
     const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.6, 0.3, 1.5);
-    game.enemy.add(rightEye);
+    rightEye.position.set(0.3, 0.15, 0.75);
+    enemy.add(rightEye);
+
+    game.enemies.push(enemy);
 }
 
 // Create shield pickup
@@ -335,6 +370,21 @@ function equipSword() {
     // Create sword mesh for first person view
     game.equippedSwordMesh = new THREE.Group();
 
+    // ARM - positioned in bottom right corner
+    const armGeometry = new THREE.CylinderGeometry(0.08, 0.1, 0.8, 8);
+    const armMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffdbac, // Skin tone
+        side: THREE.DoubleSide
+    });
+    const arm = new THREE.Mesh(armGeometry, armMaterial);
+    arm.position.set(0.15, -0.6, 0.2);
+    arm.rotation.z = -0.3;
+
+    // Hand/fist
+    const handGeometry = new THREE.SphereGeometry(0.12, 8, 8);
+    const hand = new THREE.Mesh(handGeometry, armMaterial);
+    hand.position.set(0.05, -0.95, 0.2);
+
     // Blade - large, bright white for maximum visibility
     const bladeGeometry = new THREE.BoxGeometry(0.15, 2.5, 0.08);
     const bladeMaterial = new THREE.MeshBasicMaterial({
@@ -368,20 +418,21 @@ function equipSword() {
     const pommel = new THREE.Mesh(pommelGeometry, pommelMaterial);
     pommel.position.set(0, -0.75, 0);
 
+    game.equippedSwordMesh.add(arm);
+    game.equippedSwordMesh.add(hand);
     game.equippedSwordMesh.add(blade);
     game.equippedSwordMesh.add(handle);
     game.equippedSwordMesh.add(guard);
     game.equippedSwordMesh.add(pommel);
 
-    // Position sword in lower right of view, well within camera frustum
-    // Camera near plane is 0.1, far is 1000, so -0.8 is very safe
-    game.equippedSwordMesh.position.set(0.4, -0.35, -0.8);
+    // Position sword with arm in bottom right corner of camera view
+    game.equippedSwordMesh.position.set(0.5, -0.5, -0.8);
     game.equippedSwordMesh.rotation.set(-0.25, 0.15, 0.1);
 
     // Add to camera so it moves with player's view
     game.camera.add(game.equippedSwordMesh);
 
-    console.log('✓ Sword equipped successfully');
+    console.log('✓ Sword with arm equipped successfully');
     console.log('  Position:', game.equippedSwordMesh.position);
     console.log('  Rotation:', game.equippedSwordMesh.rotation);
     console.log('  Visible:', game.equippedSwordMesh.visible);
@@ -455,8 +506,8 @@ function attackWithSword() {
         const originalRotationX = -0.25;
         const originalRotationY = 0.15;
         const originalRotationZ = 0.1;
-        const originalPosX = 0.4;
-        const originalPosY = -0.35;
+        const originalPosX = 0.5; // Updated for new arm position
+        const originalPosY = -0.5; // Updated for new arm position
         const originalPosZ = -0.8;
 
         // Get current bobbing position if any
@@ -539,13 +590,14 @@ function attackWithSword() {
         }, 16);
     }
 
-    // Check if hit enemy
-    if (game.enemy) {
-        const distance = game.camera.position.distanceTo(game.enemy.position);
+    // Check if hit any enemies
+    for (let i = 0; i < game.enemies.length; i++) {
+        const enemy = game.enemies[i];
+        const distance = game.camera.position.distanceTo(enemy.position);
         if (distance < 15) { // Large attack range of 15 units
             // Calculate if enemy is in front of player
             const directionToEnemy = new THREE.Vector3();
-            directionToEnemy.subVectors(game.enemy.position, game.camera.position);
+            directionToEnemy.subVectors(enemy.position, game.camera.position);
             directionToEnemy.normalize();
 
             const forward = new THREE.Vector3(0, 0, -1);
@@ -554,34 +606,41 @@ function attackWithSword() {
             const angle = forward.angleTo(directionToEnemy);
 
             if (angle < Math.PI / 2.5) { // Wide 72 degree cone in front
-                defeatEnemy();
+                // Deal 1 damage
+                enemy.hp -= 1;
+
+                // Visual feedback - flash red
+                enemy.material.emissive.setHex(0xff0000);
+                setTimeout(() => {
+                    if (enemy && enemy.material) {
+                        enemy.material.emissive.setHex(0x330000);
+                    }
+                }, 100);
+
+                if (enemy.hp <= 0) {
+                    defeatEnemy(enemy, i);
+                }
+
+                break; // Only hit one enemy per swing
             }
         }
     }
 }
 
 // Defeat enemy
-function defeatEnemy() {
-    if (!game.enemy) return;
+function defeatEnemy(enemy, index) {
+    game.scene.remove(enemy);
+    game.enemies.splice(index, 1);
 
-    game.scene.remove(game.enemy);
-    game.enemy = null;
-
-    // Show victory notification
-    showNotification('🎉 Victory! You defeated the enemy!');
+    // Show notification
+    showNotification(`💀 Enemy defeated! ${game.enemies.length} remaining`);
 }
 
-// Update enemy AI
+// Update all enemies AI
 function updateEnemy(delta) {
-    if (!game.enemy || game.isGameOver || !game.isPointerLocked || game.inventory.isOpen) return;
+    if (game.isGameOver || !game.isPointerLocked || game.inventory.isOpen) return;
 
-    // Calculate direction to player
-    const directionToPlayer = new THREE.Vector3();
-    directionToPlayer.subVectors(game.camera.position, game.enemy.position);
-    directionToPlayer.y = 0; // Keep enemy on ground level
-    directionToPlayer.normalize();
-
-    const enemyRadius = 2.5; // Enemy collision radius
+    const enemyRadius = 1.25; // Enemy collision radius (smaller for smaller enemies)
     const moveSpeed = game.enemySpeed * delta;
 
     // Helper function to test if a position is valid (no collision)
@@ -591,12 +650,12 @@ function updateEnemy(delta) {
             const enemyBox = new THREE.Box3(
                 new THREE.Vector3(
                     testPos.x - enemyRadius,
-                    testPos.y - 2,
+                    testPos.y - 1,
                     testPos.z - enemyRadius
                 ),
                 new THREE.Vector3(
                     testPos.x + enemyRadius,
-                    testPos.y + 2,
+                    testPos.y + 1,
                     testPos.z + enemyRadius
                 )
             );
@@ -607,102 +666,158 @@ function updateEnemy(delta) {
         return true;
     }
 
-    // Try multiple movement strategies in order of preference
-    const strategies = [
-        directionToPlayer.clone(), // 1. Direct path to player
-        new THREE.Vector3(-directionToPlayer.z, 0, directionToPlayer.x), // 2. Left perpendicular
-        new THREE.Vector3(directionToPlayer.z, 0, -directionToPlayer.x), // 3. Right perpendicular
-        new THREE.Vector3( // 4. Diagonal left
-            directionToPlayer.x - directionToPlayer.z,
-            0,
-            directionToPlayer.z + directionToPlayer.x
-        ).normalize(),
-        new THREE.Vector3( // 5. Diagonal right
-            directionToPlayer.x + directionToPlayer.z,
-            0,
-            directionToPlayer.z - directionToPlayer.x
-        ).normalize()
-    ];
+    // Update each enemy
+    for (let i = 0; i < game.enemies.length; i++) {
+        const enemy = game.enemies[i];
 
-    let bestMove = null;
-    let bestScore = -Infinity;
+        // Calculate direction to player
+        const directionToPlayer = new THREE.Vector3();
+        directionToPlayer.subVectors(game.camera.position, enemy.position);
+        directionToPlayer.y = 0; // Keep enemy on ground level
+        directionToPlayer.normalize();
 
-    // Test each strategy and pick the best one
-    for (let strategy of strategies) {
-        const testPos = new THREE.Vector3(
-            game.enemy.position.x + strategy.x * moveSpeed,
-            game.enemy.position.y,
-            game.enemy.position.z + strategy.z * moveSpeed
-        );
+        // Try multiple movement strategies in order of preference
+        const strategies = [
+            directionToPlayer.clone(), // 1. Direct path to player
+            new THREE.Vector3(-directionToPlayer.z, 0, directionToPlayer.x), // 2. Left perpendicular
+            new THREE.Vector3(directionToPlayer.z, 0, -directionToPlayer.x), // 3. Right perpendicular
+            new THREE.Vector3( // 4. Diagonal left
+                directionToPlayer.x - directionToPlayer.z,
+                0,
+                directionToPlayer.z + directionToPlayer.x
+            ).normalize(),
+            new THREE.Vector3( // 5. Diagonal right
+                directionToPlayer.x + directionToPlayer.z,
+                0,
+                directionToPlayer.z - directionToPlayer.x
+            ).normalize()
+        ];
 
-        if (isPositionValid(testPos)) {
-            // Score based on how much it moves toward the player
-            const score = strategy.dot(directionToPlayer);
-            if (score > bestScore) {
-                bestScore = score;
-                bestMove = testPos;
-            }
-        }
-    }
+        let bestMove = null;
+        let bestScore = -Infinity;
 
-    // If we found a valid move, use it
-    if (bestMove) {
-        game.enemy.position.copy(bestMove);
-    } else {
-        // If completely stuck, try wall-sliding
-        // Try X-axis only movement
-        const slideX = new THREE.Vector3(
-            game.enemy.position.x + directionToPlayer.x * moveSpeed,
-            game.enemy.position.y,
-            game.enemy.position.z
-        );
-        if (isPositionValid(slideX)) {
-            game.enemy.position.copy(slideX);
-        } else {
-            // Try Z-axis only movement
-            const slideZ = new THREE.Vector3(
-                game.enemy.position.x,
-                game.enemy.position.y,
-                game.enemy.position.z + directionToPlayer.z * moveSpeed
+        // Test each strategy and pick the best one
+        for (let strategy of strategies) {
+            const testPos = new THREE.Vector3(
+                enemy.position.x + strategy.x * moveSpeed,
+                enemy.position.y,
+                enemy.position.z + strategy.z * moveSpeed
             );
-            if (isPositionValid(slideZ)) {
-                game.enemy.position.copy(slideZ);
+
+            if (isPositionValid(testPos)) {
+                // Score based on how much it moves toward the player
+                const score = strategy.dot(directionToPlayer);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = testPos;
+                }
             }
-            // If both fail, enemy stays in place this frame
+        }
+
+        // If we found a valid move, use it
+        if (bestMove) {
+            enemy.position.copy(bestMove);
+        } else {
+            // If completely stuck, try wall-sliding
+            // Try X-axis only movement
+            const slideX = new THREE.Vector3(
+                enemy.position.x + directionToPlayer.x * moveSpeed,
+                enemy.position.y,
+                enemy.position.z
+            );
+            if (isPositionValid(slideX)) {
+                enemy.position.copy(slideX);
+            } else {
+                // Try Z-axis only movement
+                const slideZ = new THREE.Vector3(
+                    enemy.position.x,
+                    enemy.position.y,
+                    enemy.position.z + directionToPlayer.z * moveSpeed
+                );
+                if (isPositionValid(slideZ)) {
+                    enemy.position.copy(slideZ);
+                }
+                // If both fail, enemy stays in place this frame
+            }
+        }
+
+        // Make enemy look at player
+        enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
+
+        // Add bobbing animation
+        enemy.position.y = 1 + Math.sin(Date.now() * 0.003) * 0.15;
+
+        // Check collision with player
+        const distance = game.camera.position.distanceTo(enemy.position);
+        if (distance < 2.5) {
+            // Enemy hits player
+            if (!enemy.hasHitPlayer) {
+                enemy.hasHitPlayer = true;
+
+                if (game.hasShieldProtection) {
+                    // Shield protects - teleport player and enemy apart
+                    game.hasShieldProtection = false;
+                    game.inventory.equippedShield = false;
+
+                    // Calculate direction from enemy to player
+                    const pushDirection = new THREE.Vector3();
+                    pushDirection.subVectors(game.camera.position, enemy.position);
+                    pushDirection.y = 0;
+                    pushDirection.normalize();
+
+                    // Move player 6 steps away
+                    game.camera.position.x += pushDirection.x * 12;
+                    game.camera.position.z += pushDirection.z * 12;
+
+                    // Move enemy 6 steps in opposite direction
+                    enemy.position.x -= pushDirection.x * 12;
+                    enemy.position.z -= pushDirection.z * 12;
+
+                    showNotification('🛡️ Shield absorbed the hit! Find another shield for protection.');
+                } else {
+                    // Take damage
+                    game.playerHP -= 1;
+                    updateHPDisplay();
+
+                    // Push player back
+                    const pushDirection = new THREE.Vector3();
+                    pushDirection.subVectors(game.camera.position, enemy.position);
+                    pushDirection.y = 0;
+                    pushDirection.normalize();
+                    game.camera.position.x += pushDirection.x * 5;
+                    game.camera.position.z += pushDirection.z * 5;
+
+                    if (game.playerHP <= 0) {
+                        gameOver();
+                    } else {
+                        showNotification(`❤️ Hit! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                    }
+                }
+
+                // Reset hit flag after cooldown
+                setTimeout(() => {
+                    if (enemy) {
+                        enemy.hasHitPlayer = false;
+                    }
+                }, 1000);
+            }
         }
     }
+}
 
-    // Make enemy look at player
-    game.enemy.lookAt(game.camera.position.x, game.enemy.position.y, game.camera.position.z);
+// Update HP display
+function updateHPDisplay() {
+    const hpDisplay = document.getElementById('hpDisplay');
+    if (hpDisplay) {
+        hpDisplay.textContent = `HP: ${game.playerHP}/${game.maxPlayerHP}`;
 
-    // Add bobbing animation
-    game.enemy.position.y = 2 + Math.sin(Date.now() * 0.003) * 0.3;
-
-    // Check collision with player
-    const distance = game.camera.position.distanceTo(game.enemy.position);
-    if (distance < 3) {
-        if (game.hasShieldProtection) {
-            // Shield protects - teleport player and enemy apart
-            game.hasShieldProtection = false;
-            game.inventory.equippedShield = false;
-
-            // Calculate direction from enemy to player
-            const pushDirection = new THREE.Vector3();
-            pushDirection.subVectors(game.camera.position, game.enemy.position);
-            pushDirection.y = 0;
-            pushDirection.normalize();
-
-            // Move player 6 steps away
-            game.camera.position.x += pushDirection.x * 12;
-            game.camera.position.z += pushDirection.z * 12;
-
-            // Move enemy 6 steps in opposite direction
-            game.enemy.position.x -= pushDirection.x * 12;
-            game.enemy.position.z -= pushDirection.z * 12;
-
-            showNotification('🛡️ Shield absorbed the hit! Find another shield for protection.');
+        // Change color based on HP
+        if (game.playerHP <= 5) {
+            hpDisplay.style.color = '#ff4444';
+        } else if (game.playerHP <= 10) {
+            hpDisplay.style.color = '#ffaa44';
         } else {
-            gameOver();
+            hpDisplay.style.color = '#44ff44';
         }
     }
 }
@@ -715,7 +830,7 @@ function gameOver() {
     const instructions = document.getElementById('instructions');
     instructions.innerHTML = `
         <h1 style="color: #ff0000;">GAME OVER!</h1>
-        <p>The enemy caught you!</p>
+        <p>The enemies overwhelmed you!</p>
         <p>Refresh the page to try again</p>
     `;
     instructions.classList.remove('hidden');
@@ -936,8 +1051,8 @@ function updateMovement(delta) {
 function updateSwordBobbing() {
     if (!game.equippedSwordMesh || game.isAttacking) return;
 
-    const restPosX = 0.4;
-    const restPosY = -0.35;
+    const restPosX = 0.5;  // Updated for new arm position
+    const restPosY = -0.5; // Updated for new arm position
 
     if (game.isMoving && game.isPointerLocked && !game.inventory.isOpen) {
         // Bob up and down with sway
@@ -969,6 +1084,15 @@ function animate() {
         if (game.attackCooldown > 0) {
             game.attackCooldown -= delta;
         }
+
+        // Enemy spawner
+        if (!game.isGameOver) {
+            game.enemySpawnTimer += delta;
+            if (game.enemySpawnTimer >= game.enemySpawnInterval) {
+                spawnEnemy();
+                game.enemySpawnTimer = 0;
+            }
+        }
     }
 
     // Animate shield pickup (rotate)
@@ -981,4 +1105,7 @@ function animate() {
 }
 
 // Start the game when page loads
-window.addEventListener('load', init);
+window.addEventListener('load', () => {
+    init();
+    updateHPDisplay(); // Initialize HP display
+});
