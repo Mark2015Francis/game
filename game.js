@@ -919,10 +919,35 @@ function shootArrow() {
 
     game.shootCooldown = 0.5; // 0.5 second cooldown
 
-    // Create arrow projectile
-    const arrowGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1, 8);
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
-    const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+    // Create arrow projectile as a group
+    const arrow = new THREE.Group();
+
+    // Arrow shaft (main body)
+    const shaftGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8);
+    const shaftMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // Brown
+    const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+    shaft.position.y = 0;
+    arrow.add(shaft);
+
+    // Arrowhead (cone at front)
+    const headGeometry = new THREE.ConeGeometry(0.08, 0.3, 8);
+    const headMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); // Gray metal
+    const head = new THREE.Mesh(headGeometry, headMaterial);
+    head.position.y = 0.75; // Position at front of shaft
+    arrow.add(head);
+
+    // Fletching (feathers at back) - 3 small triangular fins
+    const fletchingMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red feathers
+    for (let i = 0; i < 3; i++) {
+        const angle = (i / 3) * Math.PI * 2;
+        const fletchingGeometry = new THREE.BoxGeometry(0.02, 0.15, 0.1);
+        const fletching = new THREE.Mesh(fletchingGeometry, fletchingMaterial);
+        fletching.position.y = -0.5; // Position at back of shaft
+        fletching.position.x = Math.cos(angle) * 0.05;
+        fletching.position.z = Math.sin(angle) * 0.05;
+        fletching.rotation.y = angle;
+        arrow.add(fletching);
+    }
 
     // Position at camera
     arrow.position.set(
@@ -950,15 +975,14 @@ function shootArrow() {
     );
 
     // Rotate arrow to point in the direction of travel
-    // Cylinder's default orientation is along Y-axis, so we rotate it to align with velocity
+    // Arrow is built along Y-axis, so we need to orient it toward the velocity direction
     const direction = arrow.velocity.clone().normalize();
-    const targetPosition = new THREE.Vector3().addVectors(arrow.position, direction);
 
-    // First rotate cylinder to point along Z axis
-    arrow.rotation.x = Math.PI / 2;
-
-    // Then use lookAt to orient toward the target direction
-    arrow.lookAt(targetPosition);
+    // Calculate the rotation needed to align arrow with velocity
+    // Create a quaternion rotation from Y-axis to the direction vector
+    const upVector = new THREE.Vector3(0, 1, 0);
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, direction);
+    arrow.setRotationFromQuaternion(quaternion);
 
     game.scene.add(arrow);
     game.projectiles.push(arrow);
