@@ -1386,14 +1386,6 @@ function updateProjectiles(delta) {
         arrow.position.y += arrow.velocity.y * delta;
         arrow.position.z += arrow.velocity.z * delta;
 
-        // Rotate arrow to point in direction of movement (only if moving fast enough)
-        const velocityLength = arrow.velocity.length();
-        if (velocityLength > 0.1) { // Only rotate if arrow has significant velocity
-            const direction = arrow.velocity.clone().normalize();
-            arrow.lookAt(arrow.position.clone().add(direction));
-            arrow.rotateX(Math.PI / 2);
-        }
-
         // Check collision with enemies
         let hitEnemy = false;
         for (let j = 0; j < game.enemies.length; j++) {
