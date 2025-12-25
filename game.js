@@ -562,13 +562,26 @@ function spawnEnemy() {
     const spawnX = distToPlayer < 50 ? Math.cos(Math.random() * Math.PI * 2) * (100 + Math.random() * 100) : x;
     const spawnZ = distToPlayer < 50 ? Math.sin(Math.random() * Math.PI * 2) * (100 + Math.random() * 100) : z;
 
-    // In World 2, 50% chance to spawn projectile enemy instead of regular enemy
-    // In World 3, 70% chance to spawn projectile enemy (more dangerous)
-    if (game.currentWorld === 2 && Math.random() < 0.5) {
-        createProjectileEnemy(spawnX, spawnZ);
-    } else if (game.currentWorld === 3 && Math.random() < 0.7) {
-        createProjectileEnemy(spawnX, spawnZ);
+    // Enemy spawn logic by world
+    if (game.currentWorld === 2) {
+        // World 2: 50% chance to spawn projectile enemy
+        if (Math.random() < 0.5) {
+            createProjectileEnemy(spawnX, spawnZ);
+        } else {
+            createEnemy(spawnX, spawnZ);
+        }
+    } else if (game.currentWorld === 3) {
+        // World 3: 20% warrior, then 70% projectile, 30% normal from remaining
+        const rand = Math.random();
+        if (rand < 0.2) {
+            createWarriorEnemy(spawnX, spawnZ);
+        } else if (rand < 0.76) { // 0.2 + (0.8 * 0.7) = 0.76
+            createProjectileEnemy(spawnX, spawnZ);
+        } else {
+            createEnemy(spawnX, spawnZ);
+        }
     } else {
+        // World 1: Only regular enemies
         createEnemy(spawnX, spawnZ);
     }
 }
@@ -582,10 +595,8 @@ function createEnemy(x, z) {
 
     // Scale HP based on world
     let baseHP = 5;
-    if (game.currentWorld === 2) {
-        baseHP = 7; // Stronger in World 2
-    } else if (game.currentWorld === 3) {
-        baseHP = 10; // Even stronger in World 3
+    if (game.currentWorld === 2 || game.currentWorld === 3) {
+        baseHP = 7; // Stronger in World 2 and 3
     }
 
     enemy.hp = baseHP;
@@ -656,11 +667,10 @@ function createProjectileEnemy(x, z) {
 
     // Scale HP based on world (projectile enemies are weaker but dangerous)
     let projectileHP = 1;
-    if (game.currentWorld === 2) {
-        projectileHP = 2; // Slightly stronger in World 2
-    } else if (game.currentWorld === 3) {
-        projectileHP = 3; // Even stronger in World 3
+    if (game.currentWorld === 3) {
+        projectileHP = 2; // Slightly stronger in World 3
     }
+    // World 1 and 2 both have 1 HP projectile enemies
 
     enemy.hp = projectileHP;
     enemy.maxHP = projectileHP;
@@ -755,6 +765,95 @@ function createProjectileEnemy(x, z) {
     game.enemies.push(enemy);
     game.totalEnemiesSpawned++;
     console.log(`Worm virus spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
+}
+
+// Create warrior enemy - tanky enemy that dashes - Trojan Warrior Virus
+function createWarriorEnemy(x, z) {
+    const enemy = new THREE.Group();
+    enemy.position.set(x, 1, z);
+    enemy.castShadow = true;
+
+    enemy.hp = 10; // High HP
+    enemy.maxHP = 10;
+    enemy.isWarriorEnemy = true; // Mark as warrior enemy
+    enemy.dashTimer = 20; // Dash every 20 seconds
+    enemy.dashCooldown = 20;
+    enemy.isDashing = false;
+    enemy.dashDuration = 0;
+
+    // Main warrior body - larger octahedron (orange/yellow color)
+    const bodyGeometry = new THREE.OctahedronGeometry(1.3, 0);
+    const bodyMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffaa00, // Orange/yellow color
+        emissive: 0xff6600,
+        emissiveIntensity: 0.5
+    });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.castShadow = true;
+    enemy.add(body);
+
+    // Store material reference for hit effects
+    enemy.material = bodyMaterial;
+
+    // Add wireframe overlay for digital look (thicker)
+    const wireframeGeometry = new THREE.OctahedronGeometry(1.35, 0);
+    const wireframeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffcc00,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.7
+    });
+    const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
+    enemy.add(wireframe);
+
+    // Add inner glowing core (larger)
+    const coreGeometry = new THREE.OctahedronGeometry(0.6, 0);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        emissive: 0xffaa00,
+        transparent: true,
+        opacity: 0.9
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    enemy.add(core);
+
+    // Add orbiting shield plates (like armor)
+    const plateGeometry = new THREE.BoxGeometry(0.4, 0.6, 0.1);
+    const plateMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffaa00,
+        emissive: 0xff6600
+    });
+
+    for (let i = 0; i < 6; i++) {
+        const plate = new THREE.Mesh(plateGeometry, plateMaterial);
+        const angle = (i / 6) * Math.PI * 2;
+        plate.position.set(Math.cos(angle) * 1.8, 0, Math.sin(angle) * 1.8);
+        plate.rotation.y = angle + Math.PI / 2;
+        plate.userData.orbitAngle = angle;
+        plate.userData.isOrbitPlate = true;
+        enemy.add(plate);
+    }
+
+    // Add spikes for aggressive look
+    const spikeGeometry = new THREE.ConeGeometry(0.15, 0.6, 8);
+    const spikeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffcc00,
+        emissive: 0xffaa00
+    });
+
+    for (let i = 0; i < 4; i++) {
+        const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+        const angle = (i / 4) * Math.PI * 2;
+        spike.position.set(Math.cos(angle) * 1.5, 0.5, Math.sin(angle) * 1.5);
+        spike.rotation.z = Math.PI / 2;
+        spike.rotation.y = angle;
+        enemy.add(spike);
+    }
+
+    game.scene.add(enemy);
+    game.enemies.push(enemy);
+    game.totalEnemiesSpawned++;
+    console.log(`Warrior virus spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
 // Create code explosion effect when enemy dies
@@ -3391,6 +3490,85 @@ function updateEnemy(delta) {
 
             // Skip regular enemy collision check (they don't melee)
             continue;
+        }
+
+        // Handle warrior enemies with dash ability
+        if (enemy.isWarriorEnemy) {
+            // Update dash timer
+            enemy.dashTimer -= delta;
+
+            if (enemy.isDashing) {
+                // Currently dashing - move fast toward player
+                enemy.dashDuration -= delta;
+
+                if (enemy.dashDuration <= 0) {
+                    // Dash ended
+                    enemy.isDashing = false;
+                    enemy.dashDuration = 0;
+                } else {
+                    // Continue dashing at high speed
+                    const dashSpeed = moveSpeed * 3; // 3x normal speed
+                    const dashMove = new THREE.Vector3(
+                        enemy.position.x + directionToPlayer.x * dashSpeed,
+                        enemy.position.y,
+                        enemy.position.z + directionToPlayer.z * dashSpeed
+                    );
+                    if (isPositionValid(dashMove, enemy)) {
+                        enemy.position.copy(dashMove);
+                    }
+                }
+            } else {
+                // Not dashing - check if should start dash
+                if (enemy.dashTimer <= 0 && distanceToPlayer < 40) {
+                    // Start dash
+                    enemy.isDashing = true;
+                    enemy.dashDuration = 1.0; // Dash for 1 second
+                    enemy.dashTimer = enemy.dashCooldown; // Reset cooldown
+                } else {
+                    // Normal movement when not dashing
+                    const normalMove = new THREE.Vector3(
+                        enemy.position.x + directionToPlayer.x * moveSpeed * 0.7, // Slightly slower than regular
+                        enemy.position.y,
+                        enemy.position.z + directionToPlayer.z * moveSpeed * 0.7
+                    );
+                    if (isPositionValid(normalMove, enemy)) {
+                        enemy.position.copy(normalMove);
+                    }
+                }
+            }
+
+            // Animate orbiting shield plates
+            if (enemy.children) {
+                enemy.children.forEach(child => {
+                    if (child.userData && child.userData.isOrbitPlate) {
+                        child.userData.orbitAngle += delta * 2;
+                        child.position.x = Math.cos(child.userData.orbitAngle) * 1.8;
+                        child.position.z = Math.sin(child.userData.orbitAngle) * 1.8;
+                    }
+                });
+            }
+
+            // Make enemy look at player
+            enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
+
+            // Check collision with player
+            if (distanceToPlayer < 2) {
+                // Damage player
+                if (!game.hasShieldProtection) {
+                    game.playerHP -= 2; // Warriors do more damage
+                    updateHPDisplay();
+                    if (game.playerHP <= 0) {
+                        gameOver();
+                    }
+                } else {
+                    // Shield blocks hit
+                    game.hasShieldProtection = false;
+                    updateShieldDisplay();
+                    showNotification('🛡️ Shield blocked attack!');
+                }
+            }
+
+            continue; // Skip regular enemy logic
         }
 
         // Try multiple movement strategies in order of preference (regular enemies only)
