@@ -77,7 +77,14 @@ const game = {
     shop: null,
     isShopOpen: false,
     shieldCount: 0,
-    foodCount: 0
+    foodCount: 0,
+    spellBook: null,
+    spellBookCollected: false,
+    hasFireball: false,
+    hasBigJump: false,
+    hasFreezeball: false,
+    fireballCooldown: 0,
+    freezeballCooldown: 0
 };
 
 // Initialize the game
@@ -600,6 +607,62 @@ function createFoodPickup(x, z) {
     game.foods.push(food);
 }
 
+// Create spell book pickup
+function createSpellBook(x, z) {
+    game.spellBook = new THREE.Group();
+
+    // Book - rectangular shape
+    const bookGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.15);
+    const bookMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b008b, // Dark purple
+        emissive: 0x4b0082
+    });
+    const book = new THREE.Mesh(bookGeometry, bookMaterial);
+    book.castShadow = true;
+    game.spellBook.add(book);
+
+    // Book cover design - golden star
+    const starGeometry = new THREE.CircleGeometry(0.2, 5);
+    const starMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffd700
+    });
+    const star = new THREE.Mesh(starGeometry, starMaterial);
+    star.position.set(0, 0, 0.08);
+    game.spellBook.add(star);
+
+    // Magical sparkles around book
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const sparkleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
+        const sparkleMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            emissive: 0xffff00
+        });
+        const sparkle = new THREE.Mesh(sparkleGeometry, sparkleMaterial);
+        sparkle.position.set(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0);
+        sparkle.userData.angle = angle;
+        sparkle.userData.isSparkle = true;
+        game.spellBook.add(sparkle);
+    }
+
+    game.spellBook.position.set(x, 1.5, z);
+    game.spellBook.rotation.y = Math.PI / 4;
+
+    game.scene.add(game.spellBook);
+
+    // Add glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x9400d3,
+        transparent: true,
+        opacity: 0.2
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    game.spellBook.add(glow);
+
+    console.log('Spell book created at', x, z);
+}
+
 // Create shop at edge of map
 function createShop(x, z) {
     game.shop = new THREE.Group();
@@ -1104,6 +1167,120 @@ function shootArrow() {
     showNotification('🏹 Arrow shot!');
 }
 
+// Cast fireball spell
+function castFireball() {
+    if (!game.hasFireball || game.fireballCooldown > 0) return;
+
+    game.fireballCooldown = 2.0; // 2 second cooldown
+
+    // Create fireball projectile
+    const fireballGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+    const fireballMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff4500,
+        emissive: 0xff4500
+    });
+    const fireball = new THREE.Mesh(fireballGeometry, fireballMaterial);
+
+    // Position at camera
+    fireball.position.set(
+        game.camera.position.x,
+        game.camera.position.y,
+        game.camera.position.z
+    );
+
+    // Store starting position
+    fireball.startPosition = fireball.position.clone();
+
+    // Calculate fireball direction from camera rotation
+    const pitch = game.camera.rotation.x;
+    const yaw = game.camera.rotation.y;
+
+    const dirX = -Math.sin(yaw) * Math.cos(pitch);
+    const dirY = Math.sin(pitch);
+    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+
+    // Create velocity vector (faster than arrows)
+    fireball.velocity = new THREE.Vector3(
+        dirX * 60,
+        dirY * 60,
+        dirZ * 60
+    );
+
+    fireball.isFireball = true;
+
+    // Add flame particles around fireball
+    const glowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffa500,
+        transparent: true,
+        opacity: 0.5
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    fireball.add(glow);
+
+    game.scene.add(fireball);
+    game.projectiles.push(fireball);
+
+    showNotification('🔥 Fireball!');
+}
+
+// Cast freezeball spell
+function castFreezeball() {
+    if (!game.hasFreezeball || game.freezeballCooldown > 0) return;
+
+    game.freezeballCooldown = 3.0; // 3 second cooldown
+
+    // Create freezeball projectile
+    const freezeballGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+    const freezeballMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff
+    });
+    const freezeball = new THREE.Mesh(freezeballGeometry, freezeballMaterial);
+
+    // Position at camera
+    freezeball.position.set(
+        game.camera.position.x,
+        game.camera.position.y,
+        game.camera.position.z
+    );
+
+    // Store starting position
+    freezeball.startPosition = freezeball.position.clone();
+
+    // Calculate freezeball direction from camera rotation
+    const pitch = game.camera.rotation.x;
+    const yaw = game.camera.rotation.y;
+
+    const dirX = -Math.sin(yaw) * Math.cos(pitch);
+    const dirY = Math.sin(pitch);
+    const dirZ = -Math.cos(yaw) * Math.cos(pitch);
+
+    // Create velocity vector
+    freezeball.velocity = new THREE.Vector3(
+        dirX * 50,
+        dirY * 50,
+        dirZ * 50
+    );
+
+    freezeball.isFreezeball = true;
+
+    // Add icy glow around freezeball
+    const glowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xaaffff,
+        transparent: true,
+        opacity: 0.5
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    freezeball.add(glow);
+
+    game.scene.add(freezeball);
+    game.projectiles.push(freezeball);
+
+    showNotification('❄️ Freeze Ball!');
+}
+
 // Toggle inventory
 function toggleInventory() {
     game.inventory.isOpen = !game.inventory.isOpen;
@@ -1199,6 +1376,23 @@ function checkFoodPickup() {
             showNotification(`🍎 Food collected! (x${game.foodCount}) Use it to heal 10 HP.`);
             break; // Only collect one at a time
         }
+    }
+}
+
+// Check spell book pickup
+function checkSpellBookPickup() {
+    if (game.spellBookCollected || !game.spellBook) return;
+
+    const distance = game.camera.position.distanceTo(game.spellBook.position);
+
+    if (distance < 3) {
+        // Collect spell book
+        game.spellBookCollected = true;
+        game.scene.remove(game.spellBook);
+
+        // Show notification
+        showNotification('📖 Spell Book collected! Magic shop section unlocked!');
+        console.log('Spell book collected - magic shop unlocked');
     }
 }
 
@@ -1511,10 +1705,55 @@ function toggleShop() {
     const shopMenu = document.getElementById('shopMenu');
 
     if (game.isShopOpen) {
+        updateShopItems(); // Update shop items when opening
         shopMenu.style.display = 'block';
         document.exitPointerLock();
     } else {
         shopMenu.style.display = 'none';
+    }
+}
+
+// Update shop items display
+function updateShopItems() {
+    const shopItems = document.getElementById('shopItems');
+    shopItems.innerHTML = '';
+
+    // Basic items
+    shopItems.innerHTML += `
+        <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('food')">
+            <span style="font-size: 30px;">🍖</span>
+            <span style="margin-left: 20px; font-size: 18px;">Food - Heal 10 HP</span>
+            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 5 Coins</span>
+        </div>
+        <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('damage')">
+            <span style="font-size: 30px;">⚔️</span>
+            <span style="margin-left: 20px; font-size: 18px;">Damage Upgrade (+1 DMG)</span>
+            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 10 Coins</span>
+        </div>
+    `;
+
+    // Magic items (only if spell book collected)
+    if (game.spellBookCollected) {
+        shopItems.innerHTML += `
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #9400d3;">
+                <h3 style="text-align: center; color: #9400d3;">✨ Magic Spells ✨</h3>
+            </div>
+            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('fireball')">
+                <span style="font-size: 30px;">🔥</span>
+                <span style="margin-left: 20px; font-size: 18px;">Fireball Spell ${game.hasFireball ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Coins</span>
+            </div>
+            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bigjump')">
+                <span style="font-size: 30px;">⬆️</span>
+                <span style="margin-left: 20px; font-size: 18px;">Big Jump Spell ${game.hasBigJump ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Coins</span>
+            </div>
+            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('freezeball')">
+                <span style="font-size: 30px;">❄️</span>
+                <span style="margin-left: 20px; font-size: 18px;">Freeze Ball Spell ${game.hasFreezeball ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 25 Coins</span>
+            </div>
+        `;
     }
 }
 
@@ -1539,6 +1778,43 @@ function buyItem(itemType) {
             showNotification('⚔️ Bought damage upgrade! +1 DMG');
         } else {
             showNotification('❌ Not enough coins! Need 10 coins');
+        }
+    } else if (itemType === 'fireball') {
+        if (game.hasFireball) {
+            showNotification('❌ You already own this spell!');
+        } else if (game.coins >= 15) {
+            game.coins -= 15;
+            game.hasFireball = true;
+            updateCoinsDisplay();
+            updateShopItems(); // Refresh shop display
+            showNotification('🔥 Fireball spell unlocked! Press F to cast!');
+        } else {
+            showNotification('❌ Not enough coins! Need 15 coins');
+        }
+    } else if (itemType === 'bigjump') {
+        if (game.hasBigJump) {
+            showNotification('❌ You already own this spell!');
+        } else if (game.coins >= 20) {
+            game.coins -= 20;
+            game.hasBigJump = true;
+            game.jumpHeight = 25.0; // Increase jump height from 15.0
+            updateCoinsDisplay();
+            updateShopItems(); // Refresh shop display
+            showNotification('⬆️ Big Jump spell unlocked! Your jump is now higher!');
+        } else {
+            showNotification('❌ Not enough coins! Need 20 coins');
+        }
+    } else if (itemType === 'freezeball') {
+        if (game.hasFreezeball) {
+            showNotification('❌ You already own this spell!');
+        } else if (game.coins >= 25) {
+            game.coins -= 25;
+            game.hasFreezeball = true;
+            updateCoinsDisplay();
+            updateShopItems(); // Refresh shop display
+            showNotification('❄️ Freeze Ball spell unlocked! Press G to cast!');
+        } else {
+            showNotification('❌ Not enough coins! Need 25 coins');
         }
     }
 }
@@ -1618,6 +1894,11 @@ function enterWorldTwo() {
             const foodZ = (Math.random() * 600 - 300);
             createFoodPickup(foodX, foodZ);
         }
+
+        // Spawn spell book in World 2
+        const spellBookX = (Math.random() * 400 - 200);
+        const spellBookZ = (Math.random() * 400 - 200);
+        createSpellBook(spellBookX, spellBookZ);
 
         // Spawn initial enemies in World 2
         spawnEnemy();
@@ -2552,6 +2833,16 @@ function setupControls() {
             case 'KeyE':
                 toggleShop();
                 break;
+            case 'KeyF':
+                if (game.hasFireball && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                    castFireball();
+                }
+                break;
+            case 'KeyG':
+                if (game.hasFreezeball && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                    castFreezeball();
+                }
+                break;
             case 'Escape':
                 if (game.inventory.isOpen) {
                     toggleInventory();
@@ -2759,8 +3050,25 @@ function updateProjectiles(delta) {
             const distance = arrow.position.distanceTo(enemy.position);
 
             if (distance < 1.5) {
+                // Determine damage based on projectile type
+                let damage = 1; // Arrows deal 1 damage
+                let emoji = '🏹';
+
+                if (arrow.isFireball) {
+                    damage = 3; // Fireballs deal 3 damage
+                    emoji = '🔥';
+                } else if (arrow.isFreezeball) {
+                    damage = 2; // Freezeballs deal 2 damage
+                    emoji = '❄️';
+                    // Freeze effect: slow enemy
+                    enemy.isFrozen = true;
+                    setTimeout(() => {
+                        if (enemy) enemy.isFrozen = false;
+                    }, 3000); // Frozen for 3 seconds
+                }
+
                 // Hit enemy
-                enemy.hp -= 1; // Arrows deal 1 damage
+                enemy.hp -= damage;
 
                 // Visual feedback
                 const originalColor = enemy.material.color.getHex();
@@ -2773,7 +3081,7 @@ function updateProjectiles(delta) {
                     }
                 }, 150);
 
-                showNotification(`🏹 Hit! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
+                showNotification(`${emoji} Hit! Enemy HP: ${Math.max(0, enemy.hp)}/${enemy.maxHP || 5}`);
 
                 if (enemy.hp <= 0) {
                     defeatEnemy(enemy, j);
@@ -2788,8 +3096,25 @@ function updateProjectiles(delta) {
         if (!hitEnemy && game.boss) {
             const distance = arrow.position.distanceTo(game.boss.position);
             if (distance < 4) { // Boss has larger hitbox
+                // Determine damage based on projectile type
+                let damage = 1; // Arrows deal 1 damage
+                let emoji = '🏹';
+
+                if (arrow.isFireball) {
+                    damage = 5; // Fireballs deal 5 damage to boss
+                    emoji = '🔥';
+                } else if (arrow.isFreezeball) {
+                    damage = 3; // Freezeballs deal 3 damage to boss
+                    emoji = '❄️';
+                    // Freeze effect on boss: slow movement
+                    game.boss.isFrozen = true;
+                    setTimeout(() => {
+                        if (game.boss) game.boss.isFrozen = false;
+                    }, 5000); // Frozen for 5 seconds
+                }
+
                 // Hit boss
-                game.boss.hp -= 1; // Arrows deal 1 damage
+                game.boss.hp -= damage;
 
                 // Visual feedback
                 const originalColor = game.boss.material.color.getHex();
@@ -2802,13 +3127,13 @@ function updateProjectiles(delta) {
                     }
                 }, 150);
 
-                showNotification(`🏹 BOSS Hit! HP: ${Math.max(0, game.boss.hp)}/100`);
+                showNotification(`${emoji} BOSS Hit! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP || 100}`);
 
                 if (game.boss.hp <= 0) {
                     defeatBoss();
                 }
 
-                hitEnemy = true; // Use same flag to remove arrow
+                hitEnemy = true; // Use same flag to remove projectile
             }
         }
 
@@ -2834,6 +3159,7 @@ function animate() {
         checkShieldPickup();
         checkBowPickup();
         checkFoodPickup();
+        checkSpellBookPickup();
         checkPortalPickup();
         checkShopProximity();
         updateProjectiles(delta);
@@ -2850,6 +3176,14 @@ function animate() {
         // Reduce shoot cooldown
         if (game.shootCooldown > 0) {
             game.shootCooldown -= delta;
+        }
+
+        // Reduce spell cooldowns
+        if (game.fireballCooldown > 0) {
+            game.fireballCooldown -= delta;
+        }
+        if (game.freezeballCooldown > 0) {
+            game.freezeballCooldown -= delta;
         }
 
         // Enemy spawner

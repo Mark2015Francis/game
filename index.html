@@ -252,19 +252,10 @@
         ⚔️ <strong>Sword Equipped</strong> - Click to attack!
     </div>
     <div id="notification"></div>
-    <div id="shopMenu" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.95); color: white; padding: 30px; border-radius: 10px; z-index: 100; min-width: 500px; border: 3px solid #ffd700;">
+    <div id="shopMenu" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, 0.95); color: white; padding: 30px; border-radius: 10px; z-index: 100; min-width: 500px; max-height: 80vh; overflow-y: auto; border: 3px solid #ffd700;">
         <h2 style="text-align: center; color: #ffd700; border-bottom: 2px solid #ffd700; padding-bottom: 10px;">🏪 Shop</h2>
         <div id="shopItems" style="margin: 20px 0;">
-            <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('food')">
-                <span style="font-size: 30px;">🍖</span>
-                <span style="margin-left: 20px; font-size: 18px;">Food - Heal 10 HP</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 5 Coins</span>
-            </div>
-            <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('damage')">
-                <span style="font-size: 30px;">⚔️</span>
-                <span style="margin-left: 20px; font-size: 18px;">Damage Upgrade (+1 DMG)</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 10 Coins</span>
-            </div>
+            <!-- Shop items will be dynamically generated -->
         </div>
         <div style="text-align: center; font-size: 12px; color: #aaa; margin-top: 15px;">Press E to close shop</div>
     </div>
