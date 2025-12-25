@@ -3685,7 +3685,7 @@ function updateEXPDisplay() {
 function updateManaDisplay() {
     const manaDisplay = document.getElementById('manaDisplay');
     if (manaDisplay) {
-        manaDisplay.textContent = `✨ Mana: ${game.playerMana}/${game.maxPlayerMana}`;
+        manaDisplay.textContent = `✨ Mana: ${Math.floor(game.playerMana)}/${game.maxPlayerMana}`;
 
         // Change color based on mana percentage
         const manaPercent = (game.playerMana / game.maxPlayerMana) * 100;
