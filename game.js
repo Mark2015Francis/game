@@ -666,8 +666,14 @@ function createShop(x, z) {
     game.shop.position.set(x, 0, z);
     game.scene.add(game.shop);
 
-    // Add shop to collision objects so player can't walk through it
-    game.objects.push(game.shop);
+    // Create invisible collision box for the shop building
+    const collisionBox = new THREE.Mesh(
+        new THREE.BoxGeometry(12, 8, 10),
+        new THREE.MeshBasicMaterial({ visible: false })
+    );
+    collisionBox.position.set(x, 4, z);
+    game.scene.add(collisionBox);
+    game.objects.push(collisionBox);
 
     console.log('Shop created at', x, z);
 }
@@ -2275,25 +2281,49 @@ function createShockwave(x, z) {
     shockwave.rotation.x = -Math.PI / 2;
     game.scene.add(shockwave);
 
+    // Create 3D shockwave wave visual (cylinder expanding upward)
+    const waveGeometry = new THREE.CylinderGeometry(1, 1, 3, 32, 1, true);
+    const waveMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide
+    });
+    const wave3D = new THREE.Mesh(waveGeometry, waveMaterial);
+    wave3D.position.set(x, 1.5, z);
+    game.scene.add(wave3D);
+
     // Animate shockwave expansion
     let radius = 1;
     const maxRadius = 30;
     const expandSpeed = 40;
+    const shockwaveHeight = 3; // Height of the shockwave
 
     const expandInterval = setInterval(() => {
         radius += expandSpeed * 0.016; // Roughly 60fps
+
+        // Update 2D ring
         shockwave.geometry.dispose();
         shockwave.geometry = new THREE.RingGeometry(radius, radius + 2, 32);
         shockwave.material.opacity = 0.8 * (1 - radius / maxRadius);
 
-        // Check if shockwave hits player
+        // Update 3D wave
+        wave3D.geometry.dispose();
+        wave3D.geometry = new THREE.CylinderGeometry(radius, radius, shockwaveHeight, 32, 1, true);
+        wave3D.material.opacity = 0.3 * (1 - radius / maxRadius);
+
+        // Check if shockwave hits player - NOW DODGEABLE BY JUMPING
         const distToPlayer = Math.sqrt(
             (game.camera.position.x - x) ** 2 +
             (game.camera.position.z - z) ** 2
         );
 
-        if (distToPlayer <= radius && distToPlayer >= radius - 2) {
-            // Player is in shockwave range
+        // Player can dodge by jumping - check if player is within height range
+        const playerHeight = game.camera.position.y;
+        const isPlayerInShockwaveHeight = playerHeight < shockwaveHeight; // If player jumps above 3 units, they dodge
+
+        if (distToPlayer <= radius && distToPlayer >= radius - 2 && isPlayerInShockwaveHeight) {
+            // Player is in shockwave range AND low enough to be hit
             if (!shockwave.hitPlayer) {
                 shockwave.hitPlayer = true;
 
@@ -2326,8 +2356,11 @@ function createShockwave(x, z) {
         if (radius >= maxRadius) {
             clearInterval(expandInterval);
             game.scene.remove(shockwave);
+            game.scene.remove(wave3D);
             shockwave.geometry.dispose();
             shockwave.material.dispose();
+            wave3D.geometry.dispose();
+            wave3D.material.dispose();
         }
     }, 16); // ~60fps
 }
