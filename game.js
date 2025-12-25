@@ -358,6 +358,100 @@ function createGalaxy() {
     game.galaxy = galaxy;
 }
 
+// Create colored spirals for World 2 sky
+function createColoredSpirals() {
+    game.spirals = [];
+
+    const spiralColors = [
+        0x00ffff, // Cyan
+        0xff00ff, // Magenta
+        0xffff00, // Yellow
+        0xff00aa, // Pink
+        0x00ff88, // Teal
+        0xff8800, // Orange
+        0xaa00ff, // Purple
+        0x00aaff  // Light blue
+    ];
+
+    const spiralCount = 8;
+
+    for (let s = 0; s < spiralCount; s++) {
+        const spiral = new THREE.Group();
+
+        // Create spiral tube using points
+        const tubePoints = [];
+        const rotations = 4; // Number of full rotations
+        const pointCount = 100;
+        const spiralRadius = 15;
+        const spiralHeight = 40;
+
+        for (let i = 0; i < pointCount; i++) {
+            const t = i / pointCount;
+            const angle = t * Math.PI * 2 * rotations;
+            const radius = spiralRadius * (1 - t * 0.5); // Taper inward
+            const x = Math.cos(angle) * radius;
+            const y = t * spiralHeight - spiralHeight / 2;
+            const z = Math.sin(angle) * radius;
+            tubePoints.push(new THREE.Vector3(x, y, z));
+        }
+
+        const spiralCurve = new THREE.CatmullRomCurve3(tubePoints);
+        const tubeGeometry = new THREE.TubeGeometry(spiralCurve, 100, 0.5, 8, false);
+        const tubeMaterial = new THREE.MeshBasicMaterial({
+            color: spiralColors[s],
+            emissive: spiralColors[s],
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.7
+        });
+        const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+        spiral.add(tube);
+
+        // Add glowing particles along spiral
+        const particleCount = 50;
+        const particlePositions = [];
+        for (let i = 0; i < particleCount; i++) {
+            const t = i / particleCount;
+            const angle = t * Math.PI * 2 * rotations;
+            const radius = spiralRadius * (1 - t * 0.5);
+            const x = Math.cos(angle) * radius;
+            const y = t * spiralHeight - spiralHeight / 2;
+            const z = Math.sin(angle) * radius;
+            particlePositions.push(x, y, z);
+        }
+
+        const particleGeometry = new THREE.BufferGeometry();
+        particleGeometry.setAttribute('position', new THREE.Float32BufferAttribute(particlePositions, 3));
+        const particleMaterial = new THREE.PointsMaterial({
+            color: spiralColors[s],
+            size: 2,
+            transparent: true,
+            opacity: 1
+        });
+        const particles = new THREE.Points(particleGeometry, particleMaterial);
+        spiral.add(particles);
+
+        // Position spirals around the world
+        const angle = (s / spiralCount) * Math.PI * 2;
+        const distance = 300;
+        spiral.position.set(
+            Math.cos(angle) * distance,
+            100 + Math.random() * 50,
+            Math.sin(angle) * distance
+        );
+
+        // Random rotation
+        spiral.rotation.x = Math.random() * Math.PI;
+        spiral.rotation.z = Math.random() * Math.PI;
+
+        // Store rotation speed for animation
+        spiral.userData.rotationSpeed = (Math.random() - 0.5) * 0.3;
+
+        game.scene.add(spiral);
+        game.spirals.push(spiral);
+    }
+}
+
 // Create a wall
 function createWall(x, z, height, width, depth, color) {
     const geometry = new THREE.BoxGeometry(width, height, depth);
@@ -2542,7 +2636,8 @@ function enterWorldTwo() {
         game.currentWorld = 2;
 
         // Change scene background to indicate new world
-        game.scene.background = new THREE.Color(0x4a0e4e); // Purple sky for world 2
+        game.scene.background = new THREE.Color(0x6a0dad); // Bright purple sky for world 2
+        game.scene.fog = new THREE.Fog(0x6a0dad, 0, 200); // Purple fog
 
         // Remove World 1 sky elements
         if (game.sun) {
@@ -2558,8 +2653,9 @@ function enterWorldTwo() {
             game.clouds = [];
         }
 
-        // Add World 2 galaxy
+        // Add World 2 galaxy and colored spirals
         createGalaxy();
+        createColoredSpirals();
 
         // Spawn shields in World 2 (limited to 3)
         for (let i = 0; i < 3; i++) {
@@ -4100,6 +4196,13 @@ function animate() {
         // Animate galaxy rotation
         if (game.galaxy && game.currentWorld === 2) {
             game.galaxy.rotation.z += delta * 0.1;
+        }
+
+        // Animate colored spirals
+        if (game.spirals && game.currentWorld === 2) {
+            game.spirals.forEach(spiral => {
+                spiral.rotation.y += spiral.userData.rotationSpeed * delta;
+            });
         }
 
         // Reduce attack cooldown
