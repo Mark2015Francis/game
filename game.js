@@ -1102,16 +1102,10 @@ function createBoss(x, z) {
     console.log('BOSS SPAWNED at', x, z);
 }
 
-// Create World 2 boss enemy - teleporting projectile shooter
+// Create World 2 boss enemy - mega worm/transmission virus boss
 function createWorld2Boss(x, z) {
-    // Boss is large - radius 2.5
-    const bossGeometry = new THREE.SphereGeometry(2.5, 32, 32);
-    const bossMaterial = new THREE.MeshLambertMaterial({
-        color: 0x4a0e4e, // Dark purple
-        emissive: 0x8b008b
-    });
-    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
-    boss.position.set(x, 2.5, z);
+    const boss = new THREE.Group();
+    boss.position.set(x, 3, z);
     boss.castShadow = true;
     boss.hp = 50; // World 2 boss has 50 HP
     boss.maxHP = 50;
@@ -1119,42 +1113,123 @@ function createWorld2Boss(x, z) {
     boss.isWorld2Boss = true; // Mark as World 2 boss
     boss.teleportTimer = game.bossTeleportCooldown;
     boss.shootTimer = game.bossShootCooldown;
-    boss.jumpStartY = 2.5;
+    boss.jumpStartY = 3;
 
-    game.scene.add(boss);
-
-    // Add glowing purple eyes
-    const eyeGeometry = new THREE.SphereGeometry(0.35, 16, 16);
-    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff }); // Bright purple
-
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.75, 0.4, 1.8);
-    boss.add(leftEye);
-
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.75, 0.4, 1.8);
-    boss.add(rightEye);
-
-    // Add floating energy orbs around the boss
-    for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
-        const orbGeometry = new THREE.SphereGeometry(0.25, 16, 16);
-        const orbMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            emissive: 0x00ffff
+    // Main body - large segmented worm virus (like projectile enemy but bigger)
+    const segmentCount = 7; // More segments than regular worm
+    for (let i = 0; i < segmentCount; i++) {
+        const segmentGeometry = new THREE.CylinderGeometry(1.2 - i * 0.1, 1.2 - i * 0.1, 1.2, 12);
+        const segmentMaterial = new THREE.MeshLambertMaterial({
+            color: 0x00ff00, // Bright green like ranger enemy
+            emissive: 0x00aa00,
+            emissiveIntensity: 0.8
         });
-        const orb = new THREE.Mesh(orbGeometry, orbMaterial);
-        orb.position.set(Math.cos(angle) * 2, 1, Math.sin(angle) * 2);
-        orb.userData.angle = angle;
-        orb.userData.isOrb = true;
-        boss.add(orb);
+        const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+        segment.position.set(0, i * 1.0, 0);
+        segment.castShadow = true;
+        boss.add(segment);
+
+        // Store material reference on first segment
+        if (i === 0) {
+            boss.material = segmentMaterial;
+        }
     }
 
+    // Add enhanced wireframe bands around segments
+    for (let i = 0; i < segmentCount; i++) {
+        const wireGeometry = new THREE.CylinderGeometry(1.25 - i * 0.1, 1.25 - i * 0.1, 0.3, 12);
+        const wireMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.8
+        });
+        const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+        wire.position.set(0, i * 1.0, 0);
+        boss.add(wire);
+    }
+
+    // Add large pulsating signal rings (transmission effect) - 4 rings instead of 2
+    for (let i = 0; i < 4; i++) {
+        const ringGeometry = new THREE.TorusGeometry(2.0 + i * 0.3, 0.12, 12, 24);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.6
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.set(0, 3, 0);
+        ring.userData.isPulseRing = true;
+        ring.userData.offset = i * Math.PI / 2; // Offset for staggered pulse
+        boss.add(ring);
+    }
+
+    // Add multiple powerful antennas - 3 antennas arranged in triangle
+    for (let a = 0; a < 3; a++) {
+        const angle = (a / 3) * Math.PI * 2;
+        const antennaX = Math.cos(angle) * 0.8;
+        const antennaZ = Math.sin(angle) * 0.8;
+
+        const antennaGeometry = new THREE.CylinderGeometry(0.08, 0.08, 3.5, 8);
+        const antennaMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 0.5
+        });
+        const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+        antenna.position.set(antennaX, 5.5, antennaZ);
+        boss.add(antenna);
+
+        // Antenna top with larger glowing ball
+        const antennaTopGeometry = new THREE.SphereGeometry(0.3, 12, 12);
+        const antennaTopMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 1.5
+        });
+        const antennaTop = new THREE.Mesh(antennaTopGeometry, antennaTopMaterial);
+        antennaTop.position.set(antennaX, 7.3, antennaZ);
+        boss.add(antennaTop);
+    }
+
+    // Add many orbiting data packets (like transmitted data) - 12 packets instead of 3
+    const packetGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+    const packetMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00,
+        emissiveIntensity: 1
+    });
+
+    for (let i = 0; i < 12; i++) {
+        const packet = new THREE.Mesh(packetGeometry, packetMaterial);
+        const angle = (i / 12) * Math.PI * 2;
+        const radius = 3.0 + (i % 3) * 0.4; // Multiple orbit radii
+        packet.position.set(Math.cos(angle) * radius, 3 + Math.floor(i / 4), Math.sin(angle) * radius);
+        packet.userData.orbitAngle = angle;
+        packet.userData.orbitRadius = radius;
+        packet.userData.isOrbitPacket = true;
+        boss.add(packet);
+    }
+
+    // Add glowing green aura for boss presence
+    const glowGeometry = new THREE.SphereGeometry(3.5, 24, 24);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        transparent: true,
+        opacity: 0.1
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.set(0, 3, 0);
+    boss.add(glow);
+
+    game.scene.add(boss);
     game.boss = boss;
     game.bossSpawned = true;
 
-    showNotification('⚠️ WORLD 2 BOSS APPEARED! 50 HP - Can teleport and shoot!');
-    console.log('WORLD 2 BOSS SPAWNED at', x, z);
+    showNotification('⚠️ MEGA TRANSMISSION BOSS APPEARED! 50 HP - Can teleport and shoot!');
+    console.log('World 2 BOSS SPAWNED at', x, z);
 }
 
 // Create shield pickup
@@ -3927,12 +4002,24 @@ function updateWorld2Boss(delta) {
     // Make boss look at player
     boss.lookAt(game.camera.position.x, boss.position.y, game.camera.position.z);
 
-    // Rotate orbs around boss
+    // Animate World 2 boss visuals (data packets and pulse rings)
     boss.children.forEach(child => {
-        if (child.userData.isOrb) {
-            child.userData.angle += delta * 2;
-            child.position.x = Math.cos(child.userData.angle) * 2;
-            child.position.z = Math.sin(child.userData.angle) * 2;
+        // Rotate data packets around boss
+        if (child.userData.isOrbitPacket) {
+            child.userData.orbitAngle += delta * 2.5;
+            const radius = child.userData.orbitRadius;
+            child.position.x = Math.cos(child.userData.orbitAngle) * radius;
+            child.position.z = Math.sin(child.userData.orbitAngle) * radius;
+            // Rotate the packets themselves
+            child.rotation.x += delta * 3;
+            child.rotation.y += delta * 2;
+        }
+        // Animate pulsating signal rings
+        if (child.userData.isPulseRing) {
+            const pulseScale = 1 + Math.sin(Date.now() * 0.003 + child.userData.offset) * 0.25;
+            child.scale.set(pulseScale, pulseScale, pulseScale);
+            child.material.opacity = 0.4 + Math.sin(Date.now() * 0.003 + child.userData.offset) * 0.3;
+            child.rotation.y += delta * 1.5;
         }
     });
 
