@@ -781,12 +781,12 @@ function createWarriorEnemy(x, z) {
     enemy.isDashing = false;
     enemy.dashDuration = 0;
 
-    // Main warrior body - larger octahedron (orange/yellow color)
-    const bodyGeometry = new THREE.OctahedronGeometry(1.3, 0);
+    // Main warrior body - large dodecahedron (dark purple/black color - menacing)
+    const bodyGeometry = new THREE.DodecahedronGeometry(1.5, 0);
     const bodyMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffaa00, // Orange/yellow color
-        emissive: 0xff6600,
-        emissiveIntensity: 0.5
+        color: 0x4a0e4e, // Dark purple
+        emissive: 0x2a0a2e,
+        emissiveIntensity: 0.8
     });
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     body.castShadow = true;
@@ -795,59 +795,96 @@ function createWarriorEnemy(x, z) {
     // Store material reference for hit effects
     enemy.material = bodyMaterial;
 
-    // Add wireframe overlay for digital look (thicker)
-    const wireframeGeometry = new THREE.OctahedronGeometry(1.35, 0);
+    // Add jagged wireframe overlay for menacing digital look
+    const wireframeGeometry = new THREE.DodecahedronGeometry(1.55, 0);
     const wireframeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffcc00,
+        color: 0xff0066, // Bright magenta wireframe for contrast
         wireframe: true,
         transparent: true,
-        opacity: 0.7
+        opacity: 0.9
     });
     const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
     enemy.add(wireframe);
 
-    // Add inner glowing core (larger)
-    const coreGeometry = new THREE.OctahedronGeometry(0.6, 0);
+    // Add glowing red evil core
+    const coreGeometry = new THREE.IcosahedronGeometry(0.7, 0);
     const coreMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffaa00,
-        emissive: 0xffaa00,
+        color: 0xff0000,
+        emissive: 0xff0000,
         transparent: true,
-        opacity: 0.9
+        opacity: 1,
+        emissiveIntensity: 1
     });
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
     enemy.add(core);
 
-    // Add orbiting shield plates (like armor)
-    const plateGeometry = new THREE.BoxGeometry(0.4, 0.6, 0.1);
-    const plateMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffaa00,
-        emissive: 0xff6600
-    });
-
-    for (let i = 0; i < 6; i++) {
-        const plate = new THREE.Mesh(plateGeometry, plateMaterial);
-        const angle = (i / 6) * Math.PI * 2;
-        plate.position.set(Math.cos(angle) * 1.8, 0, Math.sin(angle) * 1.8);
-        plate.rotation.y = angle + Math.PI / 2;
-        plate.userData.orbitAngle = angle;
-        plate.userData.isOrbitPlate = true;
-        enemy.add(plate);
+    // Add pulsating dark energy rings
+    for (let i = 0; i < 3; i++) {
+        const ringGeometry = new THREE.TorusGeometry(1.8 + i * 0.3, 0.08, 8, 16);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: 0x8800ff, // Purple
+            transparent: true,
+            opacity: 0.6
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.set(0, 0, 0);
+        ring.rotation.x = Math.PI / 2;
+        ring.userData.isPulseRing = true;
+        ring.userData.offset = i * Math.PI / 3;
+        ring.userData.baseRadius = 1.8 + i * 0.3;
+        enemy.add(ring);
     }
 
-    // Add spikes for aggressive look
-    const spikeGeometry = new THREE.ConeGeometry(0.15, 0.6, 8);
-    const spikeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffcc00,
-        emissive: 0xffaa00
+    // Add menacing blade protrusions (8 sharp blades)
+    const bladeGeometry = new THREE.ConeGeometry(0.2, 1.2, 4);
+    const bladeMaterial = new THREE.MeshLambertMaterial({
+        color: 0x330033, // Very dark purple
+        emissive: 0xff0066,
+        emissiveIntensity: 0.5
     });
 
-    for (let i = 0; i < 4; i++) {
-        const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
-        const angle = (i / 4) * Math.PI * 2;
-        spike.position.set(Math.cos(angle) * 1.5, 0.5, Math.sin(angle) * 1.5);
-        spike.rotation.z = Math.PI / 2;
-        spike.rotation.y = angle;
-        enemy.add(spike);
+    for (let i = 0; i < 8; i++) {
+        const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+        const angle = (i / 8) * Math.PI * 2;
+        const height = (i % 2 === 0) ? 0.3 : -0.2; // Alternating heights
+        blade.position.set(Math.cos(angle) * 2.0, height, Math.sin(angle) * 2.0);
+        blade.rotation.z = Math.PI / 2;
+        blade.rotation.y = angle;
+        blade.userData.orbitAngle = angle;
+        blade.userData.isOrbitBlade = true;
+        enemy.add(blade);
+    }
+
+    // Add glowing "eyes" - two red spheres
+    const eyeGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+    const eyeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        emissive: 0xff0000,
+        emissiveIntensity: 1
+    });
+
+    const eye1 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    eye1.position.set(0.5, 0.3, 1.2);
+    enemy.add(eye1);
+
+    const eye2 = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    eye2.position.set(-0.5, 0.3, 1.2);
+    enemy.add(eye2);
+
+    // Add dark particle trail effect markers
+    for (let i = 0; i < 6; i++) {
+        const particleGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+        const particleMaterial = new THREE.MeshBasicMaterial({
+            color: 0x4a0e4e,
+            transparent: true,
+            opacity: 0.7
+        });
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        const angle = (i / 6) * Math.PI * 2;
+        particle.position.set(Math.cos(angle) * 1.3, 0.8, Math.sin(angle) * 1.3);
+        particle.userData.orbitAngle = angle;
+        particle.userData.isOrbitParticle = true;
+        enemy.add(particle);
     }
 
     game.scene.add(enemy);
@@ -3537,13 +3574,37 @@ function updateEnemy(delta) {
                 }
             }
 
-            // Animate orbiting shield plates
+            // Animate warrior visuals
             if (enemy.children) {
                 enemy.children.forEach(child => {
-                    if (child.userData && child.userData.isOrbitPlate) {
-                        child.userData.orbitAngle += delta * 2;
-                        child.position.x = Math.cos(child.userData.orbitAngle) * 1.8;
-                        child.position.z = Math.sin(child.userData.orbitAngle) * 1.8;
+                    // Rotate core icosahedron
+                    if (child.geometry && child.geometry.type === 'IcosahedronGeometry') {
+                        child.rotation.y += delta * 3;
+                        child.rotation.x += delta * 2;
+                    }
+                    // Rotate and pulse energy rings
+                    if (child.userData && child.userData.isPulseRing) {
+                        const pulseScale = 1 + Math.sin(Date.now() * 0.002 + child.userData.offset) * 0.2;
+                        child.scale.set(pulseScale, pulseScale, pulseScale);
+                        child.material.opacity = 0.4 + Math.sin(Date.now() * 0.002 + child.userData.offset) * 0.3;
+                        child.rotation.z += delta * 1.5;
+                    }
+                    // Animate orbiting blades
+                    if (child.userData && child.userData.isOrbitBlade) {
+                        child.userData.orbitAngle += delta * 2.5;
+                        const height = (child.userData.orbitAngle % (Math.PI * 2) < Math.PI) ? 0.3 : -0.2;
+                        child.position.x = Math.cos(child.userData.orbitAngle) * 2.0;
+                        child.position.y = height;
+                        child.position.z = Math.sin(child.userData.orbitAngle) * 2.0;
+                        child.rotation.y = child.userData.orbitAngle;
+                    }
+                    // Animate orbiting particles
+                    if (child.userData && child.userData.isOrbitParticle) {
+                        child.userData.orbitAngle += delta * 4;
+                        child.position.x = Math.cos(child.userData.orbitAngle) * 1.3;
+                        child.position.z = Math.sin(child.userData.orbitAngle) * 1.3;
+                        child.rotation.x += delta * 5;
+                        child.rotation.y += delta * 3;
                     }
                 });
             }
