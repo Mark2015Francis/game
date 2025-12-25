@@ -3546,15 +3546,15 @@ function updateEnemy(delta) {
                     enemy.scale.set(1, 1, 1); // Reset scale
                 } else {
                     // Continue dashing at high speed in the direction enemy was facing
+                    // Don't stop for anything - dash straight through
                     const dashSpeed = moveSpeed * 3; // 3x normal speed
-                    const dashMove = new THREE.Vector3(
-                        enemy.position.x + enemy.dashDirection.x * dashSpeed,
-                        enemy.position.y,
-                        enemy.position.z + enemy.dashDirection.z * dashSpeed
-                    );
-                    if (isPositionValid(dashMove, enemy)) {
-                        enemy.position.copy(dashMove);
-                    }
+                    enemy.position.x += enemy.dashDirection.x * dashSpeed;
+                    enemy.position.z += enemy.dashDirection.z * dashSpeed;
+
+                    // Keep within world bounds
+                    const worldBound = 300;
+                    enemy.position.x = Math.max(-worldBound, Math.min(worldBound, enemy.position.x));
+                    enemy.position.z = Math.max(-worldBound, Math.min(worldBound, enemy.position.z));
                 }
             } else {
                 // Not winding up or dashing - check if should start wind-up
