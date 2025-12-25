@@ -373,6 +373,88 @@ function createProjectileEnemy(x, z) {
     console.log(`Projectile enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
+// Create code explosion effect when enemy dies
+function createCodeExplosion(position) {
+    const fragmentCount = 20; // Number of code fragments
+    const codeColors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff]; // Various colors
+
+    for (let i = 0; i < fragmentCount; i++) {
+        // Create small cube fragment
+        const size = Math.random() * 0.3 + 0.1;
+        const fragmentGeometry = new THREE.BoxGeometry(size, size, size);
+        const fragmentMaterial = new THREE.MeshBasicMaterial({
+            color: codeColors[Math.floor(Math.random() * codeColors.length)],
+            transparent: true,
+            opacity: 1
+        });
+        const fragment = new THREE.Mesh(fragmentGeometry, fragmentMaterial);
+
+        // Position at enemy location
+        fragment.position.copy(position);
+
+        // Random velocity in all directions
+        const speed = Math.random() * 15 + 10;
+        const theta = Math.random() * Math.PI * 2; // Random angle around Y axis
+        const phi = Math.random() * Math.PI - Math.PI / 2; // Random angle from ground to sky
+
+        fragment.velocity = new THREE.Vector3(
+            Math.cos(theta) * Math.cos(phi) * speed,
+            Math.sin(phi) * speed + Math.random() * 5, // Upward bias
+            Math.sin(theta) * Math.cos(phi) * speed
+        );
+
+        // Random rotation velocity
+        fragment.rotationVelocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 10,
+            (Math.random() - 0.5) * 10,
+            (Math.random() - 0.5) * 10
+        );
+
+        fragment.userData.lifetime = 0;
+        fragment.userData.maxLifetime = 1.5; // Live for 1.5 seconds
+        fragment.userData.isCodeFragment = true;
+
+        game.scene.add(fragment);
+        if (!game.codeFragments) {
+            game.codeFragments = [];
+        }
+        game.codeFragments.push(fragment);
+    }
+}
+
+// Update code fragments (called in animate loop)
+function updateCodeFragments(delta) {
+    if (!game.codeFragments) return;
+
+    for (let i = game.codeFragments.length - 1; i >= 0; i--) {
+        const fragment = game.codeFragments[i];
+
+        // Update lifetime
+        fragment.userData.lifetime += delta;
+
+        // Update position
+        fragment.position.add(fragment.velocity.clone().multiplyScalar(delta));
+
+        // Apply gravity
+        fragment.velocity.y -= 20 * delta;
+
+        // Update rotation
+        fragment.rotation.x += fragment.rotationVelocity.x * delta;
+        fragment.rotation.y += fragment.rotationVelocity.y * delta;
+        fragment.rotation.z += fragment.rotationVelocity.z * delta;
+
+        // Fade out over time
+        const lifeRatio = fragment.userData.lifetime / fragment.userData.maxLifetime;
+        fragment.material.opacity = 1 - lifeRatio;
+
+        // Remove if lifetime exceeded
+        if (fragment.userData.lifetime >= fragment.userData.maxLifetime) {
+            game.scene.remove(fragment);
+            game.codeFragments.splice(i, 1);
+        }
+    }
+}
+
 // Spawn boss
 function spawnBoss() {
     const x = (Math.random() * 400 - 200);
@@ -1774,6 +1856,13 @@ function defeatBoss() {
     if (!game.boss) return;
 
     const bossPos = game.boss.position.clone();
+
+    // Create larger code explosion for boss
+    createCodeExplosion(bossPos);
+    // Add extra explosion for boss (more fragments)
+    createCodeExplosion(bossPos);
+    createCodeExplosion(bossPos);
+
     game.scene.remove(game.boss);
     game.boss = null;
     // Don't reset bossSpawned to false - prevents boss from respawning in same world
@@ -2146,6 +2235,9 @@ function enterWorldTwo() {
 
 // Defeat enemy
 function defeatEnemy(enemy, index) {
+    // Create code explosion effect
+    createCodeExplosion(enemy.position);
+
     game.scene.remove(enemy);
     game.enemies.splice(index, 1);
 
@@ -3422,6 +3514,7 @@ function animate() {
         updateBossProjectiles(delta);
         updateSwordBobbing();
         updatePortal(delta);
+        updateCodeFragments(delta);
 
         // Reduce attack cooldown
         if (game.attackCooldown > 0) {
