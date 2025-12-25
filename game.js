@@ -80,11 +80,14 @@ const game = {
     foodCount: 0,
     spellBook: null,
     spellBookCollected: false,
+    equippedSpellBook: false,
+    currentSpell: 'fireball', // 'fireball' or 'freezeball'
     hasFireball: false,
     hasBigJump: false,
     hasFreezeball: false,
     fireballCooldown: 0,
-    freezeballCooldown: 0
+    freezeballCooldown: 0,
+    equippedSpellBookMesh: null
 };
 
 // Initialize the game
@@ -818,13 +821,30 @@ function updateInventoryUI() {
     }
     inventoryItems.appendChild(bowSlot);
 
-    // Empty slots
-    for (let i = 0; i < 2; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'inventory-slot empty';
-        slot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
-        inventoryItems.appendChild(slot);
+    // Spell Book slot
+    const spellBookSlot = document.createElement('div');
+    spellBookSlot.className = 'inventory-slot';
+    if (game.spellBookCollected) {
+        if (game.equippedSpellBook) {
+            spellBookSlot.classList.add('equipped');
+        }
+        spellBookSlot.innerHTML = `
+            <div class="item-icon">📖</div>
+            <div class="item-name">Spell Book</div>
+            ${game.equippedSpellBook ? '<div class="item-status">EQUIPPED</div>' : ''}
+        `;
+        spellBookSlot.addEventListener('click', () => toggleEquipItem({type: 'spellbook'}));
+    } else {
+        spellBookSlot.classList.add('empty');
+        spellBookSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
     }
+    inventoryItems.appendChild(spellBookSlot);
+
+    // Empty slot
+    const slot = document.createElement('div');
+    slot.className = 'inventory-slot empty';
+    slot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    inventoryItems.appendChild(slot);
 }
 
 // Toggle equip sword
@@ -922,6 +942,36 @@ function toggleEquipItem(item) {
             showNotification(`🍎 Food consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.foodCount} remaining`);
             toggleInventory(); // Close inventory after using
         }
+    } else if (item.type === 'spellbook') {
+        if (!game.spellBookCollected) return; // No spell book to equip
+
+        if (game.equippedSpellBook) {
+            // Unequip spell book
+            game.equippedSpellBook = false;
+            if (game.equippedSpellBookMesh) {
+                game.camera.remove(game.equippedSpellBookMesh);
+                game.equippedSpellBookMesh = null;
+            }
+            // Re-equip sword
+            game.inventory.equippedSword = true;
+            equipSword();
+        } else {
+            // Equip spell book - unequip sword and bow first
+            game.equippedSpellBook = true;
+            game.inventory.equippedSword = false;
+            if (game.equippedSwordMesh) {
+                game.camera.remove(game.equippedSwordMesh);
+                game.equippedSwordMesh = null;
+            }
+            game.equippedBow = false;
+            if (game.equippedBowMesh) {
+                game.camera.remove(game.equippedBowMesh);
+                game.equippedBowMesh = null;
+            }
+            equipSpellBook();
+        }
+        updateInventoryUI();
+        toggleInventory(); // Close inventory after equipping
     }
 }
 
@@ -1089,6 +1139,111 @@ function equipBow() {
     console.log('✓ Bow equipped successfully');
 }
 
+// Equip spell book to player
+function equipSpellBook() {
+    // Remove old spell book if exists
+    if (game.equippedSpellBookMesh) {
+        game.camera.remove(game.equippedSpellBookMesh);
+    }
+
+    // Create spell book mesh for first person view
+    game.equippedSpellBookMesh = new THREE.Group();
+
+    // Book - rectangular shape
+    const bookGeometry = new THREE.BoxGeometry(0.4, 0.6, 0.1);
+    const bookMaterial = new THREE.MeshBasicMaterial({
+        color: 0x8b008b, // Dark purple
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const book = new THREE.Mesh(bookGeometry, bookMaterial);
+    book.position.set(0, 0, 0);
+    book.renderOrder = 999;
+
+    // Book cover star
+    const starGeometry = new THREE.CircleGeometry(0.15, 5);
+    const starMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffd700,
+        depthTest: false,
+        depthWrite: false
+    });
+    const star = new THREE.Mesh(starGeometry, starMaterial);
+    star.position.set(0, 0, 0.06);
+    star.renderOrder = 1000;
+
+    game.equippedSpellBookMesh.add(book);
+    game.equippedSpellBookMesh.add(star);
+
+    // Position spell book in left side of view
+    game.equippedSpellBookMesh.position.set(-0.4, -0.3, -0.5);
+    game.equippedSpellBookMesh.rotation.set(0.3, 0.5, 0);
+
+    // Disable frustum culling
+    book.frustumCulled = false;
+    star.frustumCulled = false;
+    game.equippedSpellBookMesh.frustumCulled = false;
+
+    // Add to camera
+    game.camera.add(game.equippedSpellBookMesh);
+
+    // Update spell UI
+    updateSpellUI();
+
+    console.log('✓ Spell book equipped successfully');
+}
+
+// Update spell UI to show current spell
+function updateSpellUI() {
+    let spellUI = document.getElementById('spellUI');
+    if (!spellUI) {
+        spellUI = document.createElement('div');
+        spellUI.id = 'spellUI';
+        spellUI.style.cssText = 'position: fixed; bottom: 120px; right: 20px; background: rgba(0, 0, 0, 0.7); color: white; padding: 15px; border-radius: 5px; font-size: 14px; border: 2px solid #9400d3; z-index: 50;';
+        document.body.appendChild(spellUI);
+    }
+
+    if (game.equippedSpellBook) {
+        spellUI.style.display = 'block';
+
+        let spellInfo = '';
+        if (game.currentSpell === 'fireball' && game.hasFireball) {
+            spellInfo = '🔥 <strong>Fireball</strong> (F)<br>Q to switch';
+        } else if (game.currentSpell === 'freezeball' && game.hasFreezeball) {
+            spellInfo = '❄️ <strong>Freeze Ball</strong> (G)<br>Q to switch';
+        } else {
+            spellInfo = '📖 <strong>No spells</strong><br>Buy spells from shop';
+        }
+
+        spellUI.innerHTML = spellInfo;
+    } else {
+        spellUI.style.display = 'none';
+    }
+}
+
+// Switch between spells
+function switchSpell() {
+    if (!game.equippedSpellBook) return;
+
+    // Only switch if player has both spells
+    if (game.hasFireball && game.hasFreezeball) {
+        if (game.currentSpell === 'fireball') {
+            game.currentSpell = 'freezeball';
+            showNotification('❄️ Switched to Freeze Ball (G)');
+        } else {
+            game.currentSpell = 'fireball';
+            showNotification('🔥 Switched to Fireball (F)');
+        }
+        updateSpellUI();
+    } else if (game.hasFireball && !game.hasFreezeball) {
+        showNotification('🔥 Only Fireball available');
+    } else if (!game.hasFireball && game.hasFreezeball) {
+        showNotification('❄️ Only Freeze Ball available');
+    } else {
+        showNotification('📖 No spells purchased yet!');
+    }
+}
+
 // Shoot arrow
 function shootArrow() {
     if (!game.equippedBow) return;
@@ -1169,7 +1324,7 @@ function shootArrow() {
 
 // Cast fireball spell
 function castFireball() {
-    if (!game.hasFireball || game.fireballCooldown > 0) return;
+    if (!game.equippedSpellBook || !game.hasFireball || game.fireballCooldown > 0) return;
 
     game.fireballCooldown = 2.0; // 2 second cooldown
 
@@ -1226,7 +1381,7 @@ function castFireball() {
 
 // Cast freezeball spell
 function castFreezeball() {
-    if (!game.hasFreezeball || game.freezeballCooldown > 0) return;
+    if (!game.equippedSpellBook || !game.hasFreezeball || game.freezeballCooldown > 0) return;
 
     game.freezeballCooldown = 3.0; // 3 second cooldown
 
@@ -1390,9 +1545,12 @@ function checkSpellBookPickup() {
         game.spellBookCollected = true;
         game.scene.remove(game.spellBook);
 
+        // Update inventory UI
+        updateInventoryUI();
+
         // Show notification
-        showNotification('📖 Spell Book collected! Magic shop section unlocked!');
-        console.log('Spell book collected - magic shop unlocked');
+        showNotification('📖 Spell Book collected! Added to inventory. Magic shop section unlocked!');
+        console.log('Spell book collected - added to inventory and magic shop unlocked');
     }
 }
 
@@ -1787,7 +1945,8 @@ function buyItem(itemType) {
             game.hasFireball = true;
             updateCoinsDisplay();
             updateShopItems(); // Refresh shop display
-            showNotification('🔥 Fireball spell unlocked! Press F to cast!');
+            updateSpellUI(); // Update spell UI
+            showNotification('🔥 Fireball spell unlocked! Equip spell book and press F to cast!');
         } else {
             showNotification('❌ Not enough coins! Need 15 coins');
         }
@@ -1812,7 +1971,8 @@ function buyItem(itemType) {
             game.hasFreezeball = true;
             updateCoinsDisplay();
             updateShopItems(); // Refresh shop display
-            showNotification('❄️ Freeze Ball spell unlocked! Press G to cast!');
+            updateSpellUI(); // Update spell UI
+            showNotification('❄️ Freeze Ball spell unlocked! Equip spell book and press G to cast!');
         } else {
             showNotification('❌ Not enough coins! Need 25 coins');
         }
@@ -2866,13 +3026,18 @@ function setupControls() {
             case 'KeyE':
                 toggleShop();
                 break;
+            case 'KeyQ':
+                if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                    switchSpell();
+                }
+                break;
             case 'KeyF':
-                if (game.hasFireball && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                if (game.equippedSpellBook && game.hasFireball && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
                     castFireball();
                 }
                 break;
             case 'KeyG':
-                if (game.hasFreezeball && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                if (game.equippedSpellBook && game.hasFreezeball && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
                     castFreezeball();
                 }
                 break;
