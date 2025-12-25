@@ -522,6 +522,57 @@ function createColoredSpirals() {
     }
 }
 
+// Create ash clouds for World 3
+function createAshClouds() {
+    game.ashClouds = [];
+
+    const ashCount = 12; // Number of ash clouds
+
+    for (let i = 0; i < ashCount; i++) {
+        const cloud = new THREE.Group();
+
+        // Create multiple spheres to form an ash cloud
+        const sphereCount = 8 + Math.floor(Math.random() * 5);
+        for (let j = 0; j < sphereCount; j++) {
+            const size = 15 + Math.random() * 20;
+            const geometry = new THREE.SphereGeometry(size, 16, 16);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x1a0a0a, // Very dark ash color
+                transparent: true,
+                opacity: 0.4 + Math.random() * 0.3
+            });
+            const sphere = new THREE.Mesh(geometry, material);
+
+            // Randomly position spheres to form cloud shape
+            sphere.position.set(
+                (Math.random() - 0.5) * 40,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 40
+            );
+
+            cloud.add(sphere);
+        }
+
+        // Position clouds around the world
+        const angle = (i / ashCount) * Math.PI * 2;
+        const distance = 250 + Math.random() * 100;
+        cloud.position.set(
+            Math.cos(angle) * distance,
+            80 + Math.random() * 60,
+            Math.sin(angle) * distance
+        );
+
+        // Store movement data for animation
+        cloud.userData.driftSpeed = 0.5 + Math.random() * 1.5;
+        cloud.userData.driftAngle = Math.random() * Math.PI * 2;
+        cloud.userData.bobSpeed = 0.3 + Math.random() * 0.5;
+        cloud.userData.bobOffset = Math.random() * Math.PI * 2;
+
+        game.scene.add(cloud);
+        game.ashClouds.push(cloud);
+    }
+}
+
 // Create a wall
 function createWall(x, z, height, width, depth, color) {
     const geometry = new THREE.BoxGeometry(width, height, depth);
@@ -3048,6 +3099,9 @@ function enterWorldThree() {
             game.spirals = [];
         }
 
+        // Add World 3 ash clouds
+        createAshClouds();
+
         // Reset boss spawn state
         game.bossSpawned = false;
         game.totalEnemiesSpawned = 0;
@@ -4928,6 +4982,22 @@ function animate() {
         if (game.spirals && game.currentWorld === 2) {
             game.spirals.forEach(spiral => {
                 spiral.rotation.y += spiral.userData.rotationSpeed * delta;
+            });
+        }
+
+        // Animate ash clouds
+        if (game.ashClouds && game.currentWorld === 3) {
+            const time = Date.now() * 0.001;
+            game.ashClouds.forEach(ashCloud => {
+                // Slow drift movement
+                ashCloud.position.x += Math.cos(ashCloud.userData.driftAngle) * ashCloud.userData.driftSpeed * delta;
+                ashCloud.position.z += Math.sin(ashCloud.userData.driftAngle) * ashCloud.userData.driftSpeed * delta;
+
+                // Slow bobbing up and down
+                ashCloud.position.y += Math.sin(time * ashCloud.userData.bobSpeed + ashCloud.userData.bobOffset) * 0.1 * delta;
+
+                // Slow rotation
+                ashCloud.rotation.y += delta * 0.05;
             });
         }
 
