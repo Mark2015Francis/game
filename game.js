@@ -666,6 +666,9 @@ function createShop(x, z) {
     game.shop.position.set(x, 0, z);
     game.scene.add(game.shop);
 
+    // Add shop to collision objects so player can't walk through it
+    game.objects.push(game.shop);
+
     console.log('Shop created at', x, z);
 }
 
