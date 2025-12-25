@@ -1456,15 +1456,16 @@ function defeatEnemy(enemy, index) {
     game.scene.remove(enemy);
     game.enemies.splice(index, 1);
 
-    // Award EXP
-    game.playerEXP += 100;
+    // Award EXP - projectile enemies give less EXP
+    const expReward = enemy.isProjectileEnemy ? 50 : 100;
+    game.playerEXP += expReward;
     updateEXPDisplay();
 
     // Check for level up
     checkLevelUp();
 
     // Show notification
-    showNotification(`💀 Enemy defeated! +100 EXP | ${game.enemies.length} remaining`);
+    showNotification(`💀 Enemy defeated! +${expReward} EXP | ${game.enemies.length} remaining`);
 }
 
 // Enemy shoots projectile at player
