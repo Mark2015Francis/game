@@ -73,7 +73,10 @@ const game = {
     portalSpawned: false,
     currentWorld: 1,
     food: null,
-    foodCollected: false
+    foodCollected: false,
+    coins: 0,
+    shop: null,
+    isShopOpen: false
 };
 
 // Initialize the game
@@ -175,6 +178,9 @@ function init() {
     const foodX = (Math.random() * 600 - 300);
     const foodZ = (Math.random() * 600 - 300);
     createFoodPickup(foodX, foodZ);
+
+    // Create shop at edge of map
+    createShop(350, 0);
 
     // Initialize inventory UI
     initInventory();
@@ -587,6 +593,75 @@ function createFoodPickup(x, z) {
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     game.food.add(glow);
+}
+
+// Create shop at edge of map
+function createShop(x, z) {
+    game.shop = new THREE.Group();
+
+    // Shop building - larger box
+    const buildingGeometry = new THREE.BoxGeometry(12, 8, 10);
+    const buildingMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b4513, // Brown wood
+        emissive: 0x221100
+    });
+    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+    building.position.y = 4;
+    building.castShadow = true;
+    building.receiveShadow = true;
+    game.shop.add(building);
+
+    // Roof - pyramid shape
+    const roofGeometry = new THREE.ConeGeometry(8, 4, 4);
+    const roofMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b0000 // Dark red
+    });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = 10;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    game.shop.add(roof);
+
+    // Sign - "SHOP"
+    const signGeometry = new THREE.BoxGeometry(8, 2, 0.2);
+    const signMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffd700 // Gold
+    });
+    const sign = new THREE.Mesh(signGeometry, signMaterial);
+    sign.position.set(0, 6, -5.1);
+    game.shop.add(sign);
+
+    // Shopkeeper - golden sphere with hat
+    const shopkeeperGeometry = new THREE.SphereGeometry(0.8, 16, 16);
+    const shopkeeperMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffcc00,
+        emissive: 0x885500
+    });
+    const shopkeeper = new THREE.Mesh(shopkeeperGeometry, shopkeeperMaterial);
+    shopkeeper.position.set(0, 2, -4);
+    game.shop.add(shopkeeper);
+
+    // Hat on shopkeeper
+    const hatGeometry = new THREE.ConeGeometry(0.6, 1, 8);
+    const hatMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+    const hat = new THREE.Mesh(hatGeometry, hatMaterial);
+    hat.position.set(0, 3, -4);
+    game.shop.add(hat);
+
+    // Shopkeeper eyes
+    const eyeGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.3, 2.2, -3.3);
+    game.shop.add(leftEye);
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.3, 2.2, -3.3);
+    game.shop.add(rightEye);
+
+    game.shop.position.set(x, 0, z);
+    game.scene.add(game.shop);
+
+    console.log('Shop created at', x, z);
 }
 
 // Initialize inventory system
@@ -1289,7 +1364,11 @@ function defeatBoss() {
     updateEXPDisplay();
     checkLevelUp();
 
-    showNotification('🎉 BOSS DEFEATED! +1000 EXP!');
+    // Award coins - boss drops 10 coins
+    game.coins += 10;
+    updateCoinsDisplay();
+
+    showNotification('🎉 BOSS DEFEATED! +1000 EXP +10 Coins!');
     console.log('Boss defeated!');
 
     // Spawn portal to world 2
@@ -1377,6 +1456,62 @@ function checkPortalPickup() {
     }
 }
 
+// Check shop proximity
+function checkShopProximity() {
+    if (!game.shop) return;
+
+    const distance = game.camera.position.distanceTo(game.shop.position);
+    if (distance < 10) {
+        // Show prompt if not already showing
+        if (!game.isShopOpen) {
+            showNotification('Press E to open shop');
+        }
+    }
+}
+
+// Toggle shop menu
+function toggleShop() {
+    if (!game.shop) return;
+
+    const distance = game.camera.position.distanceTo(game.shop.position);
+    if (distance > 10 && !game.isShopOpen) return; // Too far to open
+
+    game.isShopOpen = !game.isShopOpen;
+    const shopMenu = document.getElementById('shopMenu');
+
+    if (game.isShopOpen) {
+        shopMenu.style.display = 'block';
+        document.exitPointerLock();
+    } else {
+        shopMenu.style.display = 'none';
+    }
+}
+
+// Buy item from shop
+function buyItem(itemType) {
+    if (itemType === 'food') {
+        if (game.coins >= 5) {
+            game.coins -= 5;
+            game.playerHP = Math.min(game.playerHP + 10, game.maxPlayerHP);
+            updateHPDisplay();
+            updateCoinsDisplay();
+            showNotification('🍖 Bought food! +10 HP');
+        } else {
+            showNotification('❌ Not enough coins! Need 5 coins');
+        }
+    } else if (itemType === 'damage') {
+        if (game.coins >= 10) {
+            game.coins -= 10;
+            game.playerDamage += 1;
+            updateCoinsDisplay();
+            updateEXPDisplay(); // Updates damage display
+            showNotification('⚔️ Bought damage upgrade! +1 DMG');
+        } else {
+            showNotification('❌ Not enough coins! Need 10 coins');
+        }
+    }
+}
+
 // Animate portal
 function updatePortal(delta) {
     if (!game.portal) return;
@@ -1461,11 +1596,15 @@ function defeatEnemy(enemy, index) {
     game.playerEXP += expReward;
     updateEXPDisplay();
 
+    // Award coins - all enemies drop 1 coin
+    game.coins += 1;
+    updateCoinsDisplay();
+
     // Check for level up
     checkLevelUp();
 
     // Show notification
-    showNotification(`💀 Enemy defeated! +${expReward} EXP | ${game.enemies.length} remaining`);
+    showNotification(`💀 Enemy defeated! +${expReward} EXP +1 Coin | ${game.enemies.length} remaining`);
 }
 
 // Enemy shoots projectile at player
@@ -2240,16 +2379,24 @@ function updateEXPDisplay() {
     const expDisplay = document.getElementById('expDisplay');
     if (expDisplay) {
         const expPercent = (game.playerEXP / game.expToNextLevel) * 100;
-        const levelText = game.playerLevel >= 4 ? 'MAX' : `Lv.${game.playerLevel}`;
-        const expText = game.playerLevel >= 4 ? 'MAX LEVEL' : `${game.playerEXP}/${game.expToNextLevel} EXP`;
+        const levelText = game.playerLevel >= 6 ? 'MAX' : `Lv.${game.playerLevel}`;
+        const expText = game.playerLevel >= 6 ? 'MAX LEVEL' : `${game.playerEXP}/${game.expToNextLevel} EXP`;
 
         expDisplay.innerHTML = `
             <div style="margin-bottom: 5px;">${levelText} | DMG: ${game.playerDamage}</div>
             <div style="font-size: 12px;">${expText}</div>
-            ${game.playerLevel < 4 ? `<div style="background: rgba(255,255,255,0.2); height: 8px; border-radius: 4px; margin-top: 5px; overflow: hidden;">
+            ${game.playerLevel < 6 ? `<div style="background: rgba(255,255,255,0.2); height: 8px; border-radius: 4px; margin-top: 5px; overflow: hidden;">
                 <div style="background: #44ff44; height: 100%; width: ${expPercent}%; transition: width 0.3s;"></div>
             </div>` : ''}
         `;
+    }
+}
+
+// Update coin display
+function updateCoinsDisplay() {
+    const coinDisplay = document.getElementById('coinDisplay');
+    if (coinDisplay) {
+        coinDisplay.textContent = `💰 Coins: ${game.coins}`;
     }
 }
 
@@ -2330,9 +2477,14 @@ function setupControls() {
             case 'KeyI':
                 toggleInventory();
                 break;
+            case 'KeyE':
+                toggleShop();
+                break;
             case 'Escape':
                 if (game.inventory.isOpen) {
                     toggleInventory();
+                } else if (game.isShopOpen) {
+                    toggleShop();
                 } else {
                     document.exitPointerLock();
                 }
@@ -2611,6 +2763,7 @@ function animate() {
         checkBowPickup();
         checkFoodPickup();
         checkPortalPickup();
+        checkShopProximity();
         updateProjectiles(delta);
         updateEnemyProjectiles(delta);
         updateBossProjectiles(delta);
