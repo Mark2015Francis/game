@@ -1848,6 +1848,12 @@ function updatePortal(delta) {
 
 // Enter world two
 function enterWorldTwo() {
+    // Prevent entering World 2 if already in World 2
+    if (game.currentWorld === 2) {
+        console.log('Already in World 2');
+        return;
+    }
+
     showNotification('🌀 Entering World 2...');
 
     setTimeout(() => {
@@ -1866,6 +1872,33 @@ function enterWorldTwo() {
             game.scene.remove(game.portal);
             game.portal = null;
             game.portalSpawned = false;
+        }
+
+        // Clear all World 1 items
+        // Remove all shields
+        game.shields.forEach(shield => game.scene.remove(shield));
+        game.shields = [];
+
+        // Remove all foods
+        game.foods.forEach(food => game.scene.remove(food));
+        game.foods = [];
+
+        // Remove bow if it exists
+        if (game.bow) {
+            game.scene.remove(game.bow);
+            game.bow = null;
+        }
+
+        // Remove shop if it exists
+        if (game.shop) {
+            game.scene.remove(game.shop);
+            game.shop = null;
+        }
+
+        // Remove spell book if it exists (prevent duplicates)
+        if (game.spellBook) {
+            game.scene.remove(game.spellBook);
+            game.spellBook = null;
         }
 
         // Reset boss spawn state
