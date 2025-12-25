@@ -72,11 +72,12 @@ const game = {
     portal: null,
     portalSpawned: false,
     currentWorld: 1,
-    food: null,
-    foodCollected: false,
+    foods: [],
     coins: 0,
     shop: null,
-    isShopOpen: false
+    isShopOpen: false,
+    shieldCount: 0,
+    foodCount: 0
 };
 
 // Initialize the game
@@ -174,10 +175,12 @@ function init() {
     const bowZ = (Math.random() * 600 - 300);
     createBowPickup(bowX, bowZ);
 
-    // Create food pickup item at random position
-    const foodX = (Math.random() * 600 - 300);
-    const foodZ = (Math.random() * 600 - 300);
-    createFoodPickup(foodX, foodZ);
+    // Create multiple food pickup items at random positions
+    for (let i = 0; i < 5; i++) {
+        const foodX = (Math.random() * 600 - 300);
+        const foodZ = (Math.random() * 600 - 300);
+        createFoodPickup(foodX, foodZ);
+    }
 
     // Create shop at edge of map
     createShop(350, 0);
@@ -551,7 +554,7 @@ function createBowPickup(x, z) {
 // Create food pickup
 function createFoodPickup(x, z) {
     // Create food group - looks like an apple
-    game.food = new THREE.Group();
+    const food = new THREE.Group();
 
     // Apple body - red sphere
     const appleGeometry = new THREE.SphereGeometry(0.5, 16, 16);
@@ -576,13 +579,13 @@ function createFoodPickup(x, z) {
     leaf.position.set(0.1, 0.85, 0);
     leaf.rotation.z = 0.3;
 
-    game.food.add(appleBody);
-    game.food.add(stem);
-    game.food.add(leaf);
+    food.add(appleBody);
+    food.add(stem);
+    food.add(leaf);
 
-    game.food.position.set(x, 1, z);
+    food.position.set(x, 1, z);
 
-    game.scene.add(game.food);
+    game.scene.add(food);
 
     // Add glow effect
     const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
@@ -592,7 +595,9 @@ function createFoodPickup(x, z) {
         opacity: 0.2
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.food.add(glow);
+    food.add(glow);
+
+    game.foods.push(food);
 }
 
 // Create shop at edge of map
@@ -674,7 +679,7 @@ function updateInventoryUI() {
     const inventoryItems = document.getElementById('inventoryItems');
     inventoryItems.innerHTML = '';
 
-    // Always show sword in first slot (equipped at start)
+    // Sword slot (always present)
     const swordSlot = document.createElement('div');
     swordSlot.className = 'inventory-slot';
     if (game.inventory.equippedSword) {
@@ -688,41 +693,64 @@ function updateInventoryUI() {
     swordSlot.addEventListener('click', () => toggleEquipSword());
     inventoryItems.appendChild(swordSlot);
 
-    // Create remaining slots for other items
-    for (let i = 0; i < 5; i++) {
-        const slot = document.createElement('div');
-        slot.className = 'inventory-slot';
-
-        if (i < game.inventory.items.length) {
-            const item = game.inventory.items[i];
-            slot.classList.remove('empty');
-
-            const icon = document.createElement('div');
-            icon.className = 'item-icon';
-            icon.textContent = item.icon;
-
-            const name = document.createElement('div');
-            name.className = 'item-name';
-            name.textContent = item.name;
-
-            slot.appendChild(icon);
-            slot.appendChild(name);
-
-            const isEquipped = (item.type === 'shield' && game.inventory.equippedShield);
-            if (isEquipped) {
-                slot.classList.add('equipped');
-                const status = document.createElement('div');
-                status.className = 'item-status';
-                status.textContent = 'EQUIPPED';
-                slot.appendChild(status);
-            }
-
-            slot.addEventListener('click', () => toggleEquipItem(item));
-        } else {
-            slot.classList.add('empty');
-            slot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    // Shield slot
+    const shieldSlot = document.createElement('div');
+    shieldSlot.className = 'inventory-slot';
+    if (game.shieldCount > 0) {
+        if (game.inventory.equippedShield) {
+            shieldSlot.classList.add('equipped');
         }
+        shieldSlot.innerHTML = `
+            <div class="item-icon">🛡️</div>
+            <div class="item-name">Shield x${game.shieldCount}</div>
+            ${game.inventory.equippedShield ? '<div class="item-status">EQUIPPED</div>' : ''}
+        `;
+        shieldSlot.addEventListener('click', () => toggleEquipItem({type: 'shield'}));
+    } else {
+        shieldSlot.classList.add('empty');
+        shieldSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    }
+    inventoryItems.appendChild(shieldSlot);
 
+    // Food slot
+    const foodSlot = document.createElement('div');
+    foodSlot.className = 'inventory-slot';
+    if (game.foodCount > 0) {
+        foodSlot.innerHTML = `
+            <div class="item-icon">🍎</div>
+            <div class="item-name">Food x${game.foodCount}</div>
+        `;
+        foodSlot.addEventListener('click', () => toggleEquipItem({type: 'food'}));
+    } else {
+        foodSlot.classList.add('empty');
+        foodSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    }
+    inventoryItems.appendChild(foodSlot);
+
+    // Bow slot
+    const bowSlot = document.createElement('div');
+    bowSlot.className = 'inventory-slot';
+    if (game.bowCollected) {
+        if (game.equippedBow) {
+            bowSlot.classList.add('equipped');
+        }
+        bowSlot.innerHTML = `
+            <div class="item-icon">🏹</div>
+            <div class="item-name">Bow</div>
+            ${game.equippedBow ? '<div class="item-status">EQUIPPED</div>' : ''}
+        `;
+        bowSlot.addEventListener('click', () => toggleEquipItem({type: 'bow'}));
+    } else {
+        bowSlot.classList.add('empty');
+        bowSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    }
+    inventoryItems.appendChild(bowSlot);
+
+    // Empty slots
+    for (let i = 0; i < 2; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'inventory-slot empty';
+        slot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
         inventoryItems.appendChild(slot);
     }
 }
@@ -754,9 +782,15 @@ function toggleEquipSword() {
 
 // Remove item from inventory
 function removeItemFromInventory(itemType) {
-    const index = game.inventory.items.findIndex(item => item.type === itemType);
-    if (index !== -1) {
-        game.inventory.items.splice(index, 1);
+    if (itemType === 'shield' && game.shieldCount > 0) {
+        game.shieldCount--;
+        // If no more shields, unequip
+        if (game.shieldCount === 0) {
+            game.inventory.equippedShield = false;
+        }
+        updateInventoryUI();
+    } else if (itemType === 'food' && game.foodCount > 0) {
+        game.foodCount--;
         updateInventoryUI();
     }
 }
@@ -764,6 +798,8 @@ function removeItemFromInventory(itemType) {
 // Toggle equip item (for shield, bow and other items)
 function toggleEquipItem(item) {
     if (item.type === 'shield') {
+        if (game.shieldCount === 0) return; // No shields to equip
+
         if (game.inventory.equippedShield) {
             // Unequip shield
             game.inventory.equippedShield = false;
@@ -800,26 +836,20 @@ function toggleEquipItem(item) {
         toggleInventory(); // Close inventory after equipping
     } else if (item.type === 'food') {
         // Use food - heal 10 HP
-        const healAmount = 10;
-        const previousHP = game.playerHP;
-        game.playerHP = Math.min(game.playerHP + healAmount, game.maxPlayerHP);
-        const actualHeal = game.playerHP - previousHP;
+        if (game.foodCount > 0) {
+            const healAmount = 10;
+            const previousHP = game.playerHP;
+            game.playerHP = Math.min(game.playerHP + healAmount, game.maxPlayerHP);
+            const actualHeal = game.playerHP - previousHP;
 
-        updateHPDisplay();
+            updateHPDisplay();
 
-        // Remove food from inventory
-        removeItemFromInventory('food');
+            // Remove food from inventory
+            removeItemFromInventory('food');
 
-        // Allow food to be collected again
-        game.foodCollected = false;
-
-        // Spawn new food at random location
-        const foodX = (Math.random() * 600 - 300);
-        const foodZ = (Math.random() * 600 - 300);
-        createFoodPickup(foodX, foodZ);
-
-        showNotification(`🍎 Food consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP})`);
-        toggleInventory(); // Close inventory after using
+            showNotification(`🍎 Food consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.foodCount} remaining`);
+            toggleInventory(); // Close inventory after using
+        }
     }
 }
 
@@ -1100,22 +1130,18 @@ function checkShieldPickup() {
             // Collect shield
             game.scene.remove(shield);
             game.shields.splice(i, 1);
+            game.shieldCount++;
 
-            // Add to inventory
-            game.inventory.items.push({
-                name: 'Shield',
-                icon: '🛡️',
-                type: 'shield'
-            });
-
-            // Auto-equip shield
-            game.inventory.equippedShield = true;
-            game.hasShieldProtection = true;
+            // Auto-equip shield if not already equipped
+            if (!game.inventory.equippedShield) {
+                game.inventory.equippedShield = true;
+                game.hasShieldProtection = true;
+            }
 
             updateInventoryUI();
 
             // Show notification (non-blocking)
-            showNotification('🛡️ Shield collected and equipped! Protects you from one enemy hit.');
+            showNotification(`🛡️ Shield collected! (x${game.shieldCount}) Protects you from one enemy hit.`);
             break; // Only collect one shield per frame
         }
     }
@@ -1148,26 +1174,22 @@ function checkBowPickup() {
 
 // Check food pickup
 function checkFoodPickup() {
-    if (game.foodCollected || !game.food) return;
+    for (let i = game.foods.length - 1; i >= 0; i--) {
+        const food = game.foods[i];
+        const distance = game.camera.position.distanceTo(food.position);
 
-    const distance = game.camera.position.distanceTo(game.food.position);
+        if (distance < 3) {
+            // Collect food
+            game.scene.remove(food);
+            game.foods.splice(i, 1);
+            game.foodCount++;
 
-    if (distance < 3) {
-        // Collect food
-        game.foodCollected = true;
-        game.scene.remove(game.food);
+            updateInventoryUI();
 
-        // Add to inventory
-        game.inventory.items.push({
-            name: 'Food',
-            icon: '🍎',
-            type: 'food'
-        });
-
-        updateInventoryUI();
-
-        // Show notification (non-blocking)
-        showNotification('🍎 Food collected! Use it to heal 10 HP.');
+            // Show notification (non-blocking)
+            showNotification(`🍎 Food collected! (x${game.foodCount}) Use it to heal 10 HP.`);
+            break; // Only collect one at a time
+        }
     }
 }
 
