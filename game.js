@@ -260,7 +260,7 @@ function spawnEnemy() {
     }
 }
 
-// Create enemy - computer virus appearance
+// Create enemy - digital computer virus appearance
 function createEnemy(x, z) {
     // Create a group for the virus
     const enemy = new THREE.Group();
@@ -269,11 +269,12 @@ function createEnemy(x, z) {
     enemy.hp = 5; // Enemy HP
     enemy.maxHP = 5;
 
-    // Main virus body - red sphere
-    const bodyGeometry = new THREE.SphereGeometry(1, 16, 16);
+    // Main virus body - octahedron (geometric diamond shape)
+    const bodyGeometry = new THREE.OctahedronGeometry(1, 0);
     const bodyMaterial = new THREE.MeshLambertMaterial({
         color: 0xff0000,
-        emissive: 0x330000
+        emissive: 0x660000,
+        emissiveIntensity: 0.5
     });
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     body.castShadow = true;
@@ -282,42 +283,43 @@ function createEnemy(x, z) {
     // Store material reference for hit effects
     enemy.material = bodyMaterial;
 
-    // Add virus spikes (like protein spikes on a virus)
-    const spikeGeometry = new THREE.ConeGeometry(0.15, 0.6, 8);
-    const spikeMaterial = new THREE.MeshLambertMaterial({
-        color: 0xcc0000,
-        emissive: 0x220000
-    });
-
-    // Create spikes in multiple directions
-    const spikePositions = [
-        {x: 1, y: 0, z: 0}, {x: -1, y: 0, z: 0},
-        {x: 0, y: 1, z: 0}, {x: 0, y: -1, z: 0},
-        {x: 0, y: 0, z: 1}, {x: 0, y: 0, z: -1},
-        {x: 0.7, y: 0.7, z: 0}, {x: -0.7, y: 0.7, z: 0},
-        {x: 0.7, y: -0.7, z: 0}, {x: -0.7, y: -0.7, z: 0},
-        {x: 0.7, y: 0, z: 0.7}, {x: -0.7, y: 0, z: -0.7}
-    ];
-
-    spikePositions.forEach(pos => {
-        const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
-        const length = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
-        spike.position.set(pos.x, pos.y, pos.z);
-        spike.lookAt(pos.x * 2, pos.y * 2, pos.z * 2);
-        spike.castShadow = true;
-        enemy.add(spike);
-    });
-
-    // Add glowing core - green binary code look
-    const coreGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const coreMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ff00,
+    // Add wireframe overlay for digital look
+    const wireframeGeometry = new THREE.OctahedronGeometry(1.05, 0);
+    const wireframeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff3333,
+        wireframe: true,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.6
+    });
+    const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
+    enemy.add(wireframe);
+
+    // Add inner glowing core
+    const coreGeometry = new THREE.OctahedronGeometry(0.4, 0);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        emissive: 0xff0000,
+        transparent: true,
+        opacity: 0.9
     });
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
-    core.position.set(0, 0, 0);
     enemy.add(core);
+
+    // Add orbiting data cubes (like corrupted data packets)
+    const cubeGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+    const cubeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        emissive: 0xff0000
+    });
+
+    for (let i = 0; i < 4; i++) {
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+        const angle = (i / 4) * Math.PI * 2;
+        cube.position.set(Math.cos(angle) * 1.5, 0, Math.sin(angle) * 1.5);
+        cube.userData.orbitAngle = angle;
+        cube.userData.isOrbitCube = true;
+        enemy.add(cube);
+    }
 
     game.scene.add(enemy);
     game.enemies.push(enemy);
@@ -2399,6 +2401,24 @@ function updateEnemy(delta) {
     // Update each enemy
     for (let i = 0; i < game.enemies.length; i++) {
         const enemy = game.enemies[i];
+
+        // Animate virus visuals (rotation and orbiting cubes)
+        if (enemy.children) {
+            enemy.children.forEach(child => {
+                // Rotate core octahedron
+                if (child.geometry && child.geometry.type === 'OctahedronGeometry' && child.material.transparent) {
+                    child.rotation.y += delta * 2;
+                    child.rotation.x += delta * 1;
+                }
+                // Animate orbiting data cubes
+                if (child.userData && child.userData.isOrbitCube) {
+                    child.userData.orbitAngle += delta * 2;
+                    child.position.x = Math.cos(child.userData.orbitAngle) * 1.5;
+                    child.position.z = Math.sin(child.userData.orbitAngle) * 1.5;
+                    child.rotation.y += delta * 3;
+                }
+            });
+        }
 
         // Calculate direction to player
         const directionToPlayer = new THREE.Vector3();
