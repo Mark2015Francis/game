@@ -1605,6 +1605,20 @@ function enterWorldTwo() {
         // Change scene background to indicate new world
         game.scene.background = new THREE.Color(0x4a0e4e); // Purple sky for world 2
 
+        // Spawn shields in World 2 (limited to 3)
+        for (let i = 0; i < 3; i++) {
+            const randomX = (Math.random() * 600 - 300);
+            const randomZ = (Math.random() * 600 - 300);
+            createShieldPickup(randomX, randomZ);
+        }
+
+        // Spawn food in World 2 (limited to 4)
+        for (let i = 0; i < 4; i++) {
+            const foodX = (Math.random() * 600 - 300);
+            const foodZ = (Math.random() * 600 - 300);
+            createFoodPickup(foodX, foodZ);
+        }
+
         // Spawn initial enemies in World 2
         spawnEnemy();
         spawnEnemy();
