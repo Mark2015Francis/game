@@ -261,6 +261,72 @@
             80% { opacity: 1; transform: translateX(-50%) translateY(0); }
             100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
         }
+        /* Mobile touch buttons */
+        #mobileControls {
+            position: fixed;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 150;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .mobile-btn {
+            width: 80px;
+            height: 80px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 3px solid #4CAF50;
+            border-radius: 15px;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .mobile-btn:active {
+            background: rgba(76, 175, 80, 0.5);
+            transform: scale(0.95);
+            border-color: #66ff66;
+        }
+        .mobile-btn .btn-icon {
+            font-size: 32px;
+            line-height: 1;
+        }
+        .mobile-btn .btn-label {
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        #mobileAttackBtn {
+            border-color: #ff5722;
+        }
+        #mobileAttackBtn:active {
+            background: rgba(255, 87, 34, 0.5);
+            border-color: #ff8a65;
+        }
+        #mobileJumpBtn {
+            border-color: #2196F3;
+        }
+        #mobileJumpBtn:active {
+            background: rgba(33, 150, 243, 0.5);
+            border-color: #64B5F6;
+        }
+        #mobileInventoryBtn {
+            border-color: #FFC107;
+        }
+        #mobileInventoryBtn:active {
+            background: rgba(255, 193, 7, 0.5);
+            border-color: #FFD54F;
+        }
     </style>
 </head>
 <body>
@@ -317,6 +383,22 @@
     <div id="equippedWeaponDisplay" class="equipped-display">
         <div class="icon">⚔️</div>
         <div class="label">Sword</div>
+    </div>
+
+    <!-- Mobile touch buttons (hidden by default, shown only on mobile) -->
+    <div id="mobileControls" style="display: none;">
+        <button id="mobileAttackBtn" class="mobile-btn">
+            <span class="btn-icon">⚔️</span>
+            <span class="btn-label">Attack</span>
+        </button>
+        <button id="mobileJumpBtn" class="mobile-btn">
+            <span class="btn-icon">⬆️</span>
+            <span class="btn-label">Jump</span>
+        </button>
+        <button id="mobileInventoryBtn" class="mobile-btn">
+            <span class="btn-icon">🎒</span>
+            <span class="btn-label">Inventory</span>
+        </button>
     </div>
 
     <canvas id="gameCanvas"></canvas>

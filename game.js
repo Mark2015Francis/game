@@ -128,6 +128,12 @@ function init() {
     if (game.isMobile) {
         console.log('Mobile device detected - touch controls enabled');
 
+        // Show mobile control buttons
+        const mobileControls = document.getElementById('mobileControls');
+        if (mobileControls) {
+            mobileControls.style.display = 'flex';
+        }
+
         // Update instructions for mobile
         const instructions = document.getElementById('instructions');
         if (instructions) {
@@ -144,8 +150,7 @@ function init() {
                     <strong>Mobile Controls:</strong><br>
                     Touch screen - Move forward<br>
                     Drag left/right - Turn<br>
-                    Drag up/down - Look up/down<br>
-                    Tap inventory (I) button to access items
+                    Use buttons on left for actions
                 `;
             }
         }
@@ -4030,6 +4035,12 @@ function setupControls() {
         document.addEventListener('touchstart', (event) => {
             if (game.inventory.isOpen || game.isShopOpen) return;
 
+            // Ignore touches on mobile control buttons
+            const target = event.target;
+            if (target && (target.classList.contains('mobile-btn') || target.closest('.mobile-btn'))) {
+                return;
+            }
+
             const touch = event.touches[0];
             game.touchStartX = touch.clientX;
             game.touchStartY = touch.clientY;
@@ -4084,6 +4095,62 @@ function setupControls() {
             game.isTouching = false;
             game.controls.moveForward = false;
         });
+
+        // Mobile button event handlers
+        const mobileAttackBtn = document.getElementById('mobileAttackBtn');
+        const mobileJumpBtn = document.getElementById('mobileJumpBtn');
+        const mobileInventoryBtn = document.getElementById('mobileInventoryBtn');
+
+        // Attack button
+        if (mobileAttackBtn) {
+            mobileAttackBtn.addEventListener('touchstart', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                    if (game.equippedBow) {
+                        shootArrow();
+                    } else {
+                        attackWithSword();
+                    }
+                }
+            });
+        }
+
+        // Jump button
+        if (mobileJumpBtn) {
+            mobileJumpBtn.addEventListener('touchstart', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (game.controls.canJump && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                    // Check if using big jump spell
+                    if (game.hasBigJump && game.equippedSpellBook) {
+                        const manaCost = 5;
+                        if (game.playerMana >= manaCost) {
+                            // Use big jump
+                            game.velocity.y = game.jumpHeight * 2; // Double jump height
+                            game.playerMana -= manaCost;
+                            updateManaDisplay();
+                        } else {
+                            // Not enough mana, use normal jump
+                            game.velocity.y = game.jumpHeight;
+                        }
+                    } else {
+                        // Normal jump
+                        game.velocity.y = game.jumpHeight;
+                    }
+                    game.controls.canJump = false;
+                }
+            });
+        }
+
+        // Inventory button
+        if (mobileInventoryBtn) {
+            mobileInventoryBtn.addEventListener('touchstart', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleInventory();
+            });
+        }
     }
 }
 
