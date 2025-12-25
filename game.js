@@ -128,11 +128,14 @@ function init() {
     if (game.isMobile) {
         console.log('Mobile device detected - touch controls enabled');
 
-        // Show mobile control buttons
-        const mobileControls = document.getElementById('mobileControls');
-        if (mobileControls) {
-            mobileControls.style.display = 'flex';
-        }
+        // Show mobile control buttons individually
+        const mobileAttackBtn = document.getElementById('mobileAttackBtn');
+        const mobileJumpBtn = document.getElementById('mobileJumpBtn');
+        const mobileInventoryBtn = document.getElementById('mobileInventoryBtn');
+
+        if (mobileAttackBtn) mobileAttackBtn.style.display = 'flex';
+        if (mobileJumpBtn) mobileJumpBtn.style.display = 'flex';
+        if (mobileInventoryBtn) mobileInventoryBtn.style.display = 'flex';
 
         // Update instructions for mobile
         const instructions = document.getElementById('instructions');
