@@ -862,6 +862,67 @@ function createWarriorEnemy(x, z) {
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     enemy.add(glow);
 
+    // Add 6 legs arranged around the body
+    enemy.legs = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+
+        // Leg segment 1 (upper)
+        const leg1Geometry = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 6);
+        const legMaterial = new THREE.MeshLambertMaterial({
+            color: 0x2a0a2e,
+            emissive: 0x1a0a1e
+        });
+        const leg1 = new THREE.Mesh(leg1Geometry, legMaterial);
+        leg1.position.set(
+            Math.cos(angle) * 1.0,
+            -0.3,
+            Math.sin(angle) * 1.0
+        );
+        leg1.rotation.z = Math.cos(angle) * 0.5;
+        leg1.rotation.x = Math.sin(angle) * 0.5;
+        leg1.castShadow = true;
+
+        // Leg segment 2 (lower)
+        const leg2Geometry = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 6);
+        const leg2 = new THREE.Mesh(leg2Geometry, legMaterial);
+        leg2.position.set(
+            Math.cos(angle) * 1.4,
+            -0.9,
+            Math.sin(angle) * 1.4
+        );
+        leg2.rotation.z = -Math.cos(angle) * 0.8;
+        leg2.rotation.x = -Math.sin(angle) * 0.8;
+        leg2.castShadow = true;
+
+        // Store leg data
+        const legGroup = new THREE.Group();
+        legGroup.add(leg1);
+        legGroup.add(leg2);
+        legGroup.userData.isLeg = true;
+        legGroup.userData.legIndex = i;
+        legGroup.userData.baseAngle = angle;
+        enemy.add(legGroup);
+        enemy.legs.push(legGroup);
+    }
+
+    // Add orbiting pentagons
+    for (let i = 0; i < 5; i++) {
+        const pentagonGeometry = new THREE.CircleGeometry(0.25, 5);
+        const pentagonMaterial = new THREE.MeshBasicMaterial({
+            color: 0x8800ff,
+            emissive: 0x8800ff,
+            emissiveIntensity: 0.8,
+            side: THREE.DoubleSide
+        });
+        const pentagon = new THREE.Mesh(pentagonGeometry, pentagonMaterial);
+        const angle = (i / 5) * Math.PI * 2;
+        pentagon.position.set(Math.cos(angle) * 2.2, 0.3, Math.sin(angle) * 2.2);
+        pentagon.userData.orbitAngle = angle;
+        pentagon.userData.isPentagon = true;
+        enemy.add(pentagon);
+    }
+
     game.scene.add(enemy);
     game.enemies.push(enemy);
     game.totalEnemiesSpawned++;
@@ -3601,17 +3662,15 @@ function updateEnemy(delta) {
                 // Make enemy look at player during wind-up (this sets the dash direction)
                 enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
 
-                // Store the direction enemy is facing (for dash)
-                const facingDirection = new THREE.Vector3(0, 0, -1);
-                facingDirection.applyQuaternion(enemy.quaternion);
-                enemy.dashDirection.copy(facingDirection);
+                // Store the direction TO PLAYER (dash towards player)
+                enemy.dashDirection.copy(directionToPlayer);
 
                 // Pulsing animation during wind-up
                 const pulseScale = 1 + Math.sin(Date.now() * 0.015) * 0.15;
                 enemy.scale.set(pulseScale, pulseScale, pulseScale);
 
             } else if (enemy.isDashing) {
-                // Currently dashing - move fast in stored direction
+                // Currently dashing - move fast towards player
                 enemy.dashDuration -= delta;
 
                 if (enemy.dashDuration <= 0) {
@@ -3620,7 +3679,7 @@ function updateEnemy(delta) {
                     enemy.dashDuration = 0;
                     enemy.scale.set(1, 1, 1); // Reset scale
                 } else {
-                    // Continue dashing at high speed in the direction enemy was facing
+                    // Continue dashing at high speed towards player
                     const dashSpeed = moveSpeed * 3; // 3x normal speed
                     const dashMove = new THREE.Vector3(
                         enemy.position.x + enemy.dashDirection.x * dashSpeed,
@@ -3653,6 +3712,67 @@ function updateEnemy(delta) {
                     }
                 }
             }
+
+            // Animate warrior legs and pentagons
+            enemy.children.forEach(child => {
+                // Animate legs - walking or retracted
+                if (child.userData && child.userData.isLeg) {
+                    const legIndex = child.userData.legIndex;
+                    const baseAngle = child.userData.baseAngle;
+
+                    if (enemy.isDashing) {
+                        // Retract legs during dash - pull them inward and upward
+                        child.children.forEach((segment, segIndex) => {
+                            const retractScale = 0.3; // Scale down to 30%
+                            if (segIndex === 0) { // Upper leg
+                                segment.position.set(
+                                    Math.cos(baseAngle) * 0.3,
+                                    0.2,
+                                    Math.sin(baseAngle) * 0.3
+                                );
+                                segment.scale.y = retractScale;
+                            } else { // Lower leg
+                                segment.position.set(
+                                    Math.cos(baseAngle) * 0.4,
+                                    0.1,
+                                    Math.sin(baseAngle) * 0.4
+                                );
+                                segment.scale.y = retractScale;
+                            }
+                        });
+                    } else {
+                        // Normal walking animation
+                        const walkCycle = Date.now() * 0.005 + legIndex * Math.PI / 3;
+                        const walkOffset = Math.sin(walkCycle) * 0.2;
+
+                        child.children.forEach((segment, segIndex) => {
+                            if (segIndex === 0) { // Upper leg
+                                segment.position.set(
+                                    Math.cos(baseAngle) * 1.0,
+                                    -0.3 + walkOffset,
+                                    Math.sin(baseAngle) * 1.0
+                                );
+                                segment.scale.y = 1;
+                            } else { // Lower leg
+                                segment.position.set(
+                                    Math.cos(baseAngle) * 1.4,
+                                    -0.9 + walkOffset * 0.5,
+                                    Math.sin(baseAngle) * 1.4
+                                );
+                                segment.scale.y = 1;
+                            }
+                        });
+                    }
+                }
+
+                // Animate orbiting pentagons
+                if (child.userData && child.userData.isPentagon) {
+                    child.userData.orbitAngle += delta * 2;
+                    child.position.x = Math.cos(child.userData.orbitAngle) * 2.2;
+                    child.position.z = Math.sin(child.userData.orbitAngle) * 2.2;
+                    child.rotation.y += delta * 3;
+                }
+            });
 
             // Simple rotation animation for warrior body (only when not winding up or dashing)
             if (!enemy.isWindingUp && !enemy.isDashing) {
