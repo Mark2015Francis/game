@@ -1375,12 +1375,24 @@ function toggleEquipSword() {
             game.equippedSwordMesh = null;
         }
     } else {
-        // Equip sword - unequip bow first if equipped
+        // Equip sword - unequip bow and spell book first if equipped
         if (game.equippedBow) {
             game.equippedBow = false;
             if (game.equippedBowMesh) {
                 game.camera.remove(game.equippedBowMesh);
                 game.equippedBowMesh = null;
+            }
+        }
+        if (game.equippedSpellBook) {
+            game.equippedSpellBook = false;
+            if (game.equippedSpellBookMesh) {
+                game.camera.remove(game.equippedSpellBookMesh);
+                game.equippedSpellBookMesh = null;
+            }
+            // Hide mana display
+            const manaDisplay = document.getElementById('manaDisplay');
+            if (manaDisplay) {
+                manaDisplay.style.display = 'none';
             }
         }
         game.inventory.equippedSword = true;
@@ -1436,12 +1448,24 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip bow - unequip sword first
+            // Equip bow - unequip sword and spell book first
             game.equippedBow = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
                 game.camera.remove(game.equippedSwordMesh);
                 game.equippedSwordMesh = null;
+            }
+            if (game.equippedSpellBook) {
+                game.equippedSpellBook = false;
+                if (game.equippedSpellBookMesh) {
+                    game.camera.remove(game.equippedSpellBookMesh);
+                    game.equippedSpellBookMesh = null;
+                }
+                // Hide mana display
+                const manaDisplay = document.getElementById('manaDisplay');
+                if (manaDisplay) {
+                    manaDisplay.style.display = 'none';
+                }
             }
             equipBow();
         }
