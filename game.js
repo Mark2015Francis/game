@@ -1022,13 +1022,17 @@ function spawnBoss() {
         // Spawn at safe distance
         const angle = Math.random() * Math.PI * 2;
         const distance = 150;
-        if (game.currentWorld === 2) {
+        if (game.currentWorld === 3) {
+            createWorld3Boss(Math.cos(angle) * distance, Math.sin(angle) * distance);
+        } else if (game.currentWorld === 2) {
             createWorld2Boss(Math.cos(angle) * distance, Math.sin(angle) * distance);
         } else {
             createBoss(Math.cos(angle) * distance, Math.sin(angle) * distance);
         }
     } else {
-        if (game.currentWorld === 2) {
+        if (game.currentWorld === 3) {
+            createWorld3Boss(x, z);
+        } else if (game.currentWorld === 2) {
             createWorld2Boss(x, z);
         } else {
             createBoss(x, z);
@@ -1291,6 +1295,78 @@ function createWorld2Boss(x, z) {
 
     showNotification('⚠️ MEGA TRANSMISSION BOSS APPEARED! 50 HP - Can teleport and shoot!');
     console.log('World 2 BOSS SPAWNED at', x, z);
+}
+
+// Create World 3 boss enemy - code master virus
+function createWorld3Boss(x, z) {
+    const boss = new THREE.Group();
+    boss.position.set(x, 4, z);
+    boss.castShadow = true;
+    boss.hp = 120; // World 3 boss has 120 HP
+    boss.maxHP = 120;
+    boss.isBoss = true;
+    boss.isWorld3Boss = true; // Mark as World 3 boss
+    boss.codeShootTimer = 2; // Shoot code every 2 seconds
+    boss.windBlastTimer = 8; // Wind blast every 8 seconds
+    boss.isStunned = false;
+    boss.stunDuration = 0;
+    boss.jumpStartY = 4;
+
+    // Main core - large dark red icosahedron
+    const coreGeometry = new THREE.IcosahedronGeometry(2.5, 1);
+    const coreMaterial = new THREE.MeshLambertMaterial({
+        color: 0x880000, // Dark red
+        emissive: 0xff0000,
+        emissiveIntensity: 0.8
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.castShadow = true;
+    boss.add(core);
+    boss.material = coreMaterial;
+
+    // Add dark wireframe overlay
+    const wireGeometry = new THREE.IcosahedronGeometry(2.6, 1);
+    const wireMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.8
+    });
+    const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+    boss.add(wire);
+
+    // Add 8 code fragments orbiting around
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const codeGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+        const codeMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff4400,
+            emissive: 0xff4400,
+            emissiveIntensity: 1
+        });
+        const codeFragment = new THREE.Mesh(codeGeometry, codeMaterial);
+        codeFragment.position.set(Math.cos(angle) * 4, Math.sin(angle * 2) * 1, Math.sin(angle) * 4);
+        codeFragment.userData.orbitAngle = angle;
+        codeFragment.userData.isCodeFragment = true;
+        boss.add(codeFragment);
+    }
+
+    // Add glowing red aura
+    const glowGeometry = new THREE.SphereGeometry(3.5, 24, 24);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.15
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    boss.add(glow);
+
+    game.scene.add(boss);
+    game.boss = boss;
+    game.bossSpawned = true;
+
+    showNotification('⚠️ CODE MASTER BOSS APPEARED! 120 HP - Beware the code storm!');
+    console.log('World 3 BOSS SPAWNED at', x, z);
 }
 
 // Create shield pickup
@@ -2649,12 +2725,12 @@ function attackWithSword() {
         }, 16);
     }
 
-    // Check if hit any enemies
+    // Check if hit any enemies (target crosshair - center of screen)
     for (let i = 0; i < game.enemies.length; i++) {
         const enemy = game.enemies[i];
         const distance = game.camera.position.distanceTo(enemy.position);
         if (distance < 15) { // Large attack range of 15 units
-            // Calculate if enemy is in front of player
+            // Calculate if enemy is at crosshair (center of screen)
             const directionToEnemy = new THREE.Vector3();
             directionToEnemy.subVectors(enemy.position, game.camera.position);
             directionToEnemy.normalize();
@@ -2664,14 +2740,19 @@ function attackWithSword() {
 
             const angle = forward.angleTo(directionToEnemy);
 
-            if (angle < Math.PI / 2.5) { // Wide 72 degree cone in front
-                // Deal damage based on player level
-                enemy.hp -= game.playerDamage;
+            if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
+                // 5% chance for critical hit (double damage)
+                const isCritical = Math.random() < 0.05;
+                const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
 
-                // Visual feedback - flash bright white for visibility
+                // Deal damage based on player level
+                enemy.hp -= damage;
+
+                // Visual feedback - flash bright white for visibility (golden for crit)
+                const flashColor = isCritical ? 0xffdd00 : 0xffffff;
                 const originalColor = enemy.material.color.getHex();
-                enemy.material.color.setHex(0xffffff);
-                enemy.material.emissive.setHex(0xffffff);
+                enemy.material.color.setHex(flashColor);
+                enemy.material.emissive.setHex(flashColor);
                 setTimeout(() => {
                     if (enemy && enemy.material) {
                         enemy.material.color.setHex(originalColor);
@@ -2680,7 +2761,8 @@ function attackWithSword() {
                 }, 150);
 
                 // Show damage feedback
-                showNotification(`⚔️ -${game.playerDamage} DMG! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
+                const critText = isCritical ? ' CRITICAL!' : '';
+                showNotification(`⚔️ -${damage} DMG${critText}! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
 
                 if (enemy.hp <= 0) {
                     defeatEnemy(enemy, i);
@@ -2691,11 +2773,11 @@ function attackWithSword() {
         }
     }
 
-    // Check if hit boss
+    // Check if hit boss (target crosshair - center of screen)
     if (game.boss) {
         const distance = game.camera.position.distanceTo(game.boss.position);
         if (distance < 20) { // Boss has larger hit range
-            // Calculate if boss is in front of player
+            // Calculate if boss is at crosshair (center of screen)
             const directionToBoss = new THREE.Vector3();
             directionToBoss.subVectors(game.boss.position, game.camera.position);
             directionToBoss.normalize();
@@ -2705,14 +2787,19 @@ function attackWithSword() {
 
             const angle = forward.angleTo(directionToBoss);
 
-            if (angle < Math.PI / 2.5) {
-                // Deal damage to boss
-                game.boss.hp -= game.playerDamage;
+            if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
+                // 5% chance for critical hit (double damage)
+                const isCritical = Math.random() < 0.05;
+                const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
 
-                // Visual feedback
+                // Deal damage to boss
+                game.boss.hp -= damage;
+
+                // Visual feedback (golden flash for crit)
+                const flashColor = isCritical ? 0xffdd00 : 0xffffff;
                 const originalColor = game.boss.material.color.getHex();
-                game.boss.material.color.setHex(0xffffff);
-                game.boss.material.emissive.setHex(0xffffff);
+                game.boss.material.color.setHex(flashColor);
+                game.boss.material.emissive.setHex(flashColor);
                 setTimeout(() => {
                     if (game.boss && game.boss.material) {
                         game.boss.material.color.setHex(originalColor);
@@ -2720,7 +2807,8 @@ function attackWithSword() {
                     }
                 }, 150);
 
-                showNotification(`⚔️ BOSS -${game.playerDamage} DMG! HP: ${Math.max(0, game.boss.hp)}/100`);
+                const critText = isCritical ? ' CRITICAL!' : '';
+                showNotification(`⚔️ BOSS -${damage} DMG${critText}! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP}`);
 
                 if (game.boss.hp <= 0) {
                     defeatBoss();
@@ -3372,6 +3460,88 @@ function shootBossProjectile(boss) {
     game.bossProjectiles.push(projectile);
 }
 
+// World 3 boss shoots code fragments that freeze player
+function shootCodeProjectile(boss) {
+    const codeGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6); // Code cube
+    const codeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff4400,
+        emissive: 0xff4400,
+        emissiveIntensity: 1
+    });
+    const projectile = new THREE.Mesh(codeGeometry, codeMaterial);
+
+    // Position at boss
+    projectile.position.copy(boss.position);
+    projectile.position.y = boss.position.y;
+
+    // Calculate direction to player
+    const direction = new THREE.Vector3();
+    direction.subVectors(game.camera.position, boss.position);
+    direction.normalize();
+
+    // Set velocity toward player
+    projectile.velocity = new THREE.Vector3(
+        direction.x * 35,
+        direction.y * 35,
+        direction.z * 35
+    );
+
+    // Mark as code projectile (freezes on hit)
+    projectile.isCodeProjectile = true;
+
+    // Add trail effect
+    const trailGeometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+    const trailMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff4400,
+        transparent: true,
+        opacity: 0.3,
+        wireframe: true
+    });
+    const trail = new THREE.Mesh(trailGeometry, trailMaterial);
+    projectile.add(trail);
+
+    game.scene.add(projectile);
+    game.bossProjectiles.push(projectile);
+}
+
+// World 3 boss creates wind blast
+function createWindBlast(boss) {
+    const blastGeometry = new THREE.SphereGeometry(8, 16, 16);
+    const blastMaterial = new THREE.MeshBasicMaterial({
+        color: 0xaaaaaa,
+        transparent: true,
+        opacity: 0.4,
+        wireframe: true
+    });
+    const blast = new THREE.Mesh(blastGeometry, blastMaterial);
+    blast.position.copy(boss.position);
+    blast.scale.set(0.1, 0.1, 0.1);
+    blast.isWindBlast = true;
+    blast.lifetime = 0.8; // Lasts 0.8 seconds
+
+    game.scene.add(blast);
+    if (!game.windBlasts) game.windBlasts = [];
+    game.windBlasts.push(blast);
+
+    // Calculate knockback direction from boss to player
+    const direction = new THREE.Vector3();
+    direction.subVectors(game.camera.position, boss.position);
+    direction.y = 0;
+    direction.normalize();
+
+    // Apply knockback to player
+    const knockbackStrength = 30;
+    game.velocity.x += direction.x * knockbackStrength;
+    game.velocity.z += direction.z * knockbackStrength;
+    game.velocity.y = 10; // Knock player upward
+
+    // Stun boss for 5 seconds
+    boss.isStunned = true;
+    boss.stunDuration = 5.0;
+
+    showNotification('💨 WIND BLAST! Boss is stunned!');
+}
+
 // Update enemy projectiles
 function updateEnemyProjectiles(delta) {
     for (let i = game.enemyProjectiles.length - 1; i >= 0; i--) {
@@ -3436,13 +3606,30 @@ function updateBossProjectiles(delta) {
                 removeItemFromInventory('shield');
                 showNotification('🛡️ Shield absorbed boss projectile!');
             } else {
-                game.playerHP -= 5; // Boss projectiles deal 5 damage (high damage)
-                updateHPDisplay();
+                // Code projectiles (World 3 boss) do 1 damage and freeze
+                if (projectile.isCodeProjectile) {
+                    game.playerHP -= 1;
+                    updateHPDisplay();
 
-                if (game.playerHP <= 0) {
-                    gameOver();
+                    // Freeze player for 3 seconds
+                    game.playerFrozen = true;
+                    game.freezeDuration = 3.0;
+
+                    if (game.playerHP <= 0) {
+                        gameOver();
+                    } else {
+                        showNotification(`🧊 CODE HIT! FROZEN! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                    }
                 } else {
-                    showNotification(`💥 BOSS PROJECTILE HIT! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                    // Regular boss projectiles deal 5 damage
+                    game.playerHP -= 5;
+                    updateHPDisplay();
+
+                    if (game.playerHP <= 0) {
+                        gameOver();
+                    } else {
+                        showNotification(`💥 BOSS PROJECTILE HIT! HP: ${game.playerHP}/${game.maxPlayerHP}`);
+                    }
                 }
             }
 
@@ -3992,6 +4179,12 @@ function updateBoss(delta) {
         });
     }
 
+    // Handle World 3 boss (code shooter + wind blast)
+    if (boss.isWorld3Boss) {
+        updateWorld3Boss(delta);
+        return;
+    }
+
     // Handle World 2 boss differently (teleport + projectile shooter)
     if (boss.isWorld2Boss) {
         updateWorld2Boss(delta);
@@ -4148,6 +4341,80 @@ function updateWorld2Boss(delta) {
 
     // Check collision with player
     checkBossCollision();
+}
+
+// Update World 3 boss behavior (code shooter + wind blast)
+function updateWorld3Boss(delta) {
+    const boss = game.boss;
+    if (!boss) return;
+
+    // Handle stun from wind blast
+    if (boss.isStunned) {
+        boss.stunDuration -= delta;
+        if (boss.stunDuration <= 0) {
+            boss.isStunned = false;
+            boss.stunDuration = 0;
+            showNotification('⚠️ Boss recovered!');
+        }
+        // Boss doesn't move or attack when stunned
+        // Still animate visuals
+        animateWorld3Boss(boss, delta);
+        return;
+    }
+
+    // Update code shoot timer
+    boss.codeShootTimer -= delta;
+    if (boss.codeShootTimer <= 0) {
+        shootCodeProjectile(boss);
+        boss.codeShootTimer = 2; // Shoot every 2 seconds
+    }
+
+    // Update wind blast timer
+    boss.windBlastTimer -= delta;
+    if (boss.windBlastTimer <= 0) {
+        createWindBlast(boss);
+        boss.windBlastTimer = 8; // Wind blast every 8 seconds
+    }
+
+    // Fast movement toward player - faster than other bosses
+    const baseSpeed = game.enemySpeed * 1.0;
+    const moveSpeed = (boss.isFrozen ? baseSpeed * 0.3 : baseSpeed) * delta;
+    const directionToPlayer = new THREE.Vector3();
+    directionToPlayer.subVectors(game.camera.position, boss.position);
+    directionToPlayer.y = 0;
+    directionToPlayer.normalize();
+
+    boss.position.x += directionToPlayer.x * moveSpeed;
+    boss.position.z += directionToPlayer.z * moveSpeed;
+
+    // Make boss look at player
+    boss.lookAt(game.camera.position.x, boss.position.y, game.camera.position.z);
+
+    // Animate visuals
+    animateWorld3Boss(boss, delta);
+
+    // Floating animation
+    boss.position.y = boss.jumpStartY + Math.sin(Date.now() * 0.004) * 0.5;
+
+    // Check collision with player
+    checkBossCollision();
+}
+
+// Animate World 3 boss visuals
+function animateWorld3Boss(boss, delta) {
+    boss.children.forEach(child => {
+        // Rotate code fragments around boss
+        if (child.userData && child.userData.isCodeFragment) {
+            child.userData.orbitAngle += delta * 3;
+            const radius = 4;
+            const height = Math.sin(child.userData.orbitAngle * 2) * 1;
+            child.position.x = Math.cos(child.userData.orbitAngle) * radius;
+            child.position.y = height;
+            child.position.z = Math.sin(child.userData.orbitAngle) * radius;
+            child.rotation.x += delta * 4;
+            child.rotation.y += delta * 3;
+        }
+    });
 }
 
 // Check boss collision with player
