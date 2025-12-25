@@ -4223,6 +4223,14 @@ function animate() {
             game.freezeballCooldown -= delta;
         }
 
+        // Regenerate mana (1 per second)
+        if (game.playerMana < game.maxPlayerMana) {
+            game.playerMana = Math.min(game.playerMana + delta, game.maxPlayerMana);
+            if (game.equippedSpellBook) {
+                updateManaDisplay();
+            }
+        }
+
         // Enemy spawner
         if (!game.isGameOver) {
             game.enemySpawnTimer += delta;
