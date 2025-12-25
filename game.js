@@ -145,11 +145,11 @@ function init() {
     createSun();
     createClouds();
 
-    // Create walls around the perimeter - WAY BIGGER
-    createWall(0, 500, 5, 1000, 10, 0x8b4513);  // Back wall
-    createWall(0, -500, 5, 1000, 10, 0x8b4513); // Front wall
-    createWall(500, 0, 5, 10, 1000, 0x8b4513);  // Right wall
-    createWall(-500, 0, 5, 10, 1000, 0x8b4513); // Left wall
+    // Create walls around the perimeter - WAY BIGGER with infinite height
+    createWall(0, 500, 1000, 1000, 10, 0x8b4513);  // Back wall
+    createWall(0, -500, 1000, 1000, 10, 0x8b4513); // Front wall
+    createWall(500, 0, 1000, 10, 1000, 0x8b4513);  // Right wall
+    createWall(-500, 0, 1000, 10, 1000, 0x8b4513); // Left wall
 
     // Create some obstacles/buildings scattered across the larger area
     createBox(-30, 0, -30, 15, 10, 15, 0x808080);
@@ -2977,9 +2977,19 @@ function updateEnemy(delta) {
                     pushDirection.y = 0;
                     pushDirection.normalize();
 
+                    // Save old position
+                    const oldX = game.camera.position.x;
+                    const oldZ = game.camera.position.z;
+
                     // Move player 6 steps away
                     game.camera.position.x += pushDirection.x * 12;
                     game.camera.position.z += pushDirection.z * 12;
+
+                    // Check for wall collision and revert if needed
+                    if (checkWallCollision()) {
+                        game.camera.position.x = oldX;
+                        game.camera.position.z = oldZ;
+                    }
 
                     // Move enemy 6 steps in opposite direction
                     enemy.position.x -= pushDirection.x * 12;
@@ -2991,6 +3001,10 @@ function updateEnemy(delta) {
                     game.playerHP -= 1;
                     updateHPDisplay();
 
+                    // Save old position
+                    const oldX = game.camera.position.x;
+                    const oldZ = game.camera.position.z;
+
                     // Push player back
                     const pushDirection = new THREE.Vector3();
                     pushDirection.subVectors(game.camera.position, enemy.position);
@@ -2998,6 +3012,12 @@ function updateEnemy(delta) {
                     pushDirection.normalize();
                     game.camera.position.x += pushDirection.x * 5;
                     game.camera.position.z += pushDirection.z * 5;
+
+                    // Check for wall collision and revert if needed
+                    if (checkWallCollision()) {
+                        game.camera.position.x = oldX;
+                        game.camera.position.z = oldZ;
+                    }
 
                     if (game.playerHP <= 0) {
                         gameOver();
@@ -3223,8 +3243,18 @@ function checkBossCollision() {
                 pushDirection.y = 0;
                 pushDirection.normalize();
 
+                // Save old position
+                const oldX = game.camera.position.x;
+                const oldZ = game.camera.position.z;
+
                 game.camera.position.x += pushDirection.x * 20;
                 game.camera.position.z += pushDirection.z * 20;
+
+                // Check for wall collision and revert if needed
+                if (checkWallCollision()) {
+                    game.camera.position.x = oldX;
+                    game.camera.position.z = oldZ;
+                }
 
                 boss.position.x -= pushDirection.x * 20;
                 boss.position.z -= pushDirection.z * 20;
@@ -3235,6 +3265,10 @@ function checkBossCollision() {
                 game.playerHP -= 2;
                 updateHPDisplay();
 
+                // Save old position
+                const oldX = game.camera.position.x;
+                const oldZ = game.camera.position.z;
+
                 // Push player back
                 const pushDirection = new THREE.Vector3();
                 pushDirection.subVectors(game.camera.position, boss.position);
@@ -3242,6 +3276,12 @@ function checkBossCollision() {
                 pushDirection.normalize();
                 game.camera.position.x += pushDirection.x * 10;
                 game.camera.position.z += pushDirection.z * 10;
+
+                // Check for wall collision and revert if needed
+                if (checkWallCollision()) {
+                    game.camera.position.x = oldX;
+                    game.camera.position.z = oldZ;
+                }
 
                 if (game.playerHP <= 0) {
                     gameOver();
@@ -3330,6 +3370,10 @@ function createShockwave(x, z) {
                     game.playerHP -= 3;
                     updateHPDisplay();
 
+                    // Save old position
+                    const oldX = game.camera.position.x;
+                    const oldZ = game.camera.position.z;
+
                     // Knock player back
                     const pushDir = new THREE.Vector3();
                     pushDir.subVectors(game.camera.position, new THREE.Vector3(x, game.camera.position.y, z));
@@ -3337,6 +3381,12 @@ function createShockwave(x, z) {
                     pushDir.normalize();
                     game.camera.position.x += pushDir.x * 15;
                     game.camera.position.z += pushDir.z * 15;
+
+                    // Check for wall collision and revert if needed
+                    if (checkWallCollision()) {
+                        game.camera.position.x = oldX;
+                        game.camera.position.z = oldZ;
+                    }
 
                     if (game.playerHP <= 0) {
                         gameOver();
@@ -3633,6 +3683,35 @@ function onWindowResize() {
     game.camera.aspect = window.innerWidth / window.innerHeight;
     game.camera.updateProjectionMatrix();
     game.renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// Check if player's current position collides with walls/objects
+function checkWallCollision() {
+    const playerRadius = 0.8; // Same as in updateMovement
+    const playerBox = new THREE.Box3(
+        new THREE.Vector3(
+            game.camera.position.x - playerRadius,
+            game.camera.position.y - game.playerHeight,
+            game.camera.position.z - playerRadius
+        ),
+        new THREE.Vector3(
+            game.camera.position.x + playerRadius,
+            game.camera.position.y,
+            game.camera.position.z + playerRadius
+        )
+    );
+
+    // Check collision with all objects (walls, boxes, etc.)
+    for (let obj of game.objects) {
+        const box = new THREE.Box3().setFromObject(obj);
+        box.expandByScalar(0.1);
+
+        if (box.intersectsBox(playerBox)) {
+            return true; // Collision detected
+        }
+    }
+
+    return false; // No collision
 }
 
 // Update player movement
