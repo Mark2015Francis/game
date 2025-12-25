@@ -831,8 +831,11 @@ function createWarriorEnemy(x, z) {
     enemy.isWarriorEnemy = true; // Mark as warrior enemy
     enemy.dashTimer = 20; // Dash every 20 seconds
     enemy.dashCooldown = 20;
+    enemy.isWindingUp = false; // Wind-up phase before dash
+    enemy.windUpDuration = 0;
     enemy.isDashing = false;
     enemy.dashDuration = 0;
+    enemy.dashDirection = new THREE.Vector3(); // Direction to dash in
 
     // Main warrior body - larger dodecahedron with dark purple color (bigger and more angular than regular enemies)
     const bodyGeometry = new THREE.DodecahedronGeometry(1.3, 0);
@@ -3509,35 +3512,59 @@ function updateEnemy(delta) {
             // Update dash timer
             enemy.dashTimer -= delta;
 
-            if (enemy.isDashing) {
-                // Currently dashing - move fast toward player
+            if (enemy.isWindingUp) {
+                // Wind-up phase - enemy stands still and prepares to dash
+                enemy.windUpDuration -= delta;
+
+                if (enemy.windUpDuration <= 0) {
+                    // Wind-up complete - start actual dash
+                    enemy.isWindingUp = false;
+                    enemy.isDashing = true;
+                    enemy.dashDuration = 1.0; // Dash for 1 second
+                }
+
+                // Make enemy look at player during wind-up (this sets the dash direction)
+                enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
+
+                // Store the direction enemy is facing (for dash)
+                const facingDirection = new THREE.Vector3(0, 0, -1);
+                facingDirection.applyQuaternion(enemy.quaternion);
+                enemy.dashDirection.copy(facingDirection);
+
+                // Pulsing animation during wind-up
+                const pulseScale = 1 + Math.sin(Date.now() * 0.015) * 0.15;
+                enemy.scale.set(pulseScale, pulseScale, pulseScale);
+
+            } else if (enemy.isDashing) {
+                // Currently dashing - move fast in stored direction
                 enemy.dashDuration -= delta;
 
                 if (enemy.dashDuration <= 0) {
                     // Dash ended
                     enemy.isDashing = false;
                     enemy.dashDuration = 0;
+                    enemy.scale.set(1, 1, 1); // Reset scale
                 } else {
-                    // Continue dashing at high speed
+                    // Continue dashing at high speed in the direction enemy was facing
                     const dashSpeed = moveSpeed * 3; // 3x normal speed
                     const dashMove = new THREE.Vector3(
-                        enemy.position.x + directionToPlayer.x * dashSpeed,
+                        enemy.position.x + enemy.dashDirection.x * dashSpeed,
                         enemy.position.y,
-                        enemy.position.z + directionToPlayer.z * dashSpeed
+                        enemy.position.z + enemy.dashDirection.z * dashSpeed
                     );
                     if (isPositionValid(dashMove, enemy)) {
                         enemy.position.copy(dashMove);
                     }
                 }
             } else {
-                // Not dashing - check if should start dash
+                // Not winding up or dashing - check if should start wind-up
                 if (enemy.dashTimer <= 0 && distanceToPlayer < 40) {
-                    // Start dash
-                    enemy.isDashing = true;
-                    enemy.dashDuration = 1.0; // Dash for 1 second
+                    // Start wind-up
+                    enemy.isWindingUp = true;
+                    enemy.windUpDuration = 0.6; // Wind-up for 0.6 seconds
                     enemy.dashTimer = enemy.dashCooldown; // Reset cooldown
                 } else {
-                    // Normal movement when not dashing
+                    // Normal movement when not winding up or dashing
                     const normalMove = new THREE.Vector3(
                         enemy.position.x + directionToPlayer.x * moveSpeed * 0.7, // Slightly slower than regular
                         enemy.position.y,
@@ -3549,11 +3576,15 @@ function updateEnemy(delta) {
                 }
             }
 
-            // Simple rotation animation for warrior body
-            enemy.rotation.y += delta * 0.5;
+            // Simple rotation animation for warrior body (only when not winding up or dashing)
+            if (!enemy.isWindingUp && !enemy.isDashing) {
+                enemy.rotation.y += delta * 0.5;
+            }
 
-            // Make enemy look at player
-            enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
+            // Make enemy look at player (except during dash - it should maintain direction)
+            if (!enemy.isDashing) {
+                enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
+            }
 
             // Check collision with player
             if (distanceToPlayer < 2) {
