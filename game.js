@@ -480,15 +480,10 @@ function spawnBoss() {
     }
 }
 
-// Create boss enemy
+// Create boss enemy - massive threatening virus
 function createBoss(x, z) {
-    // Boss is much larger - radius 3 instead of 1
-    const bossGeometry = new THREE.SphereGeometry(3, 32, 32);
-    const bossMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b0000, // Dark red
-        emissive: 0x660000
-    });
-    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
+    // Create boss as a group for complex virus design
+    const boss = new THREE.Group();
     boss.position.set(x, 3, z);
     boss.castShadow = true;
     boss.hp = 100; // Boss HP
@@ -501,35 +496,114 @@ function createBoss(x, z) {
     boss.jumpHeight = 0;
     boss.jumpStartY = 3;
 
-    game.scene.add(boss);
+    // Main virus body - large octahedron
+    const bodyGeometry = new THREE.OctahedronGeometry(3, 0);
+    const bodyMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b0000, // Dark red
+        emissive: 0x990000,
+        emissiveIntensity: 0.7
+    });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.castShadow = true;
+    boss.add(body);
 
-    // Add glowing eyes - larger for boss
-    const eyeGeometry = new THREE.SphereGeometry(0.4, 16, 16);
-    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Red eyes
+    // Store material reference for hit effects
+    boss.material = bodyMaterial;
 
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.9, 0.5, 2.2);
-    boss.add(leftEye);
+    // Add outer wireframe layer - pulsing
+    const outerWireframeGeometry = new THREE.OctahedronGeometry(3.3, 0);
+    const outerWireframeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.8
+    });
+    const outerWireframe = new THREE.Mesh(outerWireframeGeometry, outerWireframeMaterial);
+    outerWireframe.userData.isOuterWireframe = true;
+    boss.add(outerWireframe);
 
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.9, 0.5, 2.2);
-    boss.add(rightEye);
+    // Add middle octahedron layer - rotating opposite direction
+    const middleGeometry = new THREE.OctahedronGeometry(2, 0);
+    const middleMaterial = new THREE.MeshLambertMaterial({
+        color: 0xcc0000,
+        emissive: 0xff0000,
+        transparent: true,
+        opacity: 0.6
+    });
+    const middleLayer = new THREE.Mesh(middleGeometry, middleMaterial);
+    middleLayer.userData.isMiddleLayer = true;
+    boss.add(middleLayer);
 
-    // Add crown-like spikes on top
-    for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        const spikeGeometry = new THREE.ConeGeometry(0.3, 1, 8);
-        const spikeMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 }); // Gold
+    // Add inner glowing core - pulsing
+    const coreGeometry = new THREE.OctahedronGeometry(1, 0);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        emissive: 0xff0000,
+        transparent: true,
+        opacity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.userData.isPulsingCore = true;
+    boss.add(core);
+
+    // Add large threatening spikes protruding from vertices
+    const spikeGeometry = new THREE.ConeGeometry(0.4, 2, 8);
+    const spikeMaterial = new THREE.MeshLambertMaterial({
+        color: 0xff0000,
+        emissive: 0x660000
+    });
+
+    // Octahedron vertices for spike placement
+    const spikePositions = [
+        {x: 3, y: 0, z: 0}, {x: -3, y: 0, z: 0},
+        {x: 0, y: 3, z: 0}, {x: 0, y: -3, z: 0},
+        {x: 0, y: 0, z: 3}, {x: 0, y: 0, z: -3}
+    ];
+
+    spikePositions.forEach(pos => {
         const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
-        spike.position.set(Math.cos(angle) * 1.5, 3, Math.sin(angle) * 1.5);
-        spike.rotation.x = Math.PI;
+        spike.position.set(pos.x, pos.y, pos.z);
+        spike.lookAt(pos.x * 2, pos.y * 2, pos.z * 2);
+        spike.castShadow = true;
         boss.add(spike);
+    });
+
+    // Add orbiting data corruption rings
+    for (let ring = 0; ring < 3; ring++) {
+        const cubeCount = 12;
+        for (let i = 0; i < cubeCount; i++) {
+            const angle = (i / cubeCount) * Math.PI * 2;
+            const radius = 4.5 + ring * 0.5;
+            const cubeGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+            const cubeMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                emissive: 0xff0000
+            });
+            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(Math.cos(angle) * radius, ring * 0.5 - 0.5, Math.sin(angle) * radius);
+            cube.userData.orbitAngle = angle;
+            cube.userData.orbitRadius = radius;
+            cube.userData.orbitRing = ring;
+            cube.userData.isBossOrbitCube = true;
+            boss.add(cube);
+        }
     }
 
+    // Add menacing red glow aura
+    const glowGeometry = new THREE.SphereGeometry(4, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.15
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    boss.add(glow);
+
+    game.scene.add(boss);
     game.boss = boss;
     game.bossSpawned = true;
 
-    showNotification('⚠️ BOSS APPEARED! 100 HP');
+    showNotification('⚠️ MEGA VIRUS BOSS APPEARED! 100 HP');
     console.log('BOSS SPAWNED at', x, z);
 }
 
@@ -2701,6 +2775,38 @@ function updateBoss(delta) {
     if (!game.boss || game.isGameOver || !game.isPointerLocked || game.inventory.isOpen) return;
 
     const boss = game.boss;
+
+    // Animate boss visuals (for World 1 boss)
+    if (!boss.isWorld2Boss && boss.children) {
+        boss.children.forEach(child => {
+            // Rotate middle layer opposite direction
+            if (child.userData && child.userData.isMiddleLayer) {
+                child.rotation.y += delta * 1.5;
+                child.rotation.x += delta * 0.5;
+            }
+            // Rotate outer wireframe
+            if (child.userData && child.userData.isOuterWireframe) {
+                child.rotation.y -= delta * 2;
+                child.rotation.z += delta * 0.8;
+            }
+            // Pulse core
+            if (child.userData && child.userData.isPulsingCore) {
+                child.rotation.y += delta * 3;
+                child.rotation.x += delta * 2;
+                // Pulsing scale effect
+                const scale = 1 + Math.sin(Date.now() * 0.003) * 0.2;
+                child.scale.set(scale, scale, scale);
+            }
+            // Animate orbiting cubes
+            if (child.userData && child.userData.isBossOrbitCube) {
+                child.userData.orbitAngle += delta * (1 + child.userData.orbitRing * 0.3);
+                child.position.x = Math.cos(child.userData.orbitAngle) * child.userData.orbitRadius;
+                child.position.z = Math.sin(child.userData.orbitAngle) * child.userData.orbitRadius;
+                child.rotation.y += delta * 4;
+                child.rotation.x += delta * 3;
+            }
+        });
+    }
 
     // Handle World 2 boss differently (teleport + projectile shooter)
     if (boss.isWorld2Boss) {
