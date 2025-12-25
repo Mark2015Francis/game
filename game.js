@@ -102,7 +102,11 @@ const game = {
     touchStartY: 0,
     touchCurrentX: 0,
     touchCurrentY: 0,
-    isTouching: false
+    isTouching: false,
+    // Joystick controls
+    joystickActive: false,
+    joystickDeltaX: 0,
+    joystickDeltaY: 0
 };
 
 // Detect if running on mobile device
@@ -132,10 +136,12 @@ function init() {
         const mobileAttackBtn = document.getElementById('mobileAttackBtn');
         const mobileJumpBtn = document.getElementById('mobileJumpBtn');
         const mobileInventoryBtn = document.getElementById('mobileInventoryBtn');
+        const joystickContainer = document.getElementById('joystickContainer');
 
         if (mobileAttackBtn) mobileAttackBtn.style.display = 'flex';
         if (mobileJumpBtn) mobileJumpBtn.style.display = 'flex';
         if (mobileInventoryBtn) mobileInventoryBtn.style.display = 'flex';
+        if (joystickContainer) joystickContainer.style.display = 'block';
 
         // Update instructions for mobile
         const instructions = document.getElementById('instructions');
@@ -151,9 +157,9 @@ function init() {
             if (controlsText) {
                 controlsText.innerHTML = `
                     <strong>Mobile Controls:</strong><br>
-                    Touch screen - Move forward<br>
-                    Drag left/right - Turn<br>
-                    Use buttons on left for actions
+                    Joystick (bottom left) - Move<br>
+                    Drag anywhere - Look around<br>
+                    Use action buttons to play
                 `;
             }
         }
@@ -4034,13 +4040,14 @@ function setupControls() {
             e.preventDefault();
         }, { passive: false });
 
-        // Touch start - begin moving forward
+        // Touch start - for camera look (not movement - joystick handles that)
         document.addEventListener('touchstart', (event) => {
             if (game.inventory.isOpen || game.isShopOpen) return;
 
-            // Ignore touches on mobile control buttons
+            // Ignore touches on mobile control buttons and joystick
             const target = event.target;
-            if (target && (target.classList.contains('mobile-btn') || target.closest('.mobile-btn'))) {
+            if (target && (target.classList.contains('mobile-btn') || target.closest('.mobile-btn') ||
+                          target.closest('#joystickContainer'))) {
                 return;
             }
 
@@ -4050,9 +4057,6 @@ function setupControls() {
             game.touchCurrentX = touch.clientX;
             game.touchCurrentY = touch.clientY;
             game.isTouching = true;
-
-            // Start moving forward
-            game.controls.moveForward = true;
 
             // Auto-lock pointer on mobile
             if (!game.isPointerLocked) {
@@ -4087,16 +4091,14 @@ function setupControls() {
             game.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, game.rotation.x));
         });
 
-        // Touch end - stop moving forward
+        // Touch end - stop camera drag
         document.addEventListener('touchend', (event) => {
             game.isTouching = false;
-            game.controls.moveForward = false;
         });
 
         // Handle touch cancel
         document.addEventListener('touchcancel', (event) => {
             game.isTouching = false;
-            game.controls.moveForward = false;
         });
 
         // Mobile button event handlers
@@ -4154,6 +4156,104 @@ function setupControls() {
                 toggleInventory();
             });
         }
+
+        // Joystick controls
+        const joystickStick = document.getElementById('joystickStick');
+        const joystickBase = document.getElementById('joystickBase');
+
+        if (joystickContainer && joystickStick && joystickBase) {
+            let joystickTouchId = null;
+            const maxDistance = 50; // Maximum distance the stick can move from center
+
+            joystickContainer.addEventListener('touchstart', (event) => {
+                event.preventDefault();
+                const touch = event.touches[0];
+                joystickTouchId = touch.identifier;
+                game.joystickActive = true;
+                joystickStick.classList.add('active');
+
+                // Auto-lock pointer on mobile
+                if (!game.isPointerLocked) {
+                    game.isPointerLocked = true;
+                    const instructions = document.getElementById('instructions');
+                    if (instructions) {
+                        instructions.classList.add('hidden');
+                    }
+                }
+            });
+
+            joystickContainer.addEventListener('touchmove', (event) => {
+                event.preventDefault();
+                if (!game.joystickActive) return;
+
+                // Find the touch that started on the joystick
+                let touch = null;
+                for (let i = 0; i < event.touches.length; i++) {
+                    if (event.touches[i].identifier === joystickTouchId) {
+                        touch = event.touches[i];
+                        break;
+                    }
+                }
+                if (!touch) return;
+
+                // Get touch position relative to joystick base
+                const rect = joystickBase.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                let deltaX = touch.clientX - centerX;
+                let deltaY = touch.clientY - centerY;
+
+                // Limit the distance
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > maxDistance) {
+                    const angle = Math.atan2(deltaY, deltaX);
+                    deltaX = Math.cos(angle) * maxDistance;
+                    deltaY = Math.sin(angle) * maxDistance;
+                }
+
+                // Update stick position
+                joystickStick.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px))`;
+
+                // Store normalized values (-1 to 1)
+                game.joystickDeltaX = deltaX / maxDistance;
+                game.joystickDeltaY = deltaY / maxDistance;
+            });
+
+            joystickContainer.addEventListener('touchend', (event) => {
+                event.preventDefault();
+
+                // Check if the touch that ended was the joystick touch
+                let touchEnded = true;
+                for (let i = 0; i < event.touches.length; i++) {
+                    if (event.touches[i].identifier === joystickTouchId) {
+                        touchEnded = false;
+                        break;
+                    }
+                }
+
+                if (touchEnded) {
+                    game.joystickActive = false;
+                    game.joystickDeltaX = 0;
+                    game.joystickDeltaY = 0;
+                    joystickTouchId = null;
+                    joystickStick.classList.remove('active');
+                    // Reset stick position
+                    joystickStick.style.transform = 'translate(-50%, -50%)';
+                }
+            });
+
+            joystickContainer.addEventListener('touchcancel', (event) => {
+                event.preventDefault();
+                game.joystickActive = false;
+                game.joystickDeltaX = 0;
+                game.joystickDeltaY = 0;
+                joystickTouchId = null;
+                joystickStick.classList.remove('active');
+                // Reset stick position
+                joystickStick.style.transform = 'translate(-50%, -50%)';
+            });
+        }
     }
 }
 
@@ -4200,14 +4300,24 @@ function updateMovement(delta) {
     // Apply gravity
     game.velocity.y -= game.gravity * delta;
 
-    // Calculate movement direction
-    game.direction.z = Number(game.controls.moveForward) - Number(game.controls.moveBackward);
-    game.direction.x = Number(game.controls.moveRight) - Number(game.controls.moveLeft);
+    // Calculate movement direction (keyboard + joystick)
+    let moveZ = Number(game.controls.moveForward) - Number(game.controls.moveBackward);
+    let moveX = Number(game.controls.moveRight) - Number(game.controls.moveLeft);
+
+    // Add joystick input (invert Y axis: negative joystickDeltaY = forward)
+    if (game.joystickActive) {
+        moveZ += -game.joystickDeltaY;
+        moveX += game.joystickDeltaX;
+    }
+
+    game.direction.z = moveZ;
+    game.direction.x = moveX;
     game.direction.normalize();
 
-    // Track if player is moving
+    // Track if player is moving (keyboard or joystick)
     game.isMoving = game.controls.moveForward || game.controls.moveBackward ||
-                    game.controls.moveLeft || game.controls.moveRight;
+                    game.controls.moveLeft || game.controls.moveRight ||
+                    game.joystickActive;
 
     if (game.isMoving) {
         game.walkTime += delta * 10; // Speed of bobbing
@@ -4230,14 +4340,16 @@ function updateMovement(delta) {
         // Apply normal movement
         const moveSpeed = game.playerSpeed * delta;
 
-        if (game.controls.moveForward || game.controls.moveBackward) {
+        // Forward/backward movement (keyboard or joystick)
+        if (game.controls.moveForward || game.controls.moveBackward || (game.joystickActive && game.joystickDeltaY !== 0)) {
             const forward = new THREE.Vector3(0, 0, -1);
             forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
             game.camera.position.x += forward.x * game.direction.z * moveSpeed;
             game.camera.position.z += forward.z * game.direction.z * moveSpeed;
         }
 
-        if (game.controls.moveLeft || game.controls.moveRight) {
+        // Left/right movement (keyboard or joystick)
+        if (game.controls.moveLeft || game.controls.moveRight || (game.joystickActive && game.joystickDeltaX !== 0)) {
             const right = new THREE.Vector3(1, 0, 0);
             right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
             game.camera.position.x += right.x * game.direction.x * moveSpeed;

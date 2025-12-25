@@ -332,6 +332,42 @@
             border-color: #FFD54F;
             transform: translateX(-50%) scale(0.95);
         }
+        /* Virtual Joystick */
+        #joystickContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            display: none; /* Hidden by default, shown only on mobile */
+            z-index: 150;
+        }
+        #joystickBase {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        #joystickStick {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(76, 175, 80, 0.7);
+            border: 3px solid #4CAF50;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: background 0.1s;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+        #joystickStick.active {
+            background: rgba(76, 175, 80, 0.9);
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.8);
+        }
     </style>
 </head>
 <body>
@@ -404,6 +440,12 @@
             <span class="btn-icon">🎒</span>
             <span class="btn-label">Inventory</span>
         </button>
+    </div>
+
+    <!-- Virtual Joystick (hidden by default, shown only on mobile) -->
+    <div id="joystickContainer">
+        <div id="joystickBase"></div>
+        <div id="joystickStick"></div>
     </div>
 
     <canvas id="gameCanvas"></canvas>
