@@ -260,35 +260,69 @@ function spawnEnemy() {
     }
 }
 
-// Create enemy - smaller and with HP
+// Create enemy - computer virus appearance
 function createEnemy(x, z) {
-    const enemyGeometry = new THREE.SphereGeometry(1, 16, 16); // Smaller: 1 instead of 2
-    const enemyMaterial = new THREE.MeshLambertMaterial({
-        color: 0xff0000,
-        emissive: 0x330000
-    });
-    const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+    // Create a group for the virus
+    const enemy = new THREE.Group();
     enemy.position.set(x, 1, z);
     enemy.castShadow = true;
     enemy.hp = 5; // Enemy HP
     enemy.maxHP = 5;
+
+    // Main virus body - red sphere
+    const bodyGeometry = new THREE.SphereGeometry(1, 16, 16);
+    const bodyMaterial = new THREE.MeshLambertMaterial({
+        color: 0xff0000,
+        emissive: 0x330000
+    });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.castShadow = true;
+    enemy.add(body);
+
+    // Store material reference for hit effects
+    enemy.material = bodyMaterial;
+
+    // Add virus spikes (like protein spikes on a virus)
+    const spikeGeometry = new THREE.ConeGeometry(0.15, 0.6, 8);
+    const spikeMaterial = new THREE.MeshLambertMaterial({
+        color: 0xcc0000,
+        emissive: 0x220000
+    });
+
+    // Create spikes in multiple directions
+    const spikePositions = [
+        {x: 1, y: 0, z: 0}, {x: -1, y: 0, z: 0},
+        {x: 0, y: 1, z: 0}, {x: 0, y: -1, z: 0},
+        {x: 0, y: 0, z: 1}, {x: 0, y: 0, z: -1},
+        {x: 0.7, y: 0.7, z: 0}, {x: -0.7, y: 0.7, z: 0},
+        {x: 0.7, y: -0.7, z: 0}, {x: -0.7, y: -0.7, z: 0},
+        {x: 0.7, y: 0, z: 0.7}, {x: -0.7, y: 0, z: -0.7}
+    ];
+
+    spikePositions.forEach(pos => {
+        const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+        const length = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
+        spike.position.set(pos.x, pos.y, pos.z);
+        spike.lookAt(pos.x * 2, pos.y * 2, pos.z * 2);
+        spike.castShadow = true;
+        enemy.add(spike);
+    });
+
+    // Add glowing core - green binary code look
+    const coreGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        transparent: true,
+        opacity: 0.8
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.position.set(0, 0, 0);
+    enemy.add(core);
+
     game.scene.add(enemy);
-
-    // Add glowing eyes - smaller for smaller enemy
-    const eyeGeometry = new THREE.SphereGeometry(0.15, 8, 8);
-    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.3, 0.15, 0.75);
-    enemy.add(leftEye);
-
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.3, 0.15, 0.75);
-    enemy.add(rightEye);
-
     game.enemies.push(enemy);
     game.totalEnemiesSpawned++;
-    console.log(`Enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
+    console.log(`Virus spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
 // Create projectile enemy - shoots at player, only 1 HP
@@ -2092,6 +2126,9 @@ function enterWorldTwo() {
         const spellBookX = (Math.random() * 400 - 200);
         const spellBookZ = (Math.random() * 400 - 200);
         createSpellBook(spellBookX, spellBookZ);
+
+        // Create shop in World 2
+        createShop(350, 0);
 
         // Spawn initial enemies in World 2
         spawnEnemy();
