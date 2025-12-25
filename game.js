@@ -1637,8 +1637,12 @@ function checkLevelUp() {
             game.expToNextLevel = 1000; // Level 2->3 requires 1000 EXP
         } else if (game.playerLevel === 3) {
             game.expToNextLevel = 3000; // Level 3->4 requires 3000 EXP
-        } else if (game.playerLevel >= 4) {
-            game.expToNextLevel = 999999; // Max level reached
+        } else if (game.playerLevel === 4) {
+            game.expToNextLevel = 6000; // Level 4->5 requires 6000 EXP
+        } else if (game.playerLevel === 5) {
+            game.expToNextLevel = 10000; // Level 5->6 requires 10000 EXP
+        } else if (game.playerLevel >= 6) {
+            game.expToNextLevel = 999999; // Max level reached (Level 6)
         }
 
         updateEXPDisplay();
@@ -1647,7 +1651,7 @@ function checkLevelUp() {
         showNotification(`🎉 LEVEL UP! Level ${game.playerLevel} | DMG: ${game.playerDamage} | HP: ${game.playerHP}/${game.maxPlayerHP}`);
 
         // Check if we leveled up again (in case of overflow EXP)
-        if (game.playerEXP >= game.expToNextLevel && game.playerLevel < 4) {
+        if (game.playerEXP >= game.expToNextLevel && game.playerLevel < 6) {
             setTimeout(() => checkLevelUp(), 100);
         }
     }
