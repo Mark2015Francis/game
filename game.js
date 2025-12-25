@@ -201,6 +201,7 @@ function init() {
     // Equip sword at start
     game.inventory.equippedSword = true;
     equipSword();
+    updateEquippedDisplays();
 
     // Set up event listeners
     setupControls();
@@ -1039,6 +1040,39 @@ function updateInventoryUI() {
     inventoryItems.appendChild(slot);
 }
 
+// Update equipped item displays at bottom of screen
+function updateEquippedDisplays() {
+    const shieldDisplay = document.getElementById('equippedShieldDisplay');
+    const weaponDisplay = document.getElementById('equippedWeaponDisplay');
+
+    // Update shield display
+    if (game.inventory.equippedShield && game.shieldCount > 0) {
+        shieldDisplay.classList.add('active');
+    } else {
+        shieldDisplay.classList.remove('active');
+    }
+
+    // Update weapon/spellbook display
+    const weaponIcon = weaponDisplay.querySelector('.icon');
+    const weaponLabel = weaponDisplay.querySelector('.label');
+
+    if (game.inventory.equippedSword) {
+        weaponIcon.textContent = '⚔️';
+        weaponLabel.textContent = 'Sword';
+        weaponDisplay.classList.add('active');
+    } else if (game.equippedBow) {
+        weaponIcon.textContent = '🏹';
+        weaponLabel.textContent = 'Bow';
+        weaponDisplay.classList.add('active');
+    } else if (game.equippedSpellBook) {
+        weaponIcon.textContent = '📖';
+        weaponLabel.textContent = 'Spell Book';
+        weaponDisplay.classList.add('active');
+    } else {
+        weaponDisplay.classList.remove('active');
+    }
+}
+
 // Toggle equip sword
 function toggleEquipSword() {
     if (game.inventory.equippedSword) {
@@ -1061,6 +1095,7 @@ function toggleEquipSword() {
         equipSword();
     }
     updateInventoryUI();
+    updateEquippedDisplays();
     toggleInventory(); // Close inventory after equipping
 }
 
@@ -1071,6 +1106,7 @@ function removeItemFromInventory(itemType) {
         // If no more shields, unequip
         if (game.shieldCount === 0) {
             game.inventory.equippedShield = false;
+            updateEquippedDisplays();
         }
         updateInventoryUI();
     } else if (itemType === 'food' && game.foodCount > 0) {
@@ -1094,6 +1130,7 @@ function toggleEquipItem(item) {
             game.hasShieldProtection = true;
         }
         updateInventoryUI();
+        updateEquippedDisplays();
         toggleInventory(); // Close inventory after equipping
     } else if (item.type === 'bow') {
         if (game.equippedBow) {
@@ -1117,6 +1154,7 @@ function toggleEquipItem(item) {
             equipBow();
         }
         updateInventoryUI();
+        updateEquippedDisplays();
         toggleInventory(); // Close inventory after equipping
     } else if (item.type === 'food') {
         // Use food - heal 10 HP
@@ -1163,6 +1201,7 @@ function toggleEquipItem(item) {
             equipSpellBook();
         }
         updateInventoryUI();
+        updateEquippedDisplays();
         toggleInventory(); // Close inventory after equipping
     }
 }
