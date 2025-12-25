@@ -95,11 +95,61 @@ const game = {
     isDashing: false,
     dashTimer: 0,
     dashDuration: 0.3, // 0.3 seconds dash
-    dashSpeed: 150 // Very fast speed during dash
+    dashSpeed: 150, // Very fast speed during dash
+    // Mobile touch controls
+    isMobile: false,
+    touchStartX: 0,
+    touchStartY: 0,
+    touchCurrentX: 0,
+    touchCurrentY: 0,
+    isTouching: false
 };
+
+// Detect if running on mobile device
+function detectMobile() {
+    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+    // Check for iOS
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+
+    // Check for Android
+    const isAndroid = /android/i.test(userAgent);
+
+    // Check for touch capability
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+    return (isIOS || isAndroid) && hasTouch;
+}
 
 // Initialize the game
 function init() {
+    // Detect mobile device
+    game.isMobile = detectMobile();
+    if (game.isMobile) {
+        console.log('Mobile device detected - touch controls enabled');
+
+        // Update instructions for mobile
+        const instructions = document.getElementById('instructions');
+        if (instructions) {
+            // Update "Click to start" text
+            const clickText = instructions.querySelector('p:nth-of-type(2)');
+            if (clickText) {
+                clickText.textContent = 'Tap to start';
+            }
+
+            // Update controls text
+            const controlsText = instructions.querySelector('p:nth-of-type(3)');
+            if (controlsText) {
+                controlsText.innerHTML = `
+                    <strong>Mobile Controls:</strong><br>
+                    Touch screen - Move forward<br>
+                    Drag left/right - Turn<br>
+                    Drag up/down - Look up/down<br>
+                    Tap inventory (I) button to access items
+                `;
+            }
+        }
+    }
     // Create scene
     game.scene = new THREE.Scene();
     game.scene.background = new THREE.Color(0x87ceeb);
@@ -3968,6 +4018,73 @@ function setupControls() {
             }
         }
     });
+
+    // Touch controls for mobile devices
+    if (game.isMobile) {
+        // Prevent default touch behavior
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+
+        // Touch start - begin moving forward
+        document.addEventListener('touchstart', (event) => {
+            if (game.inventory.isOpen || game.isShopOpen) return;
+
+            const touch = event.touches[0];
+            game.touchStartX = touch.clientX;
+            game.touchStartY = touch.clientY;
+            game.touchCurrentX = touch.clientX;
+            game.touchCurrentY = touch.clientY;
+            game.isTouching = true;
+
+            // Start moving forward
+            game.controls.moveForward = true;
+
+            // Auto-lock pointer on mobile
+            if (!game.isPointerLocked) {
+                game.isPointerLocked = true;
+                const instructions = document.getElementById('instructions');
+                if (instructions) {
+                    instructions.classList.add('hidden');
+                }
+            }
+        });
+
+        // Touch move - turn left/right based on horizontal drag
+        document.addEventListener('touchmove', (event) => {
+            if (!game.isTouching || game.inventory.isOpen || game.isShopOpen) return;
+
+            const touch = event.touches[0];
+            const deltaX = touch.clientX - game.touchCurrentX;
+            const deltaY = touch.clientY - game.touchCurrentY;
+
+            // Update current position
+            game.touchCurrentX = touch.clientX;
+            game.touchCurrentY = touch.clientY;
+
+            // Rotate camera based on horizontal drag
+            // Sensitivity adjusted for mobile (0.005 for smooth turning)
+            game.rotation.y -= deltaX * 0.005;
+
+            // Optional: Allow vertical look with vertical drag
+            game.rotation.x -= deltaY * 0.005;
+
+            // Limit vertical rotation
+            game.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, game.rotation.x));
+        });
+
+        // Touch end - stop moving forward
+        document.addEventListener('touchend', (event) => {
+            game.isTouching = false;
+            game.controls.moveForward = false;
+        });
+
+        // Handle touch cancel
+        document.addEventListener('touchcancel', (event) => {
+            game.isTouching = false;
+            game.controls.moveForward = false;
+        });
+    }
 }
 
 // Handle window resize
