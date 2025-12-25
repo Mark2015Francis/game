@@ -92,6 +92,19 @@
             border: 2px solid #ffdd44;
             min-width: 200px;
         }
+        #manaDisplay {
+            position: absolute;
+            top: 180px;
+            right: 10px;
+            color: #44aaff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 5px;
+            font-size: 18px;
+            font-weight: bold;
+            border: 2px solid #44aaff;
+            display: none; /* Hidden by default, shown when spell book equipped */
+        }
         #coinDisplay {
             position: absolute;
             top: 165px;
@@ -282,6 +295,7 @@
     </div>
     <div id="hpDisplay">HP: 20/20</div>
     <div id="expDisplay">Lv.1 | DMG: 1<br>0/500 EXP</div>
+    <div id="manaDisplay">✨ Mana: 10/10</div>
     <div id="coinDisplay">💰 Coins: 0</div>
     <div id="equippedInfo" class="hidden">
         ⚔️ <strong>Sword Equipped</strong> - Click to attack!

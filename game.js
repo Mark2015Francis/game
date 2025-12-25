@@ -87,7 +87,9 @@ const game = {
     hasFreezeball: false,
     fireballCooldown: 0,
     freezeballCooldown: 0,
-    equippedSpellBookMesh: null
+    equippedSpellBookMesh: null,
+    playerMana: 10,
+    maxPlayerMana: 10
 };
 
 // Initialize the game
@@ -1325,6 +1327,11 @@ function toggleEquipItem(item) {
                 game.camera.remove(game.equippedSpellBookMesh);
                 game.equippedSpellBookMesh = null;
             }
+            // Hide mana display
+            const manaDisplay = document.getElementById('manaDisplay');
+            if (manaDisplay) {
+                manaDisplay.style.display = 'none';
+            }
             // Re-equip sword
             game.inventory.equippedSword = true;
             equipSword();
@@ -1561,6 +1568,13 @@ function equipSpellBook() {
     // Add to camera
     game.camera.add(game.equippedSpellBookMesh);
 
+    // Show and update mana display
+    const manaDisplay = document.getElementById('manaDisplay');
+    if (manaDisplay) {
+        manaDisplay.style.display = 'block';
+        updateManaDisplay();
+    }
+
     // Update spell UI
     updateSpellUI();
 
@@ -1700,6 +1714,17 @@ function shootArrow() {
 function castFireball() {
     if (!game.equippedSpellBook || !game.hasFireball || game.fireballCooldown > 0) return;
 
+    // Check mana cost (10 mana)
+    const manaCost = 10;
+    if (game.playerMana < manaCost) {
+        showNotification('❌ Not enough mana! Need 10 mana');
+        return;
+    }
+
+    // Consume mana
+    game.playerMana -= manaCost;
+    updateManaDisplay();
+
     game.fireballCooldown = 2.0; // 2 second cooldown
 
     // Create fireball projectile
@@ -1756,6 +1781,17 @@ function castFireball() {
 // Cast freezeball spell
 function castFreezeball() {
     if (!game.equippedSpellBook || !game.hasFreezeball || game.freezeballCooldown > 0) return;
+
+    // Check mana cost (20 mana)
+    const manaCost = 20;
+    if (game.playerMana < manaCost) {
+        showNotification('❌ Not enough mana! Need 20 mana');
+        return;
+    }
+
+    // Consume mana
+    game.playerMana -= manaCost;
+    updateManaDisplay();
 
     game.freezeballCooldown = 3.0; // 3 second cooldown
 
@@ -2694,6 +2730,11 @@ function checkLevelUp() {
         game.playerHP = game.maxPlayerHP;
         updateHPDisplay();
 
+        // Increase max mana by 5 and restore to full
+        game.maxPlayerMana += 5;
+        game.playerMana = game.maxPlayerMana;
+        updateManaDisplay();
+
         // Set EXP requirement for next level
         if (game.playerLevel === 2) {
             game.expToNextLevel = 1000; // Level 2->3 requires 1000 EXP
@@ -3403,6 +3444,27 @@ function updateEXPDisplay() {
     }
 }
 
+// Update mana display
+function updateManaDisplay() {
+    const manaDisplay = document.getElementById('manaDisplay');
+    if (manaDisplay) {
+        manaDisplay.textContent = `✨ Mana: ${game.playerMana}/${game.maxPlayerMana}`;
+
+        // Change color based on mana percentage
+        const manaPercent = (game.playerMana / game.maxPlayerMana) * 100;
+        if (manaPercent <= 20) {
+            manaDisplay.style.color = '#ff4444';
+            manaDisplay.style.borderColor = '#ff4444';
+        } else if (manaPercent <= 50) {
+            manaDisplay.style.color = '#ffaa44';
+            manaDisplay.style.borderColor = '#ffaa44';
+        } else {
+            manaDisplay.style.color = '#44aaff';
+            manaDisplay.style.borderColor = '#44aaff';
+        }
+    }
+}
+
 // Update coin display
 function updateCoinsDisplay() {
     const coinDisplay = document.getElementById('coinDisplay');
@@ -3481,7 +3543,22 @@ function setupControls() {
                 break;
             case 'Space':
                 if (game.controls.canJump) {
-                    game.velocity.y = game.jumpHeight;
+                    // Check if using big jump spell
+                    if (game.hasBigJump && game.equippedSpellBook) {
+                        const manaCost = 5;
+                        if (game.playerMana >= manaCost) {
+                            // Use big jump
+                            game.velocity.y = game.jumpHeight * 2; // Double jump height
+                            game.playerMana -= manaCost;
+                            updateManaDisplay();
+                        } else {
+                            // Not enough mana, use normal jump
+                            game.velocity.y = game.jumpHeight;
+                        }
+                    } else {
+                        // Normal jump
+                        game.velocity.y = game.jumpHeight;
+                    }
                 }
                 game.controls.canJump = false;
                 break;
