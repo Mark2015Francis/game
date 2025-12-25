@@ -2767,7 +2767,7 @@ function updateProjectiles(delta) {
 
         // Remove arrow if it hit, hit the ground, or traveled too far
         const distanceTraveled = arrow.position.distanceTo(arrow.startPosition);
-        if (hitEnemy || arrow.position.y < 0 || distanceTraveled > 200) {
+        if (hitEnemy || arrow.position.y < 0 || distanceTraveled > 300) {
             game.scene.remove(arrow);
             game.projectiles.splice(i, 1);
         }
