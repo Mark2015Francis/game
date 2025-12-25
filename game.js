@@ -473,50 +473,103 @@ function createEnemy(x, z) {
     console.log(`Virus spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
-// Create projectile enemy - shoots at player, only 1 HP
+// Create projectile enemy - shoots at player, only 1 HP - Worm/Transmission Virus
 function createProjectileEnemy(x, z) {
-    const enemyGeometry = new THREE.SphereGeometry(0.8, 16, 16); // Slightly smaller
-    const enemyMaterial = new THREE.MeshLambertMaterial({
-        color: 0xff00ff, // Magenta/purple color
-        emissive: 0x660066
-    });
-    const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+    const enemy = new THREE.Group();
     enemy.position.set(x, 1, z);
-    enemy.castShadow = true;
     enemy.hp = 1; // Only 1 HP
     enemy.maxHP = 1;
     enemy.isProjectileEnemy = true; // Mark as projectile enemy
     enemy.shootTimer = 2; // Shoot every 2 seconds
     enemy.shootCooldown = 2;
-    game.scene.add(enemy);
 
-    // Add glowing eyes - cyan/blue to differentiate
-    const eyeGeometry = new THREE.SphereGeometry(0.12, 8, 8);
-    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // Cyan eyes
+    // Main body - segmented worm virus (green to differentiate)
+    const segmentCount = 3;
+    for (let i = 0; i < segmentCount; i++) {
+        const segmentGeometry = new THREE.CylinderGeometry(0.3 - i * 0.05, 0.3 - i * 0.05, 0.4, 8);
+        const segmentMaterial = new THREE.MeshLambertMaterial({
+            color: 0x00ff00, // Green color
+            emissive: 0x006600,
+            emissiveIntensity: 0.5
+        });
+        const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+        segment.position.set(0, i * 0.35, 0);
+        segment.castShadow = true;
+        enemy.add(segment);
 
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.25, 0.1, 0.6);
-    enemy.add(leftEye);
+        // Store material reference on first segment
+        if (i === 0) {
+            enemy.material = segmentMaterial;
+        }
+    }
 
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.25, 0.1, 0.6);
-    enemy.add(rightEye);
+    // Add wireframe bands around segments
+    for (let i = 0; i < segmentCount; i++) {
+        const wireGeometry = new THREE.CylinderGeometry(0.32 - i * 0.05, 0.32 - i * 0.05, 0.1, 8);
+        const wireMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.6
+        });
+        const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+        wire.position.set(0, i * 0.35, 0);
+        enemy.add(wire);
+    }
 
-    // Add antenna to show it's a ranged enemy
-    const antennaGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8);
-    const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    // Add pulsating signal rings (transmission effect)
+    for (let i = 0; i < 2; i++) {
+        const ringGeometry = new THREE.TorusGeometry(0.6, 0.05, 8, 16);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.4
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.set(0, 0.5, 0);
+        ring.userData.isPulseRing = true;
+        ring.userData.offset = i * Math.PI; // Offset for alternating pulse
+        enemy.add(ring);
+    }
+
+    // Add antenna for transmitting - taller and thinner
+    const antennaGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6);
+    const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
     const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
-    antenna.position.set(0, 1, 0);
+    antenna.position.set(0, 1.5, 0);
     enemy.add(antenna);
 
-    const antennaTop = new THREE.SphereGeometry(0.1, 8, 8);
-    const antennaTopMesh = new THREE.Mesh(antennaTop, new THREE.MeshBasicMaterial({ color: 0x00ffff }));
-    antennaTopMesh.position.set(0, 1.4, 0);
-    enemy.add(antennaTopMesh);
+    // Antenna top with glowing ball
+    const antennaTopGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+    const antennaTopMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00,
+        emissiveIntensity: 1
+    });
+    const antennaTop = new THREE.Mesh(antennaTopGeometry, antennaTopMaterial);
+    antennaTop.position.set(0, 2.1, 0);
+    enemy.add(antennaTop);
 
+    // Add orbiting data packets (like transmitted data)
+    const packetGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+    const packetMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00
+    });
+
+    for (let i = 0; i < 3; i++) {
+        const packet = new THREE.Mesh(packetGeometry, packetMaterial);
+        const angle = (i / 3) * Math.PI * 2;
+        packet.position.set(Math.cos(angle) * 1.2, 0.5, Math.sin(angle) * 1.2);
+        packet.userData.orbitAngle = angle;
+        packet.userData.isOrbitPacket = true;
+        enemy.add(packet);
+    }
+
+    game.scene.add(enemy);
     game.enemies.push(enemy);
     game.totalEnemiesSpawned++;
-    console.log(`Projectile enemy spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
+    console.log(`Worm virus spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
 // Create code explosion effect when enemy dies
@@ -2569,7 +2622,7 @@ function defeatEnemy(enemy, index) {
 // Enemy shoots projectile at player
 function shootEnemyProjectile(enemy) {
     const projectileGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, emissive: 0xff00ff });
+    const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, emissive: 0x00ff00 }); // Green to match worm virus
     const projectile = new THREE.Mesh(projectileGeometry, projectileMaterial);
 
     // Position at enemy
@@ -2811,17 +2864,31 @@ function updateEnemy(delta) {
         // Animate virus visuals (rotation and orbiting cubes)
         if (enemy.children) {
             enemy.children.forEach(child => {
-                // Rotate core octahedron
+                // Rotate core octahedron (melee virus)
                 if (child.geometry && child.geometry.type === 'OctahedronGeometry' && child.material.transparent) {
                     child.rotation.y += delta * 2;
                     child.rotation.x += delta * 1;
                 }
-                // Animate orbiting data cubes
+                // Animate orbiting data cubes (melee virus)
                 if (child.userData && child.userData.isOrbitCube) {
                     child.userData.orbitAngle += delta * 2;
                     child.position.x = Math.cos(child.userData.orbitAngle) * 1.5;
                     child.position.z = Math.sin(child.userData.orbitAngle) * 1.5;
                     child.rotation.y += delta * 3;
+                }
+                // Animate orbiting data packets (ranged worm virus)
+                if (child.userData && child.userData.isOrbitPacket) {
+                    child.userData.orbitAngle += delta * 3;
+                    child.position.x = Math.cos(child.userData.orbitAngle) * 1.2;
+                    child.position.z = Math.sin(child.userData.orbitAngle) * 1.2;
+                    child.rotation.y += delta * 4;
+                    child.rotation.x += delta * 2;
+                }
+                // Animate pulsating signal rings (ranged worm virus)
+                if (child.userData && child.userData.isPulseRing) {
+                    const pulseScale = 1 + Math.sin(Date.now() * 0.003 + child.userData.offset) * 0.3;
+                    child.scale.set(pulseScale, pulseScale, pulseScale);
+                    child.material.opacity = 0.3 + Math.sin(Date.now() * 0.003 + child.userData.offset) * 0.2;
                 }
             });
         }
