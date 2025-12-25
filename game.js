@@ -1388,7 +1388,7 @@ function defeatBoss() {
     const bossPos = game.boss.position.clone();
     game.scene.remove(game.boss);
     game.boss = null;
-    game.bossSpawned = false;
+    // Don't reset bossSpawned to false - prevents boss from respawning in same world
 
     // Award massive EXP
     game.playerEXP += 1000;
