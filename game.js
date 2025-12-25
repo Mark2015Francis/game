@@ -81,15 +81,21 @@ const game = {
     spellBook: null,
     spellBookCollected: false,
     equippedSpellBook: false,
-    currentSpell: 'fireball', // 'fireball' or 'freezeball'
+    currentSpell: 'fireball', // 'fireball', 'freezeball', or 'dash'
     hasFireball: false,
     hasBigJump: false,
     hasFreezeball: false,
+    hasDash: false,
     fireballCooldown: 0,
     freezeballCooldown: 0,
+    dashCooldown: 0,
     equippedSpellBookMesh: null,
     playerMana: 10,
-    maxPlayerMana: 10
+    maxPlayerMana: 10,
+    isDashing: false,
+    dashTimer: 0,
+    dashDuration: 0.3, // 0.3 seconds dash
+    dashSpeed: 150 // Very fast speed during dash
 };
 
 // Initialize the game
@@ -1770,6 +1776,8 @@ function updateSpellUI() {
             spellInfo = '🔥 <strong>Fireball</strong> (F)<br>Q to switch';
         } else if (game.currentSpell === 'freezeball' && game.hasFreezeball) {
             spellInfo = '❄️ <strong>Freeze Ball</strong> (G)<br>Q to switch';
+        } else if (game.currentSpell === 'dash' && game.hasDash) {
+            spellInfo = '💨 <strong>Dash</strong> (H)<br>Q to switch';
         } else {
             spellInfo = '📖 <strong>No spells</strong><br>Buy spells from shop';
         }
@@ -1784,23 +1792,40 @@ function updateSpellUI() {
 function switchSpell() {
     if (!game.equippedSpellBook) return;
 
-    // Only switch if player has both spells
-    if (game.hasFireball && game.hasFreezeball) {
-        if (game.currentSpell === 'fireball') {
-            game.currentSpell = 'freezeball';
-            showNotification('❄️ Switched to Freeze Ball (G)');
-        } else {
-            game.currentSpell = 'fireball';
-            showNotification('🔥 Switched to Fireball (F)');
-        }
-        updateSpellUI();
-    } else if (game.hasFireball && !game.hasFreezeball) {
-        showNotification('🔥 Only Fireball available');
-    } else if (!game.hasFireball && game.hasFreezeball) {
-        showNotification('❄️ Only Freeze Ball available');
-    } else {
+    // Get available spells
+    const availableSpells = [];
+    if (game.hasFireball) availableSpells.push('fireball');
+    if (game.hasFreezeball) availableSpells.push('freezeball');
+    if (game.hasDash) availableSpells.push('dash');
+
+    if (availableSpells.length === 0) {
         showNotification('📖 No spells purchased yet!');
+        return;
     }
+
+    if (availableSpells.length === 1) {
+        const spell = availableSpells[0];
+        if (spell === 'fireball') showNotification('🔥 Only Fireball available');
+        else if (spell === 'freezeball') showNotification('❄️ Only Freeze Ball available');
+        else if (spell === 'dash') showNotification('💨 Only Dash available');
+        return;
+    }
+
+    // Cycle to next spell
+    const currentIndex = availableSpells.indexOf(game.currentSpell);
+    const nextIndex = (currentIndex + 1) % availableSpells.length;
+    game.currentSpell = availableSpells[nextIndex];
+
+    // Show notification
+    if (game.currentSpell === 'fireball') {
+        showNotification('🔥 Switched to Fireball (F)');
+    } else if (game.currentSpell === 'freezeball') {
+        showNotification('❄️ Switched to Freeze Ball (G)');
+    } else if (game.currentSpell === 'dash') {
+        showNotification('💨 Switched to Dash (H)');
+    }
+
+    updateSpellUI();
 }
 
 // Shoot arrow
@@ -2015,6 +2040,65 @@ function castFreezeball() {
     game.projectiles.push(freezeball);
 
     showNotification('❄️ Freeze Ball!');
+}
+
+// Cast dash spell
+function castDash() {
+    if (!game.equippedSpellBook || !game.hasDash || game.dashCooldown > 0 || game.isDashing) return;
+
+    // Check mana cost (10 mana)
+    const manaCost = 10;
+    if (game.playerMana < manaCost) {
+        showNotification('❌ Not enough mana! Need 10 mana');
+        return;
+    }
+
+    // Consume mana
+    game.playerMana -= manaCost;
+    updateManaDisplay();
+
+    game.dashCooldown = 2.0; // 2 second cooldown
+
+    // Activate dash
+    game.isDashing = true;
+    game.dashTimer = game.dashDuration;
+
+    // Calculate dash direction from camera rotation (horizontal only)
+    const yaw = game.rotation.y;
+
+    // Determine dash direction based on movement keys
+    let dashDirX = 0;
+    let dashDirZ = 0;
+
+    if (game.controls.moveForward) {
+        dashDirX += -Math.sin(yaw);
+        dashDirZ += -Math.cos(yaw);
+    }
+    if (game.controls.moveBackward) {
+        dashDirX += Math.sin(yaw);
+        dashDirZ += Math.cos(yaw);
+    }
+    if (game.controls.moveLeft) {
+        dashDirX += -Math.cos(yaw);
+        dashDirZ += Math.sin(yaw);
+    }
+    if (game.controls.moveRight) {
+        dashDirX += Math.cos(yaw);
+        dashDirZ += -Math.sin(yaw);
+    }
+
+    // If no movement keys pressed, dash forward
+    if (dashDirX === 0 && dashDirZ === 0) {
+        dashDirX = -Math.sin(yaw);
+        dashDirZ = -Math.cos(yaw);
+    }
+
+    // Normalize direction
+    const length = Math.sqrt(dashDirX * dashDirX + dashDirZ * dashDirZ);
+    game.dashDirectionX = dashDirX / length;
+    game.dashDirectionZ = dashDirZ / length;
+
+    showNotification('💨 Dash!');
 }
 
 // Toggle inventory
@@ -2499,6 +2583,11 @@ function updateShopItems() {
                 <span style="margin-left: 20px; font-size: 18px;">Freeze Ball Spell ${game.hasFreezeball ? '(Owned)' : ''}</span>
                 <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 25 Coins</span>
             </div>
+            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('dash')">
+                <span style="font-size: 30px;">💨</span>
+                <span style="margin-left: 20px; font-size: 18px;">Dash Spell ${game.hasDash ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Coins</span>
+            </div>
         `;
     }
 }
@@ -2563,6 +2652,19 @@ function buyItem(itemType) {
             showNotification('❄️ Freeze Ball spell unlocked! Equip spell book and press G to cast!');
         } else {
             showNotification('❌ Not enough coins! Need 25 coins');
+        }
+    } else if (itemType === 'dash') {
+        if (game.hasDash) {
+            showNotification('❌ You already own this spell!');
+        } else if (game.coins >= 15) {
+            game.coins -= 15;
+            game.hasDash = true;
+            updateCoinsDisplay();
+            updateShopItems(); // Refresh shop display
+            updateSpellUI(); // Update spell UI
+            showNotification('💨 Dash spell unlocked! Equip spell book and press H to cast!');
+        } else {
+            showNotification('❌ Not enough coins! Need 15 coins');
         }
     }
 }
@@ -3820,6 +3922,11 @@ function setupControls() {
                     castFreezeball();
                 }
                 break;
+            case 'KeyH':
+                if (game.equippedSpellBook && game.hasDash && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
+                    castDash();
+                }
+                break;
             case 'Escape':
                 if (game.inventory.isOpen) {
                     toggleInventory();
@@ -3921,21 +4028,36 @@ function updateMovement(delta) {
         game.walkTime += delta * 10; // Speed of bobbing
     }
 
-    // Apply movement
-    const moveSpeed = game.playerSpeed * delta;
+    // Handle dash movement
+    if (game.isDashing) {
+        game.dashTimer -= delta;
 
-    if (game.controls.moveForward || game.controls.moveBackward) {
-        const forward = new THREE.Vector3(0, 0, -1);
-        forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
-        game.camera.position.x += forward.x * game.direction.z * moveSpeed;
-        game.camera.position.z += forward.z * game.direction.z * moveSpeed;
-    }
+        if (game.dashTimer <= 0) {
+            game.isDashing = false;
+            game.dashTimer = 0;
+        } else {
+            // Apply dash movement
+            const dashMoveSpeed = game.dashSpeed * delta;
+            game.camera.position.x += game.dashDirectionX * dashMoveSpeed;
+            game.camera.position.z += game.dashDirectionZ * dashMoveSpeed;
+        }
+    } else {
+        // Apply normal movement
+        const moveSpeed = game.playerSpeed * delta;
 
-    if (game.controls.moveLeft || game.controls.moveRight) {
-        const right = new THREE.Vector3(1, 0, 0);
-        right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
-        game.camera.position.x += right.x * game.direction.x * moveSpeed;
-        game.camera.position.z += right.z * game.direction.x * moveSpeed;
+        if (game.controls.moveForward || game.controls.moveBackward) {
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
+            game.camera.position.x += forward.x * game.direction.z * moveSpeed;
+            game.camera.position.z += forward.z * game.direction.z * moveSpeed;
+        }
+
+        if (game.controls.moveLeft || game.controls.moveRight) {
+            const right = new THREE.Vector3(1, 0, 0);
+            right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
+            game.camera.position.x += right.x * game.direction.x * moveSpeed;
+            game.camera.position.z += right.z * game.direction.x * moveSpeed;
+        }
     }
 
     // Apply vertical velocity
@@ -4245,6 +4367,9 @@ function animate() {
         }
         if (game.freezeballCooldown > 0) {
             game.freezeballCooldown -= delta;
+        }
+        if (game.dashCooldown > 0) {
+            game.dashCooldown -= delta;
         }
 
         // Regenerate mana (1 per second)
