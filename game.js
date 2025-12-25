@@ -2632,6 +2632,13 @@ function updateEnemy(delta) {
         const distanceToPlayer = directionToPlayer.length();
         directionToPlayer.normalize();
 
+        // Skip movement if enemy is frozen
+        if (enemy.isFrozen) {
+            // Make frozen enemies look at player but don't move
+            enemy.lookAt(game.camera.position.x, enemy.position.y, game.camera.position.z);
+            continue;
+        }
+
         // Handle projectile enemies differently
         if (enemy.isProjectileEnemy) {
             // Projectile enemies keep distance and shoot
@@ -2903,7 +2910,9 @@ function updateBoss(delta) {
     } else {
         // Normal movement when not jumping or stunned
         const bossRadius = 3.5; // Boss collision radius
-        const moveSpeed = (game.enemySpeed * 0.5) * delta; // Boss moves slower than regular enemies
+        // Boss moves slower when frozen
+        const baseSpeed = game.enemySpeed * 0.5;
+        const moveSpeed = (boss.isFrozen ? baseSpeed * 0.3 : baseSpeed) * delta; // 70% slower when frozen
 
         // Calculate direction to player
         const directionToPlayer = new THREE.Vector3();
@@ -2961,7 +2970,9 @@ function updateWorld2Boss(delta) {
     }
 
     // Fast movement toward player when not teleporting - faster than World 1 boss
-    const moveSpeed = (game.enemySpeed * 0.8) * delta; // Faster than World 1 boss (0.5)
+    // Slow down when frozen
+    const baseSpeed = game.enemySpeed * 0.8;
+    const moveSpeed = (boss.isFrozen ? baseSpeed * 0.3 : baseSpeed) * delta; // 70% slower when frozen
     const directionToPlayer = new THREE.Vector3();
     directionToPlayer.subVectors(game.camera.position, boss.position);
     directionToPlayer.y = 0;
@@ -3552,10 +3563,26 @@ function updateProjectiles(delta) {
                 } else if (arrow.isFreezeball) {
                     damage = 2; // Freezeballs deal 2 damage
                     emoji = '❄️';
-                    // Freeze effect: slow enemy
+                    // Freeze effect: freeze enemy
                     enemy.isFrozen = true;
+                    // Store original color if not already stored
+                    if (!enemy.frozenOriginalColor) {
+                        enemy.frozenOriginalColor = enemy.material.color.getHex();
+                    }
+                    // Turn enemy blue
+                    enemy.material.color.setHex(0x0088ff);
+                    enemy.material.emissive.setHex(0x0044aa);
+
                     setTimeout(() => {
-                        if (enemy) enemy.isFrozen = false;
+                        if (enemy) {
+                            enemy.isFrozen = false;
+                            // Restore original color
+                            if (enemy.frozenOriginalColor !== undefined) {
+                                enemy.material.color.setHex(enemy.frozenOriginalColor);
+                                enemy.material.emissive.setHex(0x330000);
+                                enemy.frozenOriginalColor = undefined;
+                            }
+                        }
                     }, 3000); // Frozen for 3 seconds
                 }
 
@@ -3598,10 +3625,26 @@ function updateProjectiles(delta) {
                 } else if (arrow.isFreezeball) {
                     damage = 3; // Freezeballs deal 3 damage to boss
                     emoji = '❄️';
-                    // Freeze effect on boss: slow movement
+                    // Freeze effect on boss: slow movement and turn bluish
                     game.boss.isFrozen = true;
+                    // Store original color if not already stored
+                    if (!game.boss.frozenOriginalColor) {
+                        game.boss.frozenOriginalColor = game.boss.material.color.getHex();
+                    }
+                    // Turn boss bluish (mix of original red and blue)
+                    game.boss.material.color.setHex(0x6600aa); // Purple-blue
+                    game.boss.material.emissive.setHex(0x3300aa);
+
                     setTimeout(() => {
-                        if (game.boss) game.boss.isFrozen = false;
+                        if (game.boss) {
+                            game.boss.isFrozen = false;
+                            // Restore original color
+                            if (game.boss.frozenOriginalColor !== undefined) {
+                                game.boss.material.color.setHex(game.boss.frozenOriginalColor);
+                                game.boss.material.emissive.setHex(0x660000);
+                                game.boss.frozenOriginalColor = undefined;
+                            }
+                        }
                     }, 5000); // Frozen for 5 seconds
                 }
 
