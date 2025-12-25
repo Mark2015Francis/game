@@ -139,6 +139,10 @@ function init() {
     ground.receiveShadow = true;
     game.scene.add(ground);
 
+    // Add sun and clouds to World 1 sky
+    createSun();
+    createClouds();
+
     // Create walls around the perimeter - WAY BIGGER
     createWall(0, 500, 5, 1000, 10, 0x8b4513);  // Back wall
     createWall(0, -500, 5, 1000, 10, 0x8b4513); // Front wall
@@ -211,6 +215,145 @@ function init() {
 
     // Start animation loop
     animate();
+}
+
+// Create sun for World 1
+function createSun() {
+    const sunGeometry = new THREE.SphereGeometry(30, 32, 32);
+    const sunMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffff00,
+        emissive: 0xffff00,
+        emissiveIntensity: 1
+    });
+    const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+    sun.position.set(300, 200, -400);
+    game.scene.add(sun);
+
+    // Add sun glow
+    const glowGeometry = new THREE.SphereGeometry(35, 32, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffaa00,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.copy(sun.position);
+    game.scene.add(glow);
+
+    game.sun = sun;
+    game.sunGlow = glow;
+}
+
+// Create clouds for World 1
+function createClouds() {
+    game.clouds = [];
+
+    for (let i = 0; i < 15; i++) {
+        const cloud = new THREE.Group();
+
+        // Create cloud made of multiple spheres
+        for (let j = 0; j < 5; j++) {
+            const cloudGeometry = new THREE.SphereGeometry(8 + Math.random() * 5, 16, 16);
+            const cloudMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.7
+            });
+            const cloudPart = new THREE.Mesh(cloudGeometry, cloudMaterial);
+            cloudPart.position.set(
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 5,
+                (Math.random() - 0.5) * 10
+            );
+            cloud.add(cloudPart);
+        }
+
+        // Position clouds in sky
+        cloud.position.set(
+            (Math.random() - 0.5) * 800,
+            100 + Math.random() * 50,
+            (Math.random() - 0.5) * 800
+        );
+
+        cloud.userData.speedX = (Math.random() - 0.5) * 0.5;
+
+        game.scene.add(cloud);
+        game.clouds.push(cloud);
+    }
+}
+
+// Create spiral galaxy for World 2
+function createGalaxy() {
+    const galaxy = new THREE.Group();
+
+    // Galaxy core
+    const coreGeometry = new THREE.SphereGeometry(15, 32, 32);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x9966ff,
+        emissive: 0x9966ff,
+        emissiveIntensity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    galaxy.add(core);
+
+    // Add glow to core
+    const coreGlowGeometry = new THREE.SphereGeometry(20, 32, 32);
+    const coreGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff66ff,
+        transparent: true,
+        opacity: 0.4
+    });
+    const coreGlow = new THREE.Mesh(coreGlowGeometry, coreGlowMaterial);
+    galaxy.add(coreGlow);
+
+    // Create spiral arms with stars
+    const particleCount = 2000;
+    const positions = [];
+    const colors = [];
+
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (i / particleCount) * Math.PI * 6; // Multiple rotations for spiral
+        const radius = (i / particleCount) * 150;
+        const spiralOffset = Math.sin(angle * 2) * 10;
+
+        const x = Math.cos(angle) * radius + (Math.random() - 0.5) * 15;
+        const y = (Math.random() - 0.5) * 10 + spiralOffset;
+        const z = Math.sin(angle) * radius + (Math.random() - 0.5) * 15;
+
+        positions.push(x, y, z);
+
+        // Color variation - purple, blue, white stars
+        const colorChoice = Math.random();
+        if (colorChoice < 0.3) {
+            colors.push(1, 1, 1); // White
+        } else if (colorChoice < 0.6) {
+            colors.push(0.6, 0.4, 1); // Purple
+        } else {
+            colors.push(0.4, 0.6, 1); // Blue
+        }
+    }
+
+    const particlesGeometry = new THREE.BufferGeometry();
+    particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    particlesGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+    const particlesMaterial = new THREE.PointsMaterial({
+        size: 2,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.8
+    });
+
+    const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+    galaxy.add(particles);
+
+    // Position galaxy in sky
+    galaxy.position.set(-200, 150, -500);
+    galaxy.rotation.x = Math.PI / 6;
+    galaxy.rotation.z = Math.PI / 4;
+
+    game.scene.add(galaxy);
+    game.galaxy = galaxy;
 }
 
 // Create a wall
@@ -2312,6 +2455,23 @@ function enterWorldTwo() {
         // Change scene background to indicate new world
         game.scene.background = new THREE.Color(0x4a0e4e); // Purple sky for world 2
 
+        // Remove World 1 sky elements
+        if (game.sun) {
+            game.scene.remove(game.sun);
+            game.sun = null;
+        }
+        if (game.sunGlow) {
+            game.scene.remove(game.sunGlow);
+            game.sunGlow = null;
+        }
+        if (game.clouds) {
+            game.clouds.forEach(cloud => game.scene.remove(cloud));
+            game.clouds = [];
+        }
+
+        // Add World 2 galaxy
+        createGalaxy();
+
         // Spawn shields in World 2 (limited to 3)
         for (let i = 0; i < 3; i++) {
             const randomX = (Math.random() * 600 - 300);
@@ -3703,6 +3863,21 @@ function animate() {
         updateSwordBobbing();
         updatePortal(delta);
         updateCodeFragments(delta);
+
+        // Animate clouds (drift slowly)
+        if (game.clouds && game.currentWorld === 1) {
+            game.clouds.forEach(cloud => {
+                cloud.position.x += cloud.userData.speedX * delta * 10;
+                // Wrap around if cloud goes too far
+                if (cloud.position.x > 500) cloud.position.x = -500;
+                if (cloud.position.x < -500) cloud.position.x = 500;
+            });
+        }
+
+        // Animate galaxy rotation
+        if (game.galaxy && game.currentWorld === 2) {
+            game.galaxy.rotation.z += delta * 0.1;
+        }
 
         // Reduce attack cooldown
         if (game.attackCooldown > 0) {
