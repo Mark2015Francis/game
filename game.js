@@ -563,7 +563,10 @@ function spawnEnemy() {
     const spawnZ = distToPlayer < 50 ? Math.sin(Math.random() * Math.PI * 2) * (100 + Math.random() * 100) : z;
 
     // In World 2, 50% chance to spawn projectile enemy instead of regular enemy
+    // In World 3, 70% chance to spawn projectile enemy (more dangerous)
     if (game.currentWorld === 2 && Math.random() < 0.5) {
+        createProjectileEnemy(spawnX, spawnZ);
+    } else if (game.currentWorld === 3 && Math.random() < 0.7) {
         createProjectileEnemy(spawnX, spawnZ);
     } else {
         createEnemy(spawnX, spawnZ);
@@ -576,8 +579,17 @@ function createEnemy(x, z) {
     const enemy = new THREE.Group();
     enemy.position.set(x, 1, z);
     enemy.castShadow = true;
-    enemy.hp = 5; // Enemy HP
-    enemy.maxHP = 5;
+
+    // Scale HP based on world
+    let baseHP = 5;
+    if (game.currentWorld === 2) {
+        baseHP = 7; // Stronger in World 2
+    } else if (game.currentWorld === 3) {
+        baseHP = 10; // Even stronger in World 3
+    }
+
+    enemy.hp = baseHP;
+    enemy.maxHP = baseHP;
 
     // Main virus body - octahedron (geometric diamond shape)
     const bodyGeometry = new THREE.OctahedronGeometry(1, 0);
@@ -637,12 +649,21 @@ function createEnemy(x, z) {
     console.log(`Virus spawned! Total spawned: ${game.totalEnemiesSpawned}/40`);
 }
 
-// Create projectile enemy - shoots at player, only 1 HP - Worm/Transmission Virus
+// Create projectile enemy - shoots at player - Worm/Transmission Virus
 function createProjectileEnemy(x, z) {
     const enemy = new THREE.Group();
     enemy.position.set(x, 1, z);
-    enemy.hp = 1; // Only 1 HP
-    enemy.maxHP = 1;
+
+    // Scale HP based on world (projectile enemies are weaker but dangerous)
+    let projectileHP = 1;
+    if (game.currentWorld === 2) {
+        projectileHP = 2; // Slightly stronger in World 2
+    } else if (game.currentWorld === 3) {
+        projectileHP = 3; // Even stronger in World 3
+    }
+
+    enemy.hp = projectileHP;
+    enemy.maxHP = projectileHP;
     enemy.isProjectileEnemy = true; // Mark as projectile enemy
     enemy.shootTimer = 2; // Shoot every 2 seconds
     enemy.shootCooldown = 2;
@@ -2490,24 +2511,45 @@ function defeatBoss() {
     showNotification('🎉 BOSS DEFEATED! +1000 EXP +10 Coins!');
     console.log('Boss defeated!');
 
-    // Spawn portal to world 2
+    // Spawn portal to next world
     setTimeout(() => {
-        spawnPortal(bossPos.x, bossPos.z);
+        if (game.currentWorld === 1) {
+            spawnPortal(bossPos.x, bossPos.z, 2); // Portal to World 2
+        } else if (game.currentWorld === 2) {
+            spawnPortal(bossPos.x, bossPos.z, 3); // Portal to World 3
+        }
     }, 2000); // Spawn portal 2 seconds after boss defeat
 }
 
 // Spawn portal to next world
-function spawnPortal(x, z) {
+function spawnPortal(x, z, targetWorld) {
     if (game.portalSpawned) return;
 
     // Create portal group
     game.portal = new THREE.Group();
+    game.portal.userData.targetWorld = targetWorld; // Store which world this portal leads to
+
+    // Choose colors based on target world
+    let outerColor, innerColor1, innerColor2, particleColor;
+    if (targetWorld === 2) {
+        // Cyan/Blue portal for World 2
+        outerColor = 0x00ffff;
+        innerColor1 = 0x0088ff;
+        innerColor2 = 0x0044ff;
+        particleColor = 0x00ffff;
+    } else if (targetWorld === 3) {
+        // Orange/Red portal for World 3
+        outerColor = 0xff6600;
+        innerColor1 = 0xff4400;
+        innerColor2 = 0xff2200;
+        particleColor = 0xff6600;
+    }
 
     // Outer ring - rotating
     const outerRingGeometry = new THREE.TorusGeometry(3, 0.3, 16, 100);
     const outerRingMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ffff,
-        emissive: 0x00ffff,
+        color: outerColor,
+        emissive: outerColor,
         transparent: true,
         opacity: 0.8
     });
@@ -2517,8 +2559,8 @@ function spawnPortal(x, z) {
     // Inner portal surface - swirling effect
     const portalGeometry = new THREE.CircleGeometry(2.7, 32);
     const portalMaterial = new THREE.MeshBasicMaterial({
-        color: 0x0088ff,
-        emissive: 0x0044ff,
+        color: innerColor1,
+        emissive: innerColor2,
         transparent: true,
         opacity: 0.7,
         side: THREE.DoubleSide
@@ -2541,7 +2583,7 @@ function spawnPortal(x, z) {
 
     particlesGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
     const particlesMaterial = new THREE.PointsMaterial({
-        color: 0x00ffff,
+        color: particleColor,
         size: 0.3,
         transparent: true,
         opacity: 0.8
@@ -2560,8 +2602,8 @@ function spawnPortal(x, z) {
     game.scene.add(game.portal);
     game.portalSpawned = true;
 
-    showNotification('🌀 Portal to World 2 has appeared!');
-    console.log('Portal spawned at', x, z);
+    showNotification(`🌀 Portal to World ${targetWorld} has appeared!`);
+    console.log('Portal spawned at', x, z, 'leading to World', targetWorld);
 }
 
 // Check portal interaction
@@ -2570,8 +2612,13 @@ function checkPortalPickup() {
 
     const distance = game.camera.position.distanceTo(game.portal.position);
     if (distance < 5) {
-        // Player entered portal
-        enterWorldTwo();
+        // Player entered portal - check which world it leads to
+        const targetWorld = game.portal.userData.targetWorld;
+        if (targetWorld === 2) {
+            enterWorldTwo();
+        } else if (targetWorld === 3) {
+            enterWorldThree();
+        }
     }
 }
 
@@ -2878,6 +2925,112 @@ function enterWorldTwo() {
 
         showNotification('🎮 Welcome to World 2! Enemies are stronger here!');
         console.log('Entered World 2');
+    }, 1000);
+}
+
+// Enter world three
+function enterWorldThree() {
+    // Prevent entering World 3 if already in World 3
+    if (game.currentWorld === 3) {
+        console.log('Already in World 3');
+        return;
+    }
+
+    showNotification('🌀 Entering World 3...');
+
+    setTimeout(() => {
+        // Clear all enemies
+        game.enemies.forEach(enemy => game.scene.remove(enemy));
+        game.enemies = [];
+
+        // Remove boss if it exists
+        if (game.boss) {
+            game.scene.remove(game.boss);
+            game.boss = null;
+        }
+
+        // Remove portal
+        if (game.portal) {
+            game.scene.remove(game.portal);
+            game.portal = null;
+            game.portalSpawned = false;
+        }
+
+        // Clear all World 2 items
+        // Remove all shields
+        game.shields.forEach(shield => game.scene.remove(shield));
+        game.shields = [];
+
+        // Remove all foods
+        game.foods.forEach(food => game.scene.remove(food));
+        game.foods = [];
+
+        // Remove bow if it exists
+        if (game.bow) {
+            game.scene.remove(game.bow);
+            game.bow = null;
+        }
+
+        // Remove shop if it exists
+        if (game.shop) {
+            game.scene.remove(game.shop);
+            game.shop = null;
+        }
+
+        // Remove spell book if it exists
+        if (game.spellBook) {
+            game.scene.remove(game.spellBook);
+            game.spellBook = null;
+        }
+
+        // Remove World 2 sky elements (galaxy and spirals)
+        if (game.galaxy) {
+            game.scene.remove(game.galaxy);
+            game.galaxy = null;
+        }
+        if (game.spirals) {
+            game.spirals.forEach(spiral => game.scene.remove(spiral));
+            game.spirals = [];
+        }
+
+        // Reset boss spawn state
+        game.bossSpawned = false;
+        game.totalEnemiesSpawned = 0;
+
+        // Teleport player to spawn
+        game.camera.position.set(0, game.playerHeight, 0);
+
+        // Change world
+        game.currentWorld = 3;
+
+        // Change scene background to indicate World 3 - volcanic/hellish theme
+        game.scene.background = new THREE.Color(0xff4400); // Bright orange/red sky
+        game.scene.fog = new THREE.Fog(0xff4400, 0, 200); // Orange fog
+
+        // Spawn shields in World 3 (limited to 2)
+        for (let i = 0; i < 2; i++) {
+            const randomX = (Math.random() * 600 - 300);
+            const randomZ = (Math.random() * 600 - 300);
+            createShieldPickup(randomX, randomZ);
+        }
+
+        // Spawn food in World 3 (limited to 3)
+        for (let i = 0; i < 3; i++) {
+            const foodX = (Math.random() * 600 - 300);
+            const foodZ = (Math.random() * 600 - 300);
+            createFoodPickup(foodX, foodZ);
+        }
+
+        // Create shop in World 3
+        createShop(350, 0);
+
+        // Spawn initial enemies in World 3 (7 enemies - more than World 2)
+        for (let i = 0; i < 7; i++) {
+            spawnEnemy();
+        }
+
+        showNotification('🔥 Welcome to World 3! The heat is on!');
+        console.log('Entered World 3');
     }, 1000);
 }
 
