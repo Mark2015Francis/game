@@ -2282,7 +2282,7 @@ function updateSpellUI() {
         } else if (game.currentSpell === 'freezeball' && game.hasFreezeball) {
             spellInfo = '❄️ <strong>Freeze Ball</strong> (G)<br>Q to switch';
         } else if (game.currentSpell === 'dash' && game.hasDash) {
-            spellInfo = '💨 <strong>Dash</strong> (Alt)<br>Q to switch';
+            spellInfo = '💨 <strong>Dash</strong> (R)<br>Q to switch';
         } else {
             spellInfo = '📖 <strong>No spells</strong><br>Buy spells from shop';
         }
@@ -2327,7 +2327,7 @@ function switchSpell() {
     } else if (game.currentSpell === 'freezeball') {
         showNotification('❄️ Switched to Freeze Ball (G)');
     } else if (game.currentSpell === 'dash') {
-        showNotification('💨 Switched to Dash (Alt)');
+        showNotification('💨 Switched to Dash (R)');
     }
 
     updateSpellUI();
@@ -4922,8 +4922,7 @@ function setupControls() {
                     game.controls.canJump = false;
                 }
                 break;
-            case 'AltLeft':
-            case 'AltRight':
+            case 'KeyR':
                 // Cast dash spell
                 if (game.equippedSpellBook && game.hasDash && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
                     castDash();
