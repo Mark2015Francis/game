@@ -119,7 +119,9 @@ const game = {
     // Joystick controls
     joystickActive: false,
     joystickDeltaX: 0,
-    joystickDeltaY: 0
+    joystickDeltaY: 0,
+    // Damage numbers
+    damageNumbers: []
 };
 
 // Detect if running on mobile device
@@ -3882,6 +3884,9 @@ function attackWithSword() {
         // Deal damage
         target.hp -= damage;
 
+        // Spawn damage number
+        spawnDamageNumber(damage, target.position);
+
         // Visual feedback - flash bright white for visibility (golden for crit)
         const flashColor = isCritical ? 0xffdd00 : 0xffffff;
         const originalColor = target.material.color.getHex();
@@ -4073,6 +4078,9 @@ function attackWithAxe() {
 
         // Deal damage
         target.hp -= damage;
+
+        // Spawn damage number
+        spawnDamageNumber(damage, target.position);
 
         // Visual feedback - flash bright orange for axe (golden for crit)
         const flashColor = isCritical ? 0xffdd00 : 0xff8800;
@@ -6798,6 +6806,93 @@ function updateBowCharging() {
     }
 }
 
+// Spawn floating damage number at enemy position
+function spawnDamageNumber(damage, position) {
+    // Create canvas for damage text
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.width = 128;
+    canvas.height = 64;
+
+    // Draw damage text
+    context.fillStyle = 'rgba(0, 0, 0, 0)';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.font = 'bold 48px Arial';
+    context.fillStyle = '#ff0000'; // Red color for damage
+    context.strokeStyle = '#000000'; // Black outline
+    context.lineWidth = 4;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+
+    const text = damage.toString();
+    context.strokeText(text, 64, 32);
+    context.fillText(text, 64, 32);
+
+    // Create sprite from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true
+    });
+    const sprite = new THREE.Sprite(material);
+
+    // Position sprite at enemy position, slightly above
+    sprite.position.set(
+        position.x + (Math.random() - 0.5) * 1.5, // Random X offset
+        position.y + 2, // Above enemy
+        position.z + (Math.random() - 0.5) * 1.5  // Random Z offset
+    );
+    sprite.scale.set(2, 1, 1);
+
+    // Add animation data
+    sprite.userData = {
+        velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 2, // Random horizontal drift
+            8, // Upward velocity
+            (Math.random() - 0.5) * 2  // Random horizontal drift
+        ),
+        lifetime: 0,
+        maxLifetime: 1.0 // 1 second lifetime
+    };
+
+    game.scene.add(sprite);
+    game.damageNumbers.push(sprite);
+}
+
+// Update damage numbers animation
+function updateDamageNumbers(delta) {
+    for (let i = game.damageNumbers.length - 1; i >= 0; i--) {
+        const dmgNumber = game.damageNumbers[i];
+
+        // Update lifetime
+        dmgNumber.userData.lifetime += delta;
+
+        // Calculate fade based on lifetime
+        const fadeProgress = dmgNumber.userData.lifetime / dmgNumber.userData.maxLifetime;
+
+        // Update position (move up and drift)
+        dmgNumber.position.x += dmgNumber.userData.velocity.x * delta;
+        dmgNumber.position.y += dmgNumber.userData.velocity.y * delta;
+        dmgNumber.position.z += dmgNumber.userData.velocity.z * delta;
+
+        // Apply gravity to vertical velocity (slow down upward movement)
+        dmgNumber.userData.velocity.y -= 15 * delta;
+
+        // Fade out
+        dmgNumber.material.opacity = 1 - fadeProgress;
+
+        // Remove when lifetime expires
+        if (dmgNumber.userData.lifetime >= dmgNumber.userData.maxLifetime) {
+            game.scene.remove(dmgNumber);
+            dmgNumber.material.map.dispose();
+            dmgNumber.material.dispose();
+            game.damageNumbers.splice(i, 1);
+        }
+    }
+}
+
 // Update projectiles
 function updateProjectiles(delta) {
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
@@ -6918,6 +7013,9 @@ function updateProjectiles(delta) {
             // Hit target
             target.hp -= damage;
 
+            // Spawn damage number
+            spawnDamageNumber(damage, target.position);
+
             // Visual feedback
             const originalColor = target.material.color.getHex();
             const originalEmissive = closestTarget.isBoss ? 0x660000 : 0x330000;
@@ -6977,6 +7075,7 @@ function animate() {
         updateBossProjectiles(delta);
         updateSwordBobbing();
         updateBowCharging();
+        updateDamageNumbers(delta);
         updatePortal(delta);
         updateCodeFragments(delta);
 
