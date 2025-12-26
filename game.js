@@ -3252,7 +3252,7 @@ function checkShieldPickup() {
             updateInventoryUI();
 
             // Show notification (non-blocking)
-            showNotification(`🛡️ Anti Virus collected! (x${game.shieldCount}) Protects you from one enemy hit.`);
+            showNotification(`🛡️ Anti Virus collected! (x${game.shieldCount}) Protects you from one virus hit.`);
             break; // Only collect one shield per frame
         }
     }
@@ -3505,7 +3505,7 @@ function attackWithSword() {
 
                 // Show damage feedback
                 const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`⚔️ -${damage} DMG${critText}! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
+                showNotification(`⚔️ -${damage} DMG${critText}! Virus HP: ${Math.max(0, enemy.hp)}/5`);
 
                 if (enemy.hp <= 0) {
                     defeatEnemy(enemy, i);
@@ -3697,7 +3697,7 @@ function attackWithAxe() {
 
                 // Show damage feedback with axe emoji
                 const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`🪓 -${damage} DMG${critText}! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
+                showNotification(`🪓 -${damage} DMG${critText}! Virus HP: ${Math.max(0, enemy.hp)}/5`);
 
                 if (enemy.hp <= 0) {
                     defeatEnemy(enemy, i);
@@ -4222,7 +4222,7 @@ function enterWorldTwo() {
         spawnEnemy();
         spawnEnemy(); // 5 initial enemies in World 2 (more than World 1's 3)
 
-        showNotification('🎮 Welcome to World 2! Enemies are stronger here!');
+        showNotification('🎮 Welcome to World 2! Viruses are stronger here!');
         console.log('Entered World 2');
     }, 1000);
 }
@@ -4378,7 +4378,7 @@ function defeatEnemy(enemy, index) {
     checkLevelUp();
 
     // Show notification
-    showNotification(`💀 Enemy defeated! +${expReward} EXP +1 Coin | ${game.enemies.length} remaining`);
+    showNotification(`💀 Virus defeated! +${expReward} EXP +1 Coin | ${game.enemies.length} remaining`);
 }
 
 // Enemy shoots projectile at player
@@ -5775,7 +5775,7 @@ function gameOver() {
     const instructions = document.getElementById('instructions');
     instructions.innerHTML = `
         <h1 style="color: #ff0000;">GAME OVER!</h1>
-        <p>The enemies overwhelmed you!</p>
+        <p>The viruses overwhelmed you!</p>
         <p>Refresh the page to try again</p>
     `;
     instructions.classList.remove('hidden');
@@ -6423,7 +6423,7 @@ function updateProjectiles(delta) {
                     }
                 }, 150);
 
-                showNotification(`${emoji} Hit! Enemy HP: ${Math.max(0, enemy.hp)}/${enemy.maxHP || 5}`);
+                showNotification(`${emoji} Hit! Virus HP: ${Math.max(0, enemy.hp)}/${enemy.maxHP || 5}`);
 
                 if (enemy.hp <= 0) {
                     defeatEnemy(enemy, j);
