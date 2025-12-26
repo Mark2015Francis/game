@@ -2216,8 +2216,9 @@ function createShop(x, z) {
     glow.position.z = 0;
     game.shop.add(glow);
 
-    // Position wormhole vertically centered (opening facing player)
-    game.shop.position.set(x, 3, z);
+    // Position wormhole angled into the ground with entrance poking out
+    game.shop.position.set(x, 1.5, z);
+    game.shop.rotation.x = Math.PI * 0.4; // Tilt 72 degrees into the ground
     game.shop.rotation.y = Math.PI; // Face toward center of map
 
     game.scene.add(game.shop);
