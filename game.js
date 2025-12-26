@@ -3922,9 +3922,9 @@ function defeatBoss() {
 
     // Award coins - boss drops 10 coins
     game.coins += 10;
-    updateCoinsDisplay();
+    updateKromerDisplay();
 
-    showNotification('🎉 BOSS DEFEATED! +1000 EXP +10 Coins!');
+    showNotification('🎉 BOSS DEFEATED! +1000 EXP +10 Kromer!');
     console.log('Boss defeated!');
 
     // Spawn portal to next world
@@ -4080,12 +4080,12 @@ function updateShopItems() {
         <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('food')">
             <span style="font-size: 30px;">💻</span>
             <span style="margin-left: 20px; font-size: 18px;">Code - Heal 10 HP</span>
-            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 5 Coins</span>
+            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 5 Kromer</span>
         </div>
         <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('damage')">
             <span style="font-size: 30px;">⚔️</span>
             <span style="margin-left: 20px; font-size: 18px;">Damage Upgrade (+1 DMG)</span>
-            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Coins</span>
+            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Kromer</span>
         </div>
     `;
 
@@ -4095,7 +4095,7 @@ function updateShopItems() {
             <div class="shop-item" style="background: rgba(34, 139, 34, 0.2); border: 2px solid #228b22; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bowdamage')">
                 <span style="font-size: 30px;">🔫</span>
                 <span style="margin-left: 20px; font-size: 18px;">Lunar Linux Upgrade (+1 Plasma DMG)</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 50 Coins</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 50 Kromer</span>
             </div>
         `;
     }
@@ -4109,22 +4109,22 @@ function updateShopItems() {
             <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('fireball')">
                 <span style="font-size: 30px;">🔥</span>
                 <span style="margin-left: 20px; font-size: 18px;">Fireball Spell ${game.hasFireball ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Coins</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Kromer</span>
             </div>
             <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bigjump')">
                 <span style="font-size: 30px;">⬆️</span>
                 <span style="margin-left: 20px; font-size: 18px;">Big Jump Spell ${game.hasBigJump ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Coins</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Kromer</span>
             </div>
             <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('freezeball')">
                 <span style="font-size: 30px;">❄️</span>
                 <span style="margin-left: 20px; font-size: 18px;">Freeze Ball Spell ${game.hasFreezeball ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 25 Coins</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 25 Kromer</span>
             </div>
             <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('dash')">
                 <span style="font-size: 30px;">💨</span>
                 <span style="margin-left: 20px; font-size: 18px;">Dash Spell ${game.hasDash ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Coins</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Kromer</span>
             </div>
         `;
     }
@@ -4137,29 +4137,29 @@ function buyItem(itemType) {
             game.coins -= 5;
             game.playerHP = Math.min(game.playerHP + 10, game.maxPlayerHP);
             updateHPDisplay();
-            updateCoinsDisplay();
+            updateKromerDisplay();
             showNotification('💻 Bought code! +10 HP');
         } else {
-            showNotification('❌ Not enough coins! Need 5 coins');
+            showNotification('❌ Not enough Kromer! Need 5 coins');
         }
     } else if (itemType === 'damage') {
         if (game.coins >= 20) {
             game.coins -= 20;
             game.playerDamage += 1;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateEXPDisplay(); // Updates damage display
             showNotification('⚔️ Bought damage upgrade! +1 DMG');
         } else {
-            showNotification('❌ Not enough coins! Need 20 coins');
+            showNotification('❌ Not enough Kromer! Need 20 coins');
         }
     } else if (itemType === 'bowdamage') {
         if (game.coins >= 50) {
             game.coins -= 50;
             game.bowDamage += 1;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             showNotification(`🔫 Bought Lunar Linux upgrade! Plasma DMG: ${game.bowDamage}`);
         } else {
-            showNotification('❌ Not enough coins! Need 50 coins');
+            showNotification('❌ Not enough Kromer! Need 50 coins');
         }
     } else if (itemType === 'fireball') {
         if (game.hasFireball) {
@@ -4167,12 +4167,12 @@ function buyItem(itemType) {
         } else if (game.coins >= 15) {
             game.coins -= 15;
             game.hasFireball = true;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
             showNotification('🔥 Fireball spell unlocked! Equip spell book and press F to cast!');
         } else {
-            showNotification('❌ Not enough coins! Need 15 coins');
+            showNotification('❌ Not enough Kromer! Need 15 coins');
         }
     } else if (itemType === 'bigjump') {
         if (game.hasBigJump) {
@@ -4181,11 +4181,11 @@ function buyItem(itemType) {
             game.coins -= 20;
             game.hasBigJump = true;
             game.jumpHeight = 25.0; // Increase jump height from 15.0
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             showNotification('⬆️ Big Jump spell unlocked! Your jump is now higher!');
         } else {
-            showNotification('❌ Not enough coins! Need 20 coins');
+            showNotification('❌ Not enough Kromer! Need 20 coins');
         }
     } else if (itemType === 'freezeball') {
         if (game.hasFreezeball) {
@@ -4193,12 +4193,12 @@ function buyItem(itemType) {
         } else if (game.coins >= 25) {
             game.coins -= 25;
             game.hasFreezeball = true;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
             showNotification('❄️ Freeze Ball spell unlocked! Equip spell book and press G to cast!');
         } else {
-            showNotification('❌ Not enough coins! Need 25 coins');
+            showNotification('❌ Not enough Kromer! Need 25 coins');
         }
     } else if (itemType === 'dash') {
         if (game.hasDash) {
@@ -4206,12 +4206,12 @@ function buyItem(itemType) {
         } else if (game.coins >= 15) {
             game.coins -= 15;
             game.hasDash = true;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
             showNotification('💨 Dash spell unlocked! Equip spell book and press H to cast!');
         } else {
-            showNotification('❌ Not enough coins! Need 15 coins');
+            showNotification('❌ Not enough Kromer! Need 15 coins');
         }
     }
 }
@@ -4517,13 +4517,13 @@ function defeatEnemy(enemy, index) {
 
     // Award coins - all enemies drop 1 coin
     game.coins += 1;
-    updateCoinsDisplay();
+    updateKromerDisplay();
 
     // Check for level up
     checkLevelUp();
 
     // Show notification
-    showNotification(`💀 Virus defeated! +${expReward} EXP +1 Coin | ${game.enemies.length} remaining`);
+    showNotification(`💀 Virus defeated! +${expReward} EXP +1 Kromer | ${game.enemies.length} remaining`);
 }
 
 // Enemy shoots projectile at player
@@ -5905,10 +5905,10 @@ function updateManaDisplay() {
 }
 
 // Update coin display
-function updateCoinsDisplay() {
+function updateKromerDisplay() {
     const coinDisplay = document.getElementById('coinDisplay');
     if (coinDisplay) {
-        coinDisplay.textContent = `💰 Coins: ${game.coins}`;
+        coinDisplay.textContent = `💰 Kromer: ${game.coins}`;
     }
 }
 
