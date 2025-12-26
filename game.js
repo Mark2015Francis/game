@@ -5991,7 +5991,7 @@ function setupControls() {
 
     // Pointer lock
     document.body.addEventListener('click', () => {
-        if (!game.isPointerLocked) {
+        if (!game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
             document.body.requestPointerLock();
         }
     });
@@ -6122,7 +6122,7 @@ function setupControls() {
 
     // Mouse click for attacking
     document.addEventListener('click', (event) => {
-        if (game.isPointerLocked && !game.inventory.isOpen) {
+        if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
             if (game.equippedBow) {
                 shootArrow();
             } else if (game.equippedAxe) {
