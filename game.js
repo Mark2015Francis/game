@@ -1744,47 +1744,81 @@ function createShieldPickup(x, z) {
     game.shields.push(shield);
 }
 
-// Create bow pickup
+// Create bow pickup (Lunar Linux laser gun)
 function createBowPickup(x, z) {
-    // Create bow group
+    // Create laser gun group
     game.bow = new THREE.Group();
 
-    // Bow body - curved shape
-    const bowCurve = new THREE.Shape();
-    bowCurve.moveTo(0, -1);
-    bowCurve.quadraticCurveTo(-0.3, 0, 0, 1);
-
-    const extrudeSettings = { depth: 0.1, bevelEnabled: false };
-    const bowGeometry = new THREE.ExtrudeGeometry(bowCurve, extrudeSettings);
-    const bowMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513,
-        emissive: 0x442200
+    // Main gun body - sleek dark metallic
+    const bodyGeometry = new THREE.BoxGeometry(0.4, 0.4, 1.5);
+    const bodyMaterial = new THREE.MeshLambertMaterial({
+        color: 0x2a2a3a, // Dark blue-gray metal
+        emissive: 0x1a1a2a
     });
-    const bowBody = new THREE.Mesh(bowGeometry, bowMaterial);
-    bowBody.castShadow = true;
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.castShadow = true;
+    body.position.z = 0.3;
 
-    // String
-    const stringGeometry = new THREE.BufferGeometry();
-    const stringVertices = new Float32Array([
-        0, -1, 0.05,
-        0, 1, 0.05
-    ]);
-    stringGeometry.setAttribute('position', new THREE.BufferAttribute(stringVertices, 3));
-    const stringMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-    const bowString = new THREE.Line(stringGeometry, stringMaterial);
+    // Barrel - glowing cyan energy core
+    const barrelGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1.0, 8);
+    const barrelMaterial = new THREE.MeshLambertMaterial({
+        color: 0x00ffff, // Bright cyan
+        emissive: 0x00ffff,
+        emissiveIntensity: 1
+    });
+    const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.z = -0.5;
+    barrel.castShadow = true;
 
-    game.bow.add(bowBody);
-    game.bow.add(bowString);
+    // Energy chamber - glowing green sphere
+    const chamberGeometry = new THREE.SphereGeometry(0.25, 12, 12);
+    const chamberMaterial = new THREE.MeshLambertMaterial({
+        color: 0x00ff00, // Bright green energy
+        emissive: 0x00ff00,
+        emissiveIntensity: 1
+    });
+    const chamber = new THREE.Mesh(chamberGeometry, chamberMaterial);
+    chamber.position.z = 0.8;
+
+    // Tech accent lines - yellow
+    const accent1Geometry = new THREE.BoxGeometry(0.42, 0.05, 0.3);
+    const accentMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffff00, // Yellow tech
+        emissive: 0xffff00,
+        emissiveIntensity: 0.8
+    });
+    const accent1 = new THREE.Mesh(accent1Geometry, accentMaterial);
+    accent1.position.set(0, 0.15, 0.5);
+
+    const accent2 = new THREE.Mesh(accent1Geometry, accentMaterial);
+    accent2.position.set(0, -0.15, 0.5);
+
+    // Handle/grip
+    const gripGeometry = new THREE.BoxGeometry(0.25, 0.5, 0.4);
+    const gripMaterial = new THREE.MeshLambertMaterial({
+        color: 0x1a1a1a // Dark grip
+    });
+    const grip = new THREE.Mesh(gripGeometry, gripMaterial);
+    grip.position.set(0, -0.35, 0.9);
+
+    game.bow.add(body);
+    game.bow.add(barrel);
+    game.bow.add(chamber);
+    game.bow.add(accent1);
+    game.bow.add(accent2);
+    game.bow.add(grip);
 
     game.bow.position.set(x, 1.5, z);
     game.bow.rotation.y = Math.PI / 4;
+    game.bow.rotation.z = Math.PI / 2; // Rotate to horizontal
 
     game.scene.add(game.bow);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    // Add cyan/green glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+        color: 0x00ff88, // Cyan-green glow
         transparent: true,
         opacity: 0.2
     });
@@ -2208,7 +2242,7 @@ function updateInventoryUI() {
             bowSlot.classList.add('equipped');
         }
         bowSlot.innerHTML = `
-            <div class="item-icon">🏹</div>
+            <div class="item-icon">🔫</div>
             <div class="item-name">Lunar Linux</div>
             ${game.equippedBow ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
@@ -2287,7 +2321,7 @@ function updateEquippedDisplays() {
         weaponLabel.textContent = 'Virus Destroyer';
         weaponDisplay.classList.add('active');
     } else if (game.equippedBow) {
-        weaponIcon.textContent = '🏹';
+        weaponIcon.textContent = '🔫';
         weaponLabel.textContent = 'Lunar Linux';
         weaponDisplay.classList.add('active');
     } else if (game.equippedSpellBook) {
@@ -3092,7 +3126,7 @@ function shootArrow() {
     game.scene.add(arrow);
     game.projectiles.push(arrow);
 
-    showNotification('🏹 Plasma shot!');
+    showNotification('🔫 Plasma shot!');
 }
 
 // Cast fireball spell
@@ -3355,15 +3389,15 @@ function checkBowPickup() {
 
         // Add to inventory
         game.inventory.items.push({
-            name: 'Bow',
-            icon: '🏹',
+            name: 'Lunar Linux',
+            icon: '🔫',
             type: 'bow'
         });
 
         updateInventoryUI();
 
         // Show notification (non-blocking)
-        showNotification('🏹 Bow collected! Equip it to shoot arrows.');
+        showNotification('🔫 Lunar Linux collected! Equip it to shoot plasma arrows.');
     }
 }
 
@@ -4032,7 +4066,7 @@ function updateShopItems() {
     if (game.bowCollected) {
         shopItems.innerHTML += `
             <div class="shop-item" style="background: rgba(34, 139, 34, 0.2); border: 2px solid #228b22; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bowdamage')">
-                <span style="font-size: 30px;">🏹</span>
+                <span style="font-size: 30px;">🔫</span>
                 <span style="margin-left: 20px; font-size: 18px;">Lunar Linux Upgrade (+1 Plasma DMG)</span>
                 <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 50 Coins</span>
             </div>
@@ -4096,7 +4130,7 @@ function buyItem(itemType) {
             game.coins -= 50;
             game.bowDamage += 1;
             updateCoinsDisplay();
-            showNotification(`🏹 Bought Lunar Linux upgrade! Plasma DMG: ${game.bowDamage}`);
+            showNotification(`🔫 Bought Lunar Linux upgrade! Plasma DMG: ${game.bowDamage}`);
         } else {
             showNotification('❌ Not enough coins! Need 50 coins');
         }
@@ -6462,7 +6496,7 @@ function updateProjectiles(delta) {
             if (distance < 1.5) {
                 // Determine damage based on projectile type
                 let damage = game.bowDamage; // Arrows use bow damage
-                let emoji = '🏹';
+                let emoji = '🔫';
 
                 if (arrow.isFireball) {
                     damage = 3; // Fireballs deal 3 damage
@@ -6524,7 +6558,7 @@ function updateProjectiles(delta) {
             if (distance < 4) { // Boss has larger hitbox
                 // Determine damage based on projectile type
                 let damage = game.bowDamage; // Arrows use bow damage
-                let emoji = '🏹';
+                let emoji = '🔫';
 
                 if (arrow.isFireball) {
                     damage = 5; // Fireballs deal 5 damage to boss
