@@ -2145,7 +2145,7 @@ function updateInventoryUI() {
     }
     swordSlot.innerHTML = `
         <div class="item-icon">⚔️</div>
-        <div class="item-name">Sword</div>
+        <div class="item-name">Virus Destroyer</div>
         ${game.inventory.equippedSword ? '<div class="item-status">EQUIPPED</div>' : ''}
     `;
     swordSlot.addEventListener('click', () => toggleEquipSword());
@@ -2284,7 +2284,7 @@ function updateEquippedDisplays() {
 
     if (game.inventory.equippedSword) {
         weaponIcon.textContent = '⚔️';
-        weaponLabel.textContent = 'Sword';
+        weaponLabel.textContent = 'Virus Destroyer';
         weaponDisplay.classList.add('active');
     } else if (game.equippedBow) {
         weaponIcon.textContent = '🏹';
@@ -2560,22 +2560,38 @@ function equipSword() {
     hand.position.set(0.15, -0.8, -0.1);
     hand.renderOrder = 999;
 
-    // Blade - large, bright white for maximum visibility
-    const bladeGeometry = new THREE.BoxGeometry(0.15, 2.5, 0.08);
+    // Virus Destroyer Blade - bright cyan energy blade
+    const bladeGeometry = new THREE.BoxGeometry(0.2, 2.5, 0.05);
     const bladeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: 0x00ffff, // Bright cyan (antivirus color)
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
         side: THREE.DoubleSide,
-        depthTest: false, // Always render on top
+        depthTest: false,
         depthWrite: false
     });
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
     blade.position.set(0, 0.8, -0.1);
     blade.renderOrder = 999;
 
-    // Handle - brown wood
-    const handleGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+    // Energy glow around blade
+    const bladeGlowGeometry = new THREE.BoxGeometry(0.25, 2.6, 0.1);
+    const bladeGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const bladeGlow = new THREE.Mesh(bladeGlowGeometry, bladeGlowMaterial);
+    bladeGlow.position.set(0, 0.8, -0.1);
+    bladeGlow.renderOrder = 998;
+
+    // Handle - dark tech grip with green accents
+    const handleGeometry = new THREE.BoxGeometry(0.12, 0.5, 0.12);
     const handleMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+        color: 0x1a1a1a, // Dark gray/black tech
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
@@ -2584,10 +2600,29 @@ function equipSword() {
     handle.position.set(0, -0.5, -0.1);
     handle.renderOrder = 999;
 
-    // Guard (crossguard) - bright gold
-    const guardGeometry = new THREE.BoxGeometry(0.5, 0.08, 0.1);
+    // Handle accents - green tech lines
+    const accentGeometry = new THREE.BoxGeometry(0.13, 0.08, 0.13);
+    const accentMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00,
+        emissiveIntensity: 1,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const accent1 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent1.position.set(0, -0.35, -0.1);
+    accent1.renderOrder = 999;
+    const accent2 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent2.position.set(0, -0.65, -0.1);
+    accent2.renderOrder = 999;
+
+    // Guard - futuristic hexagonal guard
+    const guardGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.15);
     const guardMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff00,
+        color: 0x00ddff, // Cyan tech
+        emissive: 0x00aaff,
+        emissiveIntensity: 0.8,
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
@@ -2596,10 +2631,12 @@ function equipSword() {
     guard.position.set(0, -0.25, -0.1);
     guard.renderOrder = 999;
 
-    // Pommel - bright gold sphere
-    const pommelGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+    // Pommel - glowing energy core
+    const pommelGeometry = new THREE.SphereGeometry(0.12, 8, 8);
     const pommelMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff00,
+        color: 0x00ff00, // Bright green energy core
+        emissive: 0x00ff00,
+        emissiveIntensity: 1,
         depthTest: false,
         depthWrite: false
     });
@@ -2609,20 +2646,26 @@ function equipSword() {
 
     game.equippedSwordMesh.add(arm);
     game.equippedSwordMesh.add(hand);
+    game.equippedSwordMesh.add(bladeGlow);
     game.equippedSwordMesh.add(blade);
     game.equippedSwordMesh.add(handle);
+    game.equippedSwordMesh.add(accent1);
+    game.equippedSwordMesh.add(accent2);
     game.equippedSwordMesh.add(guard);
     game.equippedSwordMesh.add(pommel);
 
-    // Position sword with arm clearly visible in camera view (right side)
+    // Position virus destroyer with arm clearly visible in camera view (right side)
     game.equippedSwordMesh.position.set(0.3, -0.3, -0.5);
     game.equippedSwordMesh.rotation.set(-0.2, 0.1, 0.05);
 
-    // Disable frustum culling for all sword parts to ensure they're always rendered
+    // Disable frustum culling for all parts to ensure they're always rendered
     arm.frustumCulled = false;
     hand.frustumCulled = false;
+    bladeGlow.frustumCulled = false;
     blade.frustumCulled = false;
     handle.frustumCulled = false;
+    accent1.frustumCulled = false;
+    accent2.frustumCulled = false;
     guard.frustumCulled = false;
     pommel.frustumCulled = false;
     game.equippedSwordMesh.frustumCulled = false;
@@ -2630,7 +2673,7 @@ function equipSword() {
     // Add to camera so it moves with player's view
     game.camera.add(game.equippedSwordMesh);
 
-    console.log('✓ Sword with arm equipped successfully');
+    console.log('✓ Virus Destroyer with arm equipped successfully');
     console.log('  Position:', game.equippedSwordMesh.position);
     console.log('  Rotation:', game.equippedSwordMesh.rotation);
     console.log('  Visible:', game.equippedSwordMesh.visible);
