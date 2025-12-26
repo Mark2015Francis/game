@@ -228,6 +228,58 @@ function init() {
 	ground.receiveShadow = true;
 	game.scene.add(ground);
 
+    // Load building/wall texture (big-0-1.jpg)
+    const buildingTextureLoader = new THREE.TextureLoader();
+    const buildingTextureFormats = [
+        'big-0-1.jpg',
+        'big-0-1.png'
+    ];
+
+    let buildingTextureLoaded = false;
+    let currentBuildingFormatIndex = 0;
+
+    function tryLoadBuildingTexture() {
+        if (currentBuildingFormatIndex >= buildingTextureFormats.length || buildingTextureLoaded) return;
+
+        const texturePath = buildingTextureFormats[currentBuildingFormatIndex];
+        console.log(`Attempting to load building texture: ${texturePath}`);
+
+        buildingTextureLoader.load(
+            texturePath,
+            // onLoad - texture loaded successfully
+            function(texture) {
+                buildingTextureLoaded = true;
+                console.log(`✓ Building texture loaded successfully: ${texturePath}`);
+
+                // Set texture to repeat for tiling
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+
+                // Store texture globally for use in createBox and createWall
+                game.buildingTexture = texture;
+
+                // Update all existing boxes and walls with the texture
+                game.objects.forEach(obj => {
+                    if (obj.geometry && obj.geometry.type === 'BoxGeometry' && obj.material) {
+                        obj.material.map = texture;
+                        obj.material.needsUpdate = true;
+                    }
+                });
+            },
+            // onProgress
+            undefined,
+            // onError - texture failed to load, try next format
+            function(error) {
+                console.log(`⚠ Failed to load ${texturePath}, trying next format...`);
+                currentBuildingFormatIndex++;
+                tryLoadBuildingTexture(); // Try next format
+            }
+        );
+    }
+
+    // Start loading building texture
+    tryLoadBuildingTexture();
+
     // Add sun and clouds to World 1 sky
     createSun();
     createClouds();
@@ -597,7 +649,14 @@ function createAshClouds() {
 // Create a wall
 function createWall(x, z, height, width, depth, color) {
     const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshLambertMaterial({ color });
+
+    // Create material with texture if available, otherwise use color
+    const materialConfig = { color };
+    if (game.buildingTexture) {
+        materialConfig.map = game.buildingTexture;
+    }
+    const material = new THREE.MeshLambertMaterial(materialConfig);
+
     const wall = new THREE.Mesh(geometry, material);
     wall.position.set(x, height / 2, z);
     wall.castShadow = true;
@@ -609,7 +668,14 @@ function createWall(x, z, height, width, depth, color) {
 // Create a box
 function createBox(x, z, y, width, height, depth, color) {
     const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshLambertMaterial({ color });
+
+    // Create material with texture if available, otherwise use color
+    const materialConfig = { color };
+    if (game.buildingTexture) {
+        materialConfig.map = game.buildingTexture;
+    }
+    const material = new THREE.MeshLambertMaterial(materialConfig);
+
     const box = new THREE.Mesh(geometry, material);
     box.position.set(x, height / 2, y);
     box.castShadow = true;
