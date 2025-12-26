@@ -79,11 +79,13 @@ const game = {
     portalSpawned: false,
     currentWorld: 1,
     foods: [],
+    redPotions: [],
     coins: 0,
     shop: null,
     isShopOpen: false,
     shieldCount: 0,
     foodCount: 0,
+    redPotionCount: 0,
     spellBook: null,
     spellBookCollected: false,
     equippedSpellBook: false,
@@ -322,11 +324,15 @@ function init() {
     const bowZ = (Math.random() * 600 - 300);
     createBowPickup(bowX, bowZ);
 
-    // Create multiple food pickup items at random positions
+    // Create food/potion pickups at random positions (5% chance for red potion)
     for (let i = 0; i < 5; i++) {
         const foodX = (Math.random() * 600 - 300);
         const foodZ = (Math.random() * 600 - 300);
-        createFoodPickup(foodX, foodZ);
+        if (Math.random() < 0.05) {
+            createRedPotionPickup(foodX, foodZ);
+        } else {
+            createFoodPickup(foodX, foodZ);
+        }
     }
 
     // Create shop at edge of map
@@ -1805,6 +1811,74 @@ function createFoodPickup(x, z) {
     game.foods.push(food);
 }
 
+// Create red potion pickup
+function createRedPotionPickup(x, z) {
+    // Create red potion group
+    const potion = new THREE.Group();
+
+    // Potion bottle - cylindrical with rounded top
+    const bottleGeometry = new THREE.CylinderGeometry(0.3, 0.35, 0.8, 8);
+    const bottleMaterial = new THREE.MeshLambertMaterial({
+        color: 0x990000, // Dark red
+        emissive: 0x660000,
+        transparent: true,
+        opacity: 0.9
+    });
+    const bottle = new THREE.Mesh(bottleGeometry, bottleMaterial);
+    bottle.castShadow = true;
+
+    // Liquid inside - slightly smaller, brighter red
+    const liquidGeometry = new THREE.CylinderGeometry(0.25, 0.3, 0.7, 8);
+    const liquidMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000, // Bright red
+        emissive: 0xff0000,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.8
+    });
+    const liquid = new THREE.Mesh(liquidGeometry, liquidMaterial);
+    liquid.position.y = -0.05;
+
+    // Cork/stopper - brown top
+    const corkGeometry = new THREE.CylinderGeometry(0.2, 0.25, 0.2, 8);
+    const corkMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b4513 // Brown
+    });
+    const cork = new THREE.Mesh(corkGeometry, corkMaterial);
+    cork.position.y = 0.5;
+
+    // Label - small white band
+    const labelGeometry = new THREE.CylinderGeometry(0.36, 0.36, 0.15, 8);
+    const labelMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffffff // White
+    });
+    const label = new THREE.Mesh(labelGeometry, labelMaterial);
+    label.position.y = 0;
+
+    potion.add(bottle);
+    potion.add(liquid);
+    potion.add(cork);
+    potion.add(label);
+
+    potion.position.set(x, 1, z);
+    potion.rotation.z = Math.PI / 12; // Slight tilt
+
+    game.scene.add(potion);
+
+    // Add intense red glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0.3
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    potion.add(glow);
+
+    game.redPotions.push(potion);
+    console.log('Red potion created at', x, z);
+}
+
 // Create spell book pickup
 function createSpellBook(x, z) {
     game.spellBook = new THREE.Group();
@@ -1997,6 +2071,21 @@ function updateInventoryUI() {
     }
     inventoryItems.appendChild(foodSlot);
 
+    // Red Potion slot
+    const potionSlot = document.createElement('div');
+    potionSlot.className = 'inventory-slot';
+    if (game.redPotionCount > 0) {
+        potionSlot.innerHTML = `
+            <div class="item-icon">🧪</div>
+            <div class="item-name">Red Potion x${game.redPotionCount}</div>
+        `;
+        potionSlot.addEventListener('click', () => toggleEquipItem({type: 'redpotion'}));
+    } else {
+        potionSlot.classList.add('empty');
+        potionSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    }
+    inventoryItems.appendChild(potionSlot);
+
     // Bow slot
     const bowSlot = document.createElement('div');
     bowSlot.className = 'inventory-slot';
@@ -2147,6 +2236,9 @@ function removeItemFromInventory(itemType) {
     } else if (itemType === 'food' && game.foodCount > 0) {
         game.foodCount--;
         updateInventoryUI();
+    } else if (itemType === 'redpotion' && game.redPotionCount > 0) {
+        game.redPotionCount--;
+        updateInventoryUI();
     }
 }
 
@@ -2263,6 +2355,22 @@ function toggleEquipItem(item) {
             removeItemFromInventory('food');
 
             showNotification(`🍎 Food consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.foodCount} remaining`);
+            toggleInventory(); // Close inventory after using
+        }
+    } else if (item.type === 'redpotion') {
+        // Use red potion - heal 100 HP!
+        if (game.redPotionCount > 0) {
+            const healAmount = 100;
+            const previousHP = game.playerHP;
+            game.playerHP = Math.min(game.playerHP + healAmount, game.maxPlayerHP);
+            const actualHeal = game.playerHP - previousHP;
+
+            updateHPDisplay();
+
+            // Remove red potion from inventory
+            removeItemFromInventory('redpotion');
+
+            showNotification(`🧪 Red Potion consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.redPotionCount} remaining`);
             toggleInventory(); // Close inventory after using
         }
     } else if (item.type === 'spellbook') {
@@ -3064,6 +3172,27 @@ function checkFoodPickup() {
     }
 }
 
+// Check red potion pickup
+function checkRedPotionPickup() {
+    for (let i = game.redPotions.length - 1; i >= 0; i--) {
+        const potion = game.redPotions[i];
+        const distance = game.camera.position.distanceTo(potion.position);
+
+        if (distance < 3) {
+            // Collect red potion
+            game.scene.remove(potion);
+            game.redPotions.splice(i, 1);
+            game.redPotionCount++;
+
+            updateInventoryUI();
+
+            // Show notification (non-blocking)
+            showNotification(`🧪 Red Potion collected! (x${game.redPotionCount}) Use it to heal 100 HP!`);
+            break; // Only collect one at a time
+        }
+    }
+}
+
 // Check spell book pickup
 function checkSpellBookPickup() {
     if (game.spellBookCollected || !game.spellBook) return;
@@ -3849,6 +3978,10 @@ function enterWorldTwo() {
         game.foods.forEach(food => game.scene.remove(food));
         game.foods = [];
 
+        // Remove all red potions
+        game.redPotions.forEach(potion => game.scene.remove(potion));
+        game.redPotions = [];
+
         // Remove bow if it exists
         if (game.bow) {
             game.scene.remove(game.bow);
@@ -3906,11 +4039,15 @@ function enterWorldTwo() {
             createShieldPickup(randomX, randomZ);
         }
 
-        // Spawn food in World 2 (limited to 4)
+        // Spawn food/potions in World 2 (limited to 4, 5% chance for red potion)
         for (let i = 0; i < 4; i++) {
             const foodX = (Math.random() * 600 - 300);
             const foodZ = (Math.random() * 600 - 300);
-            createFoodPickup(foodX, foodZ);
+            if (Math.random() < 0.05) {
+                createRedPotionPickup(foodX, foodZ);
+            } else {
+                createFoodPickup(foodX, foodZ);
+            }
         }
 
         // Spawn spell book in World 2
@@ -3970,6 +4107,10 @@ function enterWorldThree() {
         game.foods.forEach(food => game.scene.remove(food));
         game.foods = [];
 
+        // Remove all red potions
+        game.redPotions.forEach(potion => game.scene.remove(potion));
+        game.redPotions = [];
+
         // Remove bow if it exists
         if (game.bow) {
             game.scene.remove(game.bow);
@@ -3999,9 +4140,9 @@ function enterWorldThree() {
             game.scene.remove(game.galaxy);
             game.galaxy = null;
         }
-        if (game.spirals) {
+        if (game.spirals && game.spirals.length > 0) {
             game.spirals.forEach(spiral => game.scene.remove(spiral));
-            game.spirals = [];
+            game.spirals = []; // Reset spirals array
         }
 
         // Add World 3 ash clouds
@@ -4028,11 +4169,15 @@ function enterWorldThree() {
             createShieldPickup(randomX, randomZ);
         }
 
-        // Spawn food in World 3 (limited to 3)
+        // Spawn food/potions in World 3 (limited to 3, 5% chance for red potion)
         for (let i = 0; i < 3; i++) {
             const foodX = (Math.random() * 600 - 300);
             const foodZ = (Math.random() * 600 - 300);
-            createFoodPickup(foodX, foodZ);
+            if (Math.random() < 0.05) {
+                createRedPotionPickup(foodX, foodZ);
+            } else {
+                createFoodPickup(foodX, foodZ);
+            }
         }
 
         // Create shop in World 3
@@ -6222,6 +6367,7 @@ function animate() {
         checkBowPickup();
         checkAxePickup();
         checkFoodPickup();
+        checkRedPotionPickup();
         checkSpellBookPickup();
         checkPortalPickup();
         checkShopProximity();
