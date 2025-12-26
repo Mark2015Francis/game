@@ -101,6 +101,8 @@ const game = {
     dashTimer: 0,
     dashDuration: 0.3, // 0.3 seconds dash
     dashSpeed: 150, // Very fast speed during dash
+    playerFrozen: false,
+    freezeDuration: 0,
     // Mobile touch controls
     isMobile: false,
     touchStartX: 0,
@@ -1346,18 +1348,85 @@ function createWorld3Boss(x, z) {
     boss.add(head);
     boss.material = headMaterial;
 
-    // Glowing red eyes - menacing stare
-    const eyeGeometry = new THREE.SphereGeometry(0.4, 16, 16);
-    const eyeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        emissive: 0xff0000,
-        emissiveIntensity: 2
-    });
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.8, 3.5, 2);
+    // Futuristic glowing eyes - hexagonal tech design
+    const createFuturisticEye = (x, y, z) => {
+        const eyeGroup = new THREE.Group();
+
+        // Main hexagonal eye core
+        const eyeCoreGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.1, 6);
+        const eyeCoreMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff0000,
+            emissive: 0xff0000,
+            emissiveIntensity: 3
+        });
+        const eyeCore = new THREE.Mesh(eyeCoreGeometry, eyeCoreMaterial);
+        eyeCore.rotation.x = Math.PI / 2;
+        eyeGroup.add(eyeCore);
+
+        // Outer hexagonal ring - tech frame
+        const ringGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.08, 6);
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff4444,
+            emissive: 0xff4444,
+            emissiveIntensity: 1.5,
+            wireframe: true
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.rotation.x = Math.PI / 2;
+        eyeGroup.add(ring);
+
+        // Inner glow halo
+        const glowGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.05, 16);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff8888,
+            emissive: 0xff0000,
+            emissiveIntensity: 2,
+            transparent: true,
+            opacity: 0.6
+        });
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        glow.rotation.x = Math.PI / 2;
+        eyeGroup.add(glow);
+
+        // Tech scanline effect - horizontal line across eye
+        const scanlineGeometry = new THREE.PlaneGeometry(0.7, 0.05);
+        const scanlineMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            emissive: 0xffff00,
+            emissiveIntensity: 2,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        const scanline = new THREE.Mesh(scanlineGeometry, scanlineMaterial);
+        scanline.position.z = 0.06;
+        eyeGroup.add(scanline);
+        eyeGroup.userData.scanline = scanline;
+
+        // Corner markers - 4 small tech corners
+        for (let i = 0; i < 4; i++) {
+            const cornerGeometry = new THREE.BoxGeometry(0.08, 0.08, 0.05);
+            const cornerMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                emissive: 0xff0000,
+                emissiveIntensity: 2
+            });
+            const corner = new THREE.Mesh(cornerGeometry, cornerMaterial);
+            const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+            corner.position.x = Math.cos(angle) * 0.55;
+            corner.position.y = Math.sin(angle) * 0.55;
+            corner.position.z = 0.05;
+            eyeGroup.add(corner);
+        }
+
+        eyeGroup.position.set(x, y, z);
+        eyeGroup.userData.isFuturisticEye = true;
+        return eyeGroup;
+    };
+
+    const leftEye = createFuturisticEye(-0.8, 3.5, 2);
     boss.add(leftEye);
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.8, 3.5, 2);
+    const rightEye = createFuturisticEye(0.8, 3.5, 2);
     boss.add(rightEye);
 
     // Dark Crown with spikes
@@ -2058,12 +2127,17 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip bow - unequip sword and spell book first
+            // Equip bow - unequip sword, axe, and spell book first
             game.equippedBow = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
                 game.camera.remove(game.equippedSwordMesh);
                 game.equippedSwordMesh = null;
+            }
+            game.equippedAxe = false;
+            if (game.equippedAxeMesh) {
+                game.camera.remove(game.equippedAxeMesh);
+                game.equippedAxeMesh = null;
             }
             if (game.equippedSpellBook) {
                 game.equippedSpellBook = false;
@@ -2158,7 +2232,7 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip spell book - unequip sword and bow first
+            // Equip spell book - unequip sword, bow, and axe first
             game.equippedSpellBook = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
@@ -2169,6 +2243,11 @@ function toggleEquipItem(item) {
             if (game.equippedBowMesh) {
                 game.camera.remove(game.equippedBowMesh);
                 game.equippedBowMesh = null;
+            }
+            game.equippedAxe = false;
+            if (game.equippedAxeMesh) {
+                game.camera.remove(game.equippedAxeMesh);
+                game.equippedAxeMesh = null;
             }
             equipSpellBook();
         }
@@ -3881,10 +3960,12 @@ function enterWorldThree() {
         // Create shop in World 3
         createShop(350, 0);
 
-        // Create axe pickup in World 3 at a random location
-        const axeX = (Math.random() * 400 - 200);
-        const axeZ = (Math.random() * 400 - 200);
-        createAxePickup(axeX, axeZ);
+        // Create axe pickup in World 3 at a random location (only if not collected yet)
+        if (!game.axeCollected && !game.axe) {
+            const axeX = (Math.random() * 400 - 200);
+            const axeZ = (Math.random() * 400 - 200);
+            createAxePickup(axeX, axeZ);
+        }
 
         // Spawn initial enemies in World 3 (7 enemies - more than World 2)
         for (let i = 0; i < 7; i++) {
@@ -4955,6 +5036,26 @@ function animateWorld3Boss(boss, delta) {
     const time = Date.now() * 0.001;
 
     boss.children.forEach(child => {
+        // Animate futuristic eyes - scanning effect
+        if (child.userData && child.userData.isFuturisticEye) {
+            const scanline = child.userData.scanline;
+            if (scanline) {
+                // Vertical scanning motion
+                scanline.position.y = Math.sin(time * 4) * 0.3;
+
+                // Pulsing scanline intensity
+                const pulse = 0.6 + Math.sin(time * 8) * 0.4;
+                scanline.material.opacity = pulse;
+            }
+
+            // Slight rotation for tech feel
+            child.rotation.z = Math.sin(time * 2) * 0.05;
+
+            // Pulse the entire eye group
+            const eyePulse = 1.0 + Math.sin(time * 3) * 0.05;
+            child.scale.set(eyePulse, eyePulse, 1);
+        }
+
         // Animate dark orbs orbiting the Dark Lord
         if (child.userData && child.userData.isDarkOrb) {
             child.userData.orbitAngle += delta * 1.5;
@@ -5740,37 +5841,40 @@ function updateMovement(delta) {
         game.walkTime += delta * 10; // Speed of bobbing
     }
 
-    // Handle dash movement
-    if (game.isDashing) {
-        game.dashTimer -= delta;
+    // Skip movement if player is frozen
+    if (!game.playerFrozen) {
+        // Handle dash movement
+        if (game.isDashing) {
+            game.dashTimer -= delta;
 
-        if (game.dashTimer <= 0) {
-            game.isDashing = false;
-            game.dashTimer = 0;
+            if (game.dashTimer <= 0) {
+                game.isDashing = false;
+                game.dashTimer = 0;
+            } else {
+                // Apply dash movement
+                const dashMoveSpeed = game.dashSpeed * delta;
+                game.camera.position.x += game.dashDirectionX * dashMoveSpeed;
+                game.camera.position.z += game.dashDirectionZ * dashMoveSpeed;
+            }
         } else {
-            // Apply dash movement
-            const dashMoveSpeed = game.dashSpeed * delta;
-            game.camera.position.x += game.dashDirectionX * dashMoveSpeed;
-            game.camera.position.z += game.dashDirectionZ * dashMoveSpeed;
-        }
-    } else {
-        // Apply normal movement
-        const moveSpeed = game.playerSpeed * delta;
+            // Apply normal movement
+            const moveSpeed = game.playerSpeed * delta;
 
-        // Forward/backward movement (keyboard or joystick)
-        if (game.controls.moveForward || game.controls.moveBackward || (game.joystickActive && game.joystickDeltaY !== 0)) {
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
-            game.camera.position.x += forward.x * game.direction.z * moveSpeed;
-            game.camera.position.z += forward.z * game.direction.z * moveSpeed;
-        }
+            // Forward/backward movement (keyboard or joystick)
+            if (game.controls.moveForward || game.controls.moveBackward || (game.joystickActive && game.joystickDeltaY !== 0)) {
+                const forward = new THREE.Vector3(0, 0, -1);
+                forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
+                game.camera.position.x += forward.x * game.direction.z * moveSpeed;
+                game.camera.position.z += forward.z * game.direction.z * moveSpeed;
+            }
 
-        // Left/right movement (keyboard or joystick)
-        if (game.controls.moveLeft || game.controls.moveRight || (game.joystickActive && game.joystickDeltaX !== 0)) {
-            const right = new THREE.Vector3(1, 0, 0);
-            right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
-            game.camera.position.x += right.x * game.direction.x * moveSpeed;
-            game.camera.position.z += right.z * game.direction.x * moveSpeed;
+            // Left/right movement (keyboard or joystick)
+            if (game.controls.moveLeft || game.controls.moveRight || (game.joystickActive && game.joystickDeltaX !== 0)) {
+                const right = new THREE.Vector3(1, 0, 0);
+                right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
+                game.camera.position.x += right.x * game.direction.x * moveSpeed;
+                game.camera.position.z += right.z * game.direction.x * moveSpeed;
+            }
         }
     }
 
@@ -6106,6 +6210,16 @@ function animate() {
         }
         if (game.dashCooldown > 0) {
             game.dashCooldown -= delta;
+        }
+
+        // Handle freeze duration
+        if (game.playerFrozen && game.freezeDuration > 0) {
+            game.freezeDuration -= delta;
+            if (game.freezeDuration <= 0) {
+                game.playerFrozen = false;
+                game.freezeDuration = 0;
+                showNotification('✅ Unfrozen! You can move again!');
+            }
         }
 
         // Regenerate mana (1 per second)
