@@ -1851,44 +1851,71 @@ function createAxePickup(x, z) {
 
 // Create food pickup
 function createFoodPickup(x, z) {
-    // Create food group - looks like an apple
+    // Create code pickup - looks like a piece of code
     const food = new THREE.Group();
 
-    // Apple body - red sphere
-    const appleGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-    const appleMaterial = new THREE.MeshLambertMaterial({
-        color: 0xff0000,
-        emissive: 0x440000
+    // Code background - flat rectangular plane
+    const codeBackgroundGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.1);
+    const codeBackgroundMaterial = new THREE.MeshLambertMaterial({
+        color: 0x1e1e1e, // Dark gray/black (like code editor background)
+        emissive: 0x0a0a0a
     });
-    const appleBody = new THREE.Mesh(appleGeometry, appleMaterial);
-    appleBody.scale.set(1, 1.2, 1); // Slightly elongated
-    appleBody.castShadow = true;
+    const codeBackground = new THREE.Mesh(codeBackgroundGeometry, codeBackgroundMaterial);
+    codeBackground.castShadow = true;
 
-    // Stem - small brown cylinder
-    const stemGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
-    const stemMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
-    const stem = new THREE.Mesh(stemGeometry, stemMaterial);
-    stem.position.y = 0.75;
+    // Code lines - bright green/cyan bars representing lines of code
+    const createCodeLine = (yPos, width) => {
+        const lineGeometry = new THREE.BoxGeometry(width, 0.08, 0.12);
+        const lineMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00, // Bright green (classic code color)
+            emissive: 0x00ff00,
+            emissiveIntensity: 0.8
+        });
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.position.y = yPos;
+        line.position.x = -0.6 + width / 2;
+        return line;
+    };
 
-    // Leaf - small green diamond
-    const leafGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.15);
-    const leafMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-    const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-    leaf.position.set(0.1, 0.85, 0);
-    leaf.rotation.z = 0.3;
+    // Multiple code lines at different lengths
+    const line1 = createCodeLine(0.25, 0.9);
+    const line2 = createCodeLine(0.1, 1.0);
+    const line3 = createCodeLine(-0.05, 0.7);
+    const line4 = createCodeLine(-0.2, 0.85);
 
-    food.add(appleBody);
-    food.add(stem);
-    food.add(leaf);
+    // Curly braces - code symbols
+    const createBrace = (xPos, yPos, rotation) => {
+        const braceGeometry = new THREE.TorusGeometry(0.15, 0.04, 8, 6, Math.PI);
+        const braceMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00, // Yellow braces
+            emissive: 0xffff00,
+            emissiveIntensity: 1
+        });
+        const brace = new THREE.Mesh(braceGeometry, braceMaterial);
+        brace.position.set(xPos, yPos, 0.06);
+        brace.rotation.z = rotation;
+        return brace;
+    };
+
+    const leftBrace = createBrace(-0.5, 0, Math.PI / 2);
+    const rightBrace = createBrace(0.5, 0, -Math.PI / 2);
+
+    food.add(codeBackground);
+    food.add(line1);
+    food.add(line2);
+    food.add(line3);
+    food.add(line4);
+    food.add(leftBrace);
+    food.add(rightBrace);
 
     food.position.set(x, 1, z);
 
     game.scene.add(food);
 
-    // Add glow effect
+    // Add green/cyan glow effect (code aura)
     const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff6666,
+        color: 0x00ff88,
         transparent: true,
         opacity: 0.2
     });
@@ -2148,8 +2175,8 @@ function updateInventoryUI() {
     foodSlot.className = 'inventory-slot';
     if (game.foodCount > 0) {
         foodSlot.innerHTML = `
-            <div class="item-icon">🍎</div>
-            <div class="item-name">Food x${game.foodCount}</div>
+            <div class="item-icon">💻</div>
+            <div class="item-name">Code x${game.foodCount}</div>
         `;
         foodSlot.addEventListener('click', () => toggleEquipItem({type: 'food'}));
     } else {
@@ -2441,7 +2468,7 @@ function toggleEquipItem(item) {
             // Remove food from inventory
             removeItemFromInventory('food');
 
-            showNotification(`🍎 Food consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.foodCount} remaining`);
+            showNotification(`💻 Code consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.foodCount} remaining`);
             toggleInventory(); // Close inventory after using
         }
     } else if (item.type === 'redpotion') {
@@ -3253,7 +3280,7 @@ function checkFoodPickup() {
             updateInventoryUI();
 
             // Show notification (non-blocking)
-            showNotification(`🍎 Food collected! (x${game.foodCount}) Use it to heal 10 HP.`);
+            showNotification(`💻 Code collected! (x${game.foodCount}) Use it to heal 10 HP.`);
             break; // Only collect one at a time
         }
     }
@@ -3863,8 +3890,8 @@ function updateShopItems() {
     // Basic items
     shopItems.innerHTML += `
         <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('food')">
-            <span style="font-size: 30px;">🍖</span>
-            <span style="margin-left: 20px; font-size: 18px;">Food - Heal 10 HP</span>
+            <span style="font-size: 30px;">💻</span>
+            <span style="margin-left: 20px; font-size: 18px;">Code - Heal 10 HP</span>
             <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 5 Coins</span>
         </div>
         <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('damage')">
@@ -3923,7 +3950,7 @@ function buyItem(itemType) {
             game.playerHP = Math.min(game.playerHP + 10, game.maxPlayerHP);
             updateHPDisplay();
             updateCoinsDisplay();
-            showNotification('🍖 Bought food! +10 HP');
+            showNotification('💻 Bought code! +10 HP');
         } else {
             showNotification('❌ Not enough coins! Need 5 coins');
         }
