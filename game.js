@@ -5775,7 +5775,7 @@ function gameOver() {
     const instructions = document.getElementById('instructions');
     instructions.innerHTML = `
         <h1 style="color: #ff0000;">GAME OVER!</h1>
-        <p>The viruses overwhelmed you!</p>
+        <p>The viruses infected your computer!</p>
         <p>Refresh the page to try again</p>
     `;
     instructions.classList.remove('hidden');
