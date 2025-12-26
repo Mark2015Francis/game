@@ -2116,69 +2116,113 @@ function createSpellBook(x, z) {
 function createShop(x, z) {
     game.shop = new THREE.Group();
 
-    // Shop building - larger box
-    const buildingGeometry = new THREE.BoxGeometry(12, 8, 10);
-    const buildingMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513, // Brown wood
-        emissive: 0x221100
+    // Wormhole dimensions - 5 units long
+    const wormholeLength = 5;
+    const numRings = 15;
+    const startRadius = 4;
+    const endRadius = 0.5;
+
+    // Create swirling rings forming the wormhole tunnel
+    for (let i = 0; i < numRings; i++) {
+        const progress = i / (numRings - 1);
+
+        // Calculate ring position along the tunnel (0 to 5 units)
+        const zPos = progress * wormholeLength;
+
+        // Ring radius decreases as we go deeper
+        const radius = startRadius - (startRadius - endRadius) * progress;
+
+        // Create torus ring
+        const ringGeometry = new THREE.TorusGeometry(radius, 0.15, 8, 32);
+
+        // Alternate colors for cosmic effect - purple to cyan gradient
+        const hue = 0.7 - progress * 0.15; // Purple (0.7) to cyan (0.55)
+        const color = new THREE.Color().setHSL(hue, 1, 0.5);
+
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: color,
+            emissive: color,
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.7 - progress * 0.3 // Fade as it goes deeper
+        });
+
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.z = zPos;
+
+        // Rotate ring for spiral effect
+        ring.rotation.z = progress * Math.PI * 2;
+
+        // Store animation data
+        ring.userData.rotationSpeed = 0.5 + progress * 0.5;
+        ring.userData.initialRotation = ring.rotation.z;
+
+        game.shop.add(ring);
+    }
+
+    // Create glowing particles inside the wormhole
+    for (let i = 0; i < 25; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distanceFromCenter = Math.random() * 3;
+        const depth = Math.random() * wormholeLength;
+
+        const particleGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+        const particleColor = Math.random() > 0.5 ? 0x00ffff : 0xff00ff; // Cyan or magenta
+        const particleMaterial = new THREE.MeshBasicMaterial({
+            color: particleColor,
+            emissive: particleColor,
+            emissiveIntensity: 1,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        particle.position.x = Math.cos(angle) * distanceFromCenter;
+        particle.position.y = Math.sin(angle) * distanceFromCenter;
+        particle.position.z = depth;
+
+        // Store animation data
+        particle.userData.angle = angle;
+        particle.userData.radius = distanceFromCenter;
+        particle.userData.depth = depth;
+        particle.userData.speed = 0.5 + Math.random() * 1.0;
+
+        game.shop.add(particle);
+    }
+
+    // Central core - dark void with bright edge
+    const coreGeometry = new THREE.CylinderGeometry(startRadius * 0.9, endRadius * 0.9, wormholeLength, 32);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x000033, // Very dark blue
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.BackSide
     });
-    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-    building.position.y = 4;
-    building.castShadow = true;
-    building.receiveShadow = true;
-    game.shop.add(building);
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.rotation.x = Math.PI / 2;
+    core.position.z = wormholeLength / 2;
+    game.shop.add(core);
 
-    // Roof - pyramid shape
-    const roofGeometry = new THREE.ConeGeometry(8, 4, 4);
-    const roofMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b0000 // Dark red
+    // Outer glow - bright edge at entrance
+    const glowGeometry = new THREE.TorusGeometry(startRadius + 0.3, 0.4, 8, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.6
     });
-    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-    roof.position.y = 10;
-    roof.rotation.y = Math.PI / 4;
-    roof.castShadow = true;
-    game.shop.add(roof);
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.z = 0;
+    game.shop.add(glow);
 
-    // Sign - "SHOP"
-    const signGeometry = new THREE.BoxGeometry(8, 2, 0.2);
-    const signMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffd700 // Gold
-    });
-    const sign = new THREE.Mesh(signGeometry, signMaterial);
-    sign.position.set(0, 6, -5.1);
-    game.shop.add(sign);
+    // Position wormhole vertically centered (opening facing player)
+    game.shop.position.set(x, 3, z);
+    game.shop.rotation.y = Math.PI; // Face toward center of map
 
-    // Shopkeeper - golden sphere with hat
-    const shopkeeperGeometry = new THREE.SphereGeometry(0.8, 16, 16);
-    const shopkeeperMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffcc00,
-        emissive: 0x885500
-    });
-    const shopkeeper = new THREE.Mesh(shopkeeperGeometry, shopkeeperMaterial);
-    shopkeeper.position.set(0, 2, -4);
-    game.shop.add(shopkeeper);
-
-    // Hat on shopkeeper
-    const hatGeometry = new THREE.ConeGeometry(0.6, 1, 8);
-    const hatMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
-    const hat = new THREE.Mesh(hatGeometry, hatMaterial);
-    hat.position.set(0, 3, -4);
-    game.shop.add(hat);
-
-    // Shopkeeper eyes
-    const eyeGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.3, 2.2, -3.3);
-    game.shop.add(leftEye);
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.3, 2.2, -3.3);
-    game.shop.add(rightEye);
-
-    game.shop.position.set(x, 0, z);
     game.scene.add(game.shop);
 
-    // Create invisible collision box for the shop building
+    // Create invisible collision box (same size as before for shop interaction)
     const collisionBox = new THREE.Mesh(
         new THREE.BoxGeometry(12, 8, 10),
         new THREE.MeshBasicMaterial({ visible: false })
@@ -2187,7 +2231,7 @@ function createShop(x, z) {
     game.scene.add(collisionBox);
     game.objects.push(collisionBox);
 
-    console.log('Shop created at', x, z);
+    console.log('Wormhole shop created at', x, z);
 }
 
 // Initialize inventory system
@@ -6703,6 +6747,26 @@ function animate() {
         if (game.spirals && game.currentWorld === 2) {
             game.spirals.forEach(spiral => {
                 spiral.rotation.y += spiral.userData.rotationSpeed * delta;
+            });
+        }
+
+        // Animate wormhole shop - rotate rings and swirl particles
+        if (game.shop) {
+            const time = Date.now() * 0.001;
+            game.shop.children.forEach(child => {
+                // Rotate rings
+                if (child.userData.rotationSpeed !== undefined) {
+                    child.rotation.z += child.userData.rotationSpeed * delta;
+                }
+                // Swirl particles in circular motion
+                if (child.userData.angle !== undefined) {
+                    child.userData.angle += child.userData.speed * delta;
+                    child.position.x = Math.cos(child.userData.angle) * child.userData.radius;
+                    child.position.y = Math.sin(child.userData.angle) * child.userData.radius;
+                    // Add pulsing effect
+                    const scale = 1 + Math.sin(time * 2 + child.userData.angle) * 0.2;
+                    child.scale.set(scale, scale, scale);
+                }
             });
         }
 
