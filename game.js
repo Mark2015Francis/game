@@ -5822,10 +5822,16 @@ function updateMovement(delta) {
     let moveZ = Number(game.controls.moveForward) - Number(game.controls.moveBackward);
     let moveX = Number(game.controls.moveRight) - Number(game.controls.moveLeft);
 
-    // Add joystick input (invert Y axis: negative joystickDeltaY = forward)
+    // Add joystick Y input for forward/backward (invert Y axis: negative = forward)
     if (game.joystickActive) {
         moveZ += -game.joystickDeltaY;
-        moveX += game.joystickDeltaX;
+        // Note: joystick X is used for camera rotation, not strafing
+    }
+
+    // Apply joystick X input to camera rotation (turning left/right)
+    if (game.joystickActive && game.joystickDeltaX !== 0) {
+        const turnSpeed = 2.5; // Adjust sensitivity for mobile turning
+        game.rotation.y -= game.joystickDeltaX * turnSpeed * delta;
     }
 
     game.direction.z = moveZ;
@@ -5868,8 +5874,8 @@ function updateMovement(delta) {
                 game.camera.position.z += forward.z * game.direction.z * moveSpeed;
             }
 
-            // Left/right movement (keyboard or joystick)
-            if (game.controls.moveLeft || game.controls.moveRight || (game.joystickActive && game.joystickDeltaX !== 0)) {
+            // Left/right movement (keyboard only - joystick X now controls camera rotation)
+            if (game.controls.moveLeft || game.controls.moveRight) {
                 const right = new THREE.Vector3(1, 0, 0);
                 right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
                 game.camera.position.x += right.x * game.direction.x * moveSpeed;
