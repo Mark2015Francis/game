@@ -3988,6 +3988,12 @@ function enterWorldThree() {
             game.spellBook = null;
         }
 
+        // Remove axe if it exists (only if not collected)
+        if (game.axe && !game.axeCollected) {
+            game.scene.remove(game.axe);
+            game.axe = null;
+        }
+
         // Remove World 2 sky elements (galaxy and spirals)
         if (game.galaxy) {
             game.scene.remove(game.galaxy);
