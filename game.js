@@ -1828,59 +1828,109 @@ function createBowPickup(x, z) {
 
 // Create axe pickup
 function createAxePickup(x, z) {
-    // Create axe group
+    // Create Virus Slicer group - futuristic energy axe
     game.axe = new THREE.Group();
 
-    // Axe handle - long brown cylinder
-    const handleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2.5, 8);
+    // Tech handle - dark metallic with cyan accents
+    const handleGeometry = new THREE.CylinderGeometry(0.12, 0.08, 2.5, 8);
     const handleMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513,
-        emissive: 0x442200
+        color: 0x2a2a3a, // Dark blue-gray tech metal
+        emissive: 0x1a1a2a
     });
     const handle = new THREE.Mesh(handleGeometry, handleMaterial);
     handle.castShadow = true;
-
-    // Axe blade - large metallic wedge
-    const bladeGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.2);
-    const bladeMaterial = new THREE.MeshLambertMaterial({
-        color: 0x888888,
-        emissive: 0x444444,
-        emissiveIntensity: 0.5
-    });
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.y = 1.3;
-    blade.castShadow = true;
-
-    // Blade edge (darker metal)
-    const edgeGeometry = new THREE.BoxGeometry(1.3, 0.1, 0.25);
-    const edgeMaterial = new THREE.MeshLambertMaterial({
-        color: 0x555555,
-        emissive: 0x222222
-    });
-    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
-    edge.position.y = 1.65;
-    edge.castShadow = true;
-
     game.axe.add(handle);
-    game.axe.add(blade);
-    game.axe.add(edge);
+
+    // Energy core in handle
+    const coreGeometry = new THREE.CylinderGeometry(0.06, 0.06, 2.2, 8);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan energy core
+        emissive: 0x00ffff,
+        emissiveIntensity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    game.axe.add(core);
+
+    // Energy blade - glowing cyan double-bladed axe head
+    const blade1Geometry = new THREE.BoxGeometry(1.4, 0.6, 0.08);
+    const bladeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan energy
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.9
+    });
+    const blade1 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade1.position.y = 1.3;
+    blade1.position.x = 0.7;
+    game.axe.add(blade1);
+
+    const blade2 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade2.position.y = 1.3;
+    blade2.position.x = -0.7;
+    game.axe.add(blade2);
+
+    // Energy blade glow
+    const bladeGlow1Geometry = new THREE.BoxGeometry(1.5, 0.7, 0.15);
+    const bladeGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88, // Green-cyan glow
+        emissive: 0x00ff88,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.4
+    });
+    const bladeGlow1 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow1.position.y = 1.3;
+    bladeGlow1.position.x = 0.7;
+    game.axe.add(bladeGlow1);
+
+    const bladeGlow2 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow2.position.y = 1.3;
+    bladeGlow2.position.x = -0.7;
+    game.axe.add(bladeGlow2);
+
+    // Tech connector/emitter at blade junction
+    const emitterGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+    const emitterMaterial = new THREE.MeshLambertMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 0.8
+    });
+    const emitter = new THREE.Mesh(emitterGeometry, emitterMaterial);
+    emitter.position.y = 1.3;
+    emitter.castShadow = true;
+    game.axe.add(emitter);
+
+    // Circuit patterns on handle (tech details)
+    for (let i = 0; i < 4; i++) {
+        const circuitGeometry = new THREE.TorusGeometry(0.14, 0.02, 8, 16);
+        const circuitMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 0.8
+        });
+        const circuit = new THREE.Mesh(circuitGeometry, circuitMaterial);
+        circuit.position.y = -0.8 + (i * 0.5);
+        circuit.rotation.x = Math.PI / 2;
+        game.axe.add(circuit);
+    }
 
     game.axe.position.set(x, 1.5, z);
     game.axe.rotation.z = Math.PI / 6;
 
     game.scene.add(game.axe);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    // Cyan/green energy glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff4444,
+        color: 0x00ffaa,
         transparent: true,
-        opacity: 0.2
+        opacity: 0.25
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     game.axe.add(glow);
 
-    console.log('Axe created at', x, z);
+    console.log('Virus Slicer created at', x, z);
 }
 
 // Create food pickup
@@ -2336,7 +2386,7 @@ function updateInventoryUI() {
         }
         axeSlot.innerHTML = `
             <div class="item-icon">🪓</div>
-            <div class="item-name">Axe</div>
+            <div class="item-name">Virus Slicer</div>
             ${game.equippedAxe ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         axeSlot.addEventListener('click', () => toggleEquipItem({type: 'axe'}));
@@ -2397,6 +2447,10 @@ function updateEquippedDisplays() {
     } else if (game.equippedBow) {
         weaponIcon.textContent = '🔫';
         weaponLabel.textContent = 'Lunar Linux';
+        weaponDisplay.classList.add('active');
+    } else if (game.equippedAxe) {
+        weaponIcon.textContent = '🪓';
+        weaponLabel.textContent = 'Virus Slicer';
         weaponDisplay.classList.add('active');
     } else if (game.equippedSpellBook) {
         weaponIcon.textContent = '📖';
@@ -2915,13 +2969,13 @@ function equipAxe() {
         game.camera.remove(game.equippedAxeMesh);
     }
 
-    // Create axe mesh for first person view
+    // Create Virus Slicer mesh for first person view - futuristic energy axe
     game.equippedAxeMesh = new THREE.Group();
 
-    // Axe handle - brown wooden handle
-    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8);
+    // Tech handle - dark metallic
+    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.04, 1.2, 8);
     const handleMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+        color: 0x2a2a3a, // Dark blue-gray tech metal
         depthTest: false,
         depthWrite: false
     });
@@ -2930,46 +2984,116 @@ function equipAxe() {
     handle.rotation.z = Math.PI / 2;
     handle.renderOrder = 999;
 
-    // Axe blade - large metallic blade
-    const bladeGeometry = new THREE.BoxGeometry(0.6, 0.4, 0.1);
-    const bladeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x888888,
+    // Energy core in handle (glowing cyan)
+    const coreGeometry = new THREE.CylinderGeometry(0.025, 0.025, 1.1, 8);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
         depthTest: false,
         depthWrite: false
     });
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.set(0.6, 0.3, 0);
-    blade.renderOrder = 999;
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.position.set(0, 0.3, 0);
+    core.rotation.z = Math.PI / 2;
+    core.renderOrder = 999;
 
-    // Blade edge (darker metal for sharpness)
-    const edgeGeometry = new THREE.BoxGeometry(0.65, 0.05, 0.12);
-    const edgeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x555555,
+    // Energy blade 1 - bright cyan
+    const blade1Geometry = new THREE.BoxGeometry(0.7, 0.3, 0.04);
+    const bladeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.9,
         depthTest: false,
         depthWrite: false
     });
-    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
-    edge.position.set(0.6, 0.5, 0);
-    edge.renderOrder = 1000;
+    const blade1 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade1.position.set(0.6, 0.5, 0);
+    blade1.renderOrder = 999;
+
+    // Energy blade 2 (opposite side)
+    const blade2 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade2.position.set(0.6, 0.1, 0);
+    blade2.renderOrder = 999;
+
+    // Blade glow 1
+    const bladeGlow1Geometry = new THREE.BoxGeometry(0.75, 0.35, 0.08);
+    const bladeGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88,
+        emissive: 0x00ff88,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.4,
+        depthTest: false,
+        depthWrite: false
+    });
+    const bladeGlow1 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow1.position.set(0.6, 0.5, 0);
+    bladeGlow1.renderOrder = 998;
+
+    // Blade glow 2
+    const bladeGlow2 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow2.position.set(0.6, 0.1, 0);
+    bladeGlow2.renderOrder = 998;
+
+    // Tech emitter at blade junction
+    const emitterGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+    const emitterMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        depthTest: false,
+        depthWrite: false
+    });
+    const emitter = new THREE.Mesh(emitterGeometry, emitterMaterial);
+    emitter.position.set(0.25, 0.3, 0);
+    emitter.renderOrder = 1000;
+
+    // Circuit rings on handle
+    for (let i = 0; i < 2; i++) {
+        const circuitGeometry = new THREE.TorusGeometry(0.06, 0.01, 8, 16);
+        const circuitMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 1,
+            depthTest: false,
+            depthWrite: false
+        });
+        const circuit = new THREE.Mesh(circuitGeometry, circuitMaterial);
+        circuit.position.set(0, 0.3 - (i * 0.3), 0);
+        circuit.renderOrder = 1000;
+        game.equippedAxeMesh.add(circuit);
+        circuit.frustumCulled = false;
+    }
 
     game.equippedAxeMesh.add(handle);
-    game.equippedAxeMesh.add(blade);
-    game.equippedAxeMesh.add(edge);
+    game.equippedAxeMesh.add(core);
+    game.equippedAxeMesh.add(blade1);
+    game.equippedAxeMesh.add(blade2);
+    game.equippedAxeMesh.add(bladeGlow1);
+    game.equippedAxeMesh.add(bladeGlow2);
+    game.equippedAxeMesh.add(emitter);
 
-    // Position axe in right side of view
+    // Position Virus Slicer in right side of view
     game.equippedAxeMesh.position.set(0.4, -0.4, -0.6);
     game.equippedAxeMesh.rotation.set(0.2, -0.3, 0.1);
 
     // Disable frustum culling
     handle.frustumCulled = false;
-    blade.frustumCulled = false;
-    edge.frustumCulled = false;
+    core.frustumCulled = false;
+    blade1.frustumCulled = false;
+    blade2.frustumCulled = false;
+    bladeGlow1.frustumCulled = false;
+    bladeGlow2.frustumCulled = false;
+    emitter.frustumCulled = false;
     game.equippedAxeMesh.frustumCulled = false;
 
     // Add to camera
     game.camera.add(game.equippedAxeMesh);
 
-    console.log('✓ Axe equipped successfully');
+    console.log('✓ Virus Slicer equipped successfully');
 }
 
 // Equip dev book to player
@@ -3503,7 +3627,7 @@ function checkAxePickup() {
 
         // Add to inventory
         game.inventory.items.push({
-            name: 'Axe',
+            name: 'Virus Slicer',
             icon: '🪓',
             type: 'axe'
         });
@@ -3511,7 +3635,7 @@ function checkAxePickup() {
         updateInventoryUI();
 
         // Show notification (non-blocking)
-        showNotification('🪓 Axe collected! Equip it for powerful but slow attacks!');
+        showNotification('🪓 Virus Slicer collected! Equip it for powerful but slow attacks!');
     }
 }
 
