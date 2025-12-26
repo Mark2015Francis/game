@@ -2133,7 +2133,7 @@ function updateInventoryUI() {
         }
         shieldSlot.innerHTML = `
             <div class="item-icon">🛡️</div>
-            <div class="item-name">Shield x${game.shieldCount}</div>
+            <div class="item-name">Anti Virus x${game.shieldCount}</div>
             ${game.inventory.equippedShield ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         shieldSlot.addEventListener('click', () => toggleEquipItem({type: 'shield'}));
@@ -3182,7 +3182,7 @@ function checkShieldPickup() {
             updateInventoryUI();
 
             // Show notification (non-blocking)
-            showNotification(`🛡️ Shield collected! (x${game.shieldCount}) Protects you from one enemy hit.`);
+            showNotification(`🛡️ Anti Virus collected! (x${game.shieldCount}) Protects you from one enemy hit.`);
             break; // Only collect one shield per frame
         }
     }
@@ -4475,7 +4475,7 @@ function updateEnemyProjectiles(delta) {
                 game.hasShieldProtection = false;
                 game.inventory.equippedShield = false;
                 removeItemFromInventory('shield');
-                showNotification('🛡️ Shield absorbed projectile!');
+                showNotification('🛡️ Anti Virus absorbed projectile!');
             } else {
                 game.playerHP -= 2; // Enemy projectiles deal 2 damage
                 updateHPDisplay();
@@ -4519,7 +4519,7 @@ function updateBossProjectiles(delta) {
                 game.hasShieldProtection = false;
                 game.inventory.equippedShield = false;
                 removeItemFromInventory('shield');
-                showNotification('🛡️ Shield absorbed boss projectile!');
+                showNotification('🛡️ Anti Virus absorbed boss projectile!');
             } else {
                 // Code projectiles (World 3 boss) do 1 damage and freeze
                 if (projectile.isCodeProjectile) {
@@ -4925,7 +4925,7 @@ function updateEnemy(delta) {
                     // Shield blocks hit
                     game.hasShieldProtection = false;
                     updateShieldDisplay();
-                    showNotification('🛡️ Shield blocked attack!');
+                    showNotification('🛡️ Anti Virus blocked attack!');
                 }
             }
 
@@ -5040,7 +5040,7 @@ function updateEnemy(delta) {
                     enemy.position.x -= pushDirection.x * 12;
                     enemy.position.z -= pushDirection.z * 12;
 
-                    showNotification('🛡️ Shield absorbed the hit! Find another shield for protection.');
+                    showNotification('🛡️ Anti Virus absorbed the hit! Find another Anti Virus for protection.');
                 } else {
                     // Take damage
                     game.playerHP -= 1;
@@ -5433,7 +5433,7 @@ function checkBossCollision() {
                 boss.position.x -= pushDirection.x * 20;
                 boss.position.z -= pushDirection.z * 20;
 
-                showNotification('🛡️ Shield absorbed the boss hit!');
+                showNotification('🛡️ Anti Virus absorbed the boss hit!');
             } else {
                 // Take 2 damage from boss
                 game.playerHP -= 2;
@@ -5539,7 +5539,7 @@ function createShockwave(x, z) {
                     game.hasShieldProtection = false;
                     game.inventory.equippedShield = false;
                     removeItemFromInventory('shield'); // Remove shield from inventory
-                    showNotification('🛡️ Shield absorbed shockwave!');
+                    showNotification('🛡️ Anti Virus absorbed shockwave!');
                 } else {
                     game.playerHP -= 3;
                     updateHPDisplay();
