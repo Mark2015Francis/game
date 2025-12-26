@@ -218,7 +218,7 @@ function init() {
     // Load grass texture
     var groundTexture = new THREE.TextureLoader().load('seamlessly-repeating-zeros.jpg');
 	groundTexture.wrapS = groundTexture.wrapT = THREE.repeatWrapping;
-	groundTexture.repeat.set(20, 20);
+	groundTexture.repeat.set(100, 100);
 	groundTexture.anisotropy = 4;
 	groundTexture.encoding = THREE.sRGBEncoding;
 	var groundMaterial = new THREE.MeshStandardMaterial( {map : groundTexture} );
@@ -6065,16 +6065,10 @@ function updateMovement(delta) {
     let moveZ = Number(game.controls.moveForward) - Number(game.controls.moveBackward);
     let moveX = Number(game.controls.moveRight) - Number(game.controls.moveLeft);
 
-    // Add joystick Y input for forward/backward (invert Y axis: negative = forward)
+    // Add joystick input for movement (invert Y axis: negative = forward)
     if (game.joystickActive) {
         moveZ += -game.joystickDeltaY;
-        // Note: joystick X is used for camera rotation, not strafing
-    }
-
-    // Apply joystick X input to camera rotation (turning left/right)
-    if (game.joystickActive && game.joystickDeltaX !== 0) {
-        const turnSpeed = 2.5; // Adjust sensitivity for mobile turning
-        game.rotation.y -= game.joystickDeltaX * turnSpeed * delta;
+        moveX += game.joystickDeltaX; // Joystick X controls strafing left/right
     }
 
     game.direction.z = moveZ;
@@ -6117,8 +6111,8 @@ function updateMovement(delta) {
                 game.camera.position.z += forward.z * game.direction.z * moveSpeed;
             }
 
-            // Left/right movement (keyboard only - joystick X now controls camera rotation)
-            if (game.controls.moveLeft || game.controls.moveRight) {
+            // Left/right strafing movement (keyboard or joystick)
+            if (game.controls.moveLeft || game.controls.moveRight || (game.joystickActive && game.joystickDeltaX !== 0)) {
                 const right = new THREE.Vector3(1, 0, 0);
                 right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
                 game.camera.position.x += right.x * game.direction.x * moveSpeed;
