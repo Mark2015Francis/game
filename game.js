@@ -3628,7 +3628,13 @@ function attackWithSword() {
         }, 16);
     }
 
-    // Check if hit any enemies (target crosshair - center of screen)
+    // Find all targets in range and angle, then hit the closest one
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(game.camera.quaternion);
+
+    const targetsInRange = [];
+
+    // Check enemies
     for (let i = 0; i < game.enemies.length; i++) {
         const enemy = game.enemies[i];
         const distance = game.camera.position.distanceTo(enemy.position);
@@ -3638,45 +3644,20 @@ function attackWithSword() {
             directionToEnemy.subVectors(enemy.position, game.camera.position);
             directionToEnemy.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToEnemy);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
-
-                // Deal damage based on player level
-                enemy.hp -= damage;
-
-                // Visual feedback - flash bright white for visibility (golden for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xffffff;
-                const originalColor = enemy.material.color.getHex();
-                enemy.material.color.setHex(flashColor);
-                enemy.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (enemy && enemy.material) {
-                        enemy.material.color.setHex(originalColor);
-                        enemy.material.emissive.setHex(0x330000);
-                    }
-                }, 150);
-
-                // Show damage feedback
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`⚔️ -${damage} DMG${critText}! Virus HP: ${Math.max(0, enemy.hp)}/5`);
-
-                if (enemy.hp <= 0) {
-                    defeatEnemy(enemy, i);
-                }
-
-                break; // Only hit one enemy per swing
+                targetsInRange.push({
+                    entity: enemy,
+                    distance: distance,
+                    index: i,
+                    isBoss: false
+                });
             }
         }
     }
 
-    // Check if hit boss (target crosshair - center of screen)
+    // Check boss
     if (game.boss) {
         const distance = game.camera.position.distanceTo(game.boss.position);
         if (distance < 20) { // Boss has larger hit range
@@ -3685,37 +3666,56 @@ function attackWithSword() {
             directionToBoss.subVectors(game.boss.position, game.camera.position);
             directionToBoss.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToBoss);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
+                targetsInRange.push({
+                    entity: game.boss,
+                    distance: distance,
+                    index: -1,
+                    isBoss: true
+                });
+            }
+        }
+    }
 
-                // Deal damage to boss
-                game.boss.hp -= damage;
+    // Sort by distance and hit the closest target
+    if (targetsInRange.length > 0) {
+        targetsInRange.sort((a, b) => a.distance - b.distance);
+        const closestTarget = targetsInRange[0];
+        const target = closestTarget.entity;
 
-                // Visual feedback (golden flash for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xffffff;
-                const originalColor = game.boss.material.color.getHex();
-                game.boss.material.color.setHex(flashColor);
-                game.boss.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (game.boss && game.boss.material) {
-                        game.boss.material.color.setHex(originalColor);
-                        game.boss.material.emissive.setHex(0x660000);
-                    }
-                }, 150);
+        // 5% chance for critical hit (double damage)
+        const isCritical = Math.random() < 0.05;
+        const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
 
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`⚔️ BOSS -${damage} DMG${critText}! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP}`);
+        // Deal damage
+        target.hp -= damage;
 
-                if (game.boss.hp <= 0) {
-                    defeatBoss();
-                }
+        // Visual feedback - flash bright white for visibility (golden for crit)
+        const flashColor = isCritical ? 0xffdd00 : 0xffffff;
+        const originalColor = target.material.color.getHex();
+        const originalEmissive = closestTarget.isBoss ? 0x660000 : 0x330000;
+        target.material.color.setHex(flashColor);
+        target.material.emissive.setHex(flashColor);
+        setTimeout(() => {
+            if (target && target.material) {
+                target.material.color.setHex(originalColor);
+                target.material.emissive.setHex(originalEmissive);
+            }
+        }, 150);
+
+        // Show damage feedback
+        const critText = isCritical ? ' CRITICAL!' : '';
+        if (closestTarget.isBoss) {
+            showNotification(`⚔️ BOSS -${damage} DMG${critText}! HP: ${Math.max(0, target.hp)}/${target.maxHP}`);
+            if (target.hp <= 0) {
+                defeatBoss();
+            }
+        } else {
+            showNotification(`⚔️ -${damage} DMG${critText}! Virus HP: ${Math.max(0, target.hp)}/5`);
+            if (target.hp <= 0) {
+                defeatEnemy(target, closestTarget.index);
             }
         }
     }
@@ -3819,7 +3819,13 @@ function attackWithAxe() {
         }, 16);
     }
 
-    // Check if hit any enemies (target crosshair - center of screen)
+    // Find all targets in range and angle, then hit the closest one
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(game.camera.quaternion);
+
+    const targetsInRange = [];
+
+    // Check enemies
     for (let i = 0; i < game.enemies.length; i++) {
         const enemy = game.enemies[i];
         const distance = game.camera.position.distanceTo(enemy.position);
@@ -3829,46 +3835,20 @@ function attackWithAxe() {
             directionToEnemy.subVectors(enemy.position, game.camera.position);
             directionToEnemy.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToEnemy);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const baseDamage = game.playerDamage * 3; // 3x sword damage!
-                const damage = isCritical ? baseDamage * 2 : baseDamage;
-
-                // Deal massive damage based on player level
-                enemy.hp -= damage;
-
-                // Visual feedback - flash bright orange for axe (golden for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xff8800;
-                const originalColor = enemy.material.color.getHex();
-                enemy.material.color.setHex(flashColor);
-                enemy.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (enemy && enemy.material) {
-                        enemy.material.color.setHex(originalColor);
-                        enemy.material.emissive.setHex(0x330000);
-                    }
-                }, 150);
-
-                // Show damage feedback with axe emoji
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`🪓 -${damage} DMG${critText}! Virus HP: ${Math.max(0, enemy.hp)}/5`);
-
-                if (enemy.hp <= 0) {
-                    defeatEnemy(enemy, i);
-                }
-
-                break; // Only hit one enemy per swing
+                targetsInRange.push({
+                    entity: enemy,
+                    distance: distance,
+                    index: i,
+                    isBoss: false
+                });
             }
         }
     }
 
-    // Check if hit boss (target crosshair - center of screen)
+    // Check boss
     if (game.boss) {
         const distance = game.camera.position.distanceTo(game.boss.position);
         if (distance < 18) { // Boss has large hit range but shorter than sword
@@ -3877,38 +3857,57 @@ function attackWithAxe() {
             directionToBoss.subVectors(game.boss.position, game.camera.position);
             directionToBoss.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToBoss);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const baseDamage = game.playerDamage * 3; // 3x sword damage!
-                const damage = isCritical ? baseDamage * 2 : baseDamage;
+                targetsInRange.push({
+                    entity: game.boss,
+                    distance: distance,
+                    index: -1,
+                    isBoss: true
+                });
+            }
+        }
+    }
 
-                // Deal massive damage to boss
-                game.boss.hp -= damage;
+    // Sort by distance and hit the closest target
+    if (targetsInRange.length > 0) {
+        targetsInRange.sort((a, b) => a.distance - b.distance);
+        const closestTarget = targetsInRange[0];
+        const target = closestTarget.entity;
 
-                // Visual feedback (golden flash for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xff8800;
-                const originalColor = game.boss.material.color.getHex();
-                game.boss.material.color.setHex(flashColor);
-                game.boss.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (game.boss && game.boss.material) {
-                        game.boss.material.color.setHex(originalColor);
-                        game.boss.material.emissive.setHex(0x660000);
-                    }
-                }, 150);
+        // 5% chance for critical hit (double damage)
+        const isCritical = Math.random() < 0.05;
+        const baseDamage = game.playerDamage * 3; // 3x sword damage!
+        const damage = isCritical ? baseDamage * 2 : baseDamage;
 
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`🪓 BOSS -${damage} DMG${critText}! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP}`);
+        // Deal damage
+        target.hp -= damage;
 
-                if (game.boss.hp <= 0) {
-                    defeatBoss();
-                }
+        // Visual feedback - flash bright orange for axe (golden for crit)
+        const flashColor = isCritical ? 0xffdd00 : 0xff8800;
+        const originalColor = target.material.color.getHex();
+        const originalEmissive = closestTarget.isBoss ? 0x660000 : 0x330000;
+        target.material.color.setHex(flashColor);
+        target.material.emissive.setHex(flashColor);
+        setTimeout(() => {
+            if (target && target.material) {
+                target.material.color.setHex(originalColor);
+                target.material.emissive.setHex(originalEmissive);
+            }
+        }, 150);
+
+        // Show damage feedback with axe emoji
+        const critText = isCritical ? ' CRITICAL!' : '';
+        if (closestTarget.isBoss) {
+            showNotification(`🪓 BOSS -${damage} DMG${critText}! HP: ${Math.max(0, target.hp)}/${target.maxHP}`);
+            if (target.hp <= 0) {
+                defeatBoss();
+            }
+        } else {
+            showNotification(`🪓 -${damage} DMG${critText}! Virus HP: ${Math.max(0, target.hp)}/5`);
+            if (target.hp <= 0) {
+                defeatEnemy(target, closestTarget.index);
             }
         }
     }
@@ -6529,130 +6528,126 @@ function updateProjectiles(delta) {
         arrow.position.y += arrow.velocity.y * delta;
         arrow.position.z += arrow.velocity.z * delta;
 
-        // Check collision with enemies
+        // Find all targets in range, then hit the closest one
         let hitEnemy = false;
+        const targetsInRange = [];
+
+        // Check collision with enemies
         for (let j = 0; j < game.enemies.length; j++) {
             const enemy = game.enemies[j];
             const distance = arrow.position.distanceTo(enemy.position);
 
             if (distance < 1.5) {
-                // Determine damage based on projectile type
-                let damage = game.bowDamage; // Arrows use bow damage
-                let emoji = '🔫';
-
-                if (arrow.isFireball) {
-                    damage = 3; // Fireballs deal 3 damage
-                    emoji = '🔥';
-                } else if (arrow.isFreezeball) {
-                    damage = 2; // Freezeballs deal 2 damage
-                    emoji = '❄️';
-                    // Freeze effect: freeze enemy
-                    enemy.isFrozen = true;
-                    // Store original color if not already stored
-                    if (!enemy.frozenOriginalColor) {
-                        enemy.frozenOriginalColor = enemy.material.color.getHex();
-                    }
-                    // Turn enemy blue
-                    enemy.material.color.setHex(0x0088ff);
-                    enemy.material.emissive.setHex(0x0044aa);
-
-                    setTimeout(() => {
-                        if (enemy) {
-                            enemy.isFrozen = false;
-                            // Restore original color
-                            if (enemy.frozenOriginalColor !== undefined) {
-                                enemy.material.color.setHex(enemy.frozenOriginalColor);
-                                enemy.material.emissive.setHex(0x330000);
-                                enemy.frozenOriginalColor = undefined;
-                            }
-                        }
-                    }, 3000); // Frozen for 3 seconds
-                }
-
-                // Hit enemy
-                enemy.hp -= damage;
-
-                // Visual feedback
-                const originalColor = enemy.material.color.getHex();
-                enemy.material.color.setHex(0xffffff);
-                enemy.material.emissive.setHex(0xffffff);
-                setTimeout(() => {
-                    if (enemy && enemy.material) {
-                        enemy.material.color.setHex(originalColor);
-                        enemy.material.emissive.setHex(0x330000);
-                    }
-                }, 150);
-
-                showNotification(`${emoji} Hit! Virus HP: ${Math.max(0, enemy.hp)}/${enemy.maxHP || 5}`);
-
-                if (enemy.hp <= 0) {
-                    defeatEnemy(enemy, j);
-                }
-
-                hitEnemy = true;
-                break;
+                targetsInRange.push({
+                    entity: enemy,
+                    distance: distance,
+                    index: j,
+                    isBoss: false,
+                    hitboxRadius: 1.5
+                });
             }
         }
 
         // Check collision with boss
-        if (!hitEnemy && game.boss) {
+        if (game.boss) {
             const distance = arrow.position.distanceTo(game.boss.position);
             if (distance < 4) { // Boss has larger hitbox
-                // Determine damage based on projectile type
-                let damage = game.bowDamage; // Arrows use bow damage
-                let emoji = '🔫';
+                targetsInRange.push({
+                    entity: game.boss,
+                    distance: distance,
+                    index: -1,
+                    isBoss: true,
+                    hitboxRadius: 4
+                });
+            }
+        }
 
-                if (arrow.isFireball) {
-                    damage = 5; // Fireballs deal 5 damage to boss
-                    emoji = '🔥';
-                } else if (arrow.isFreezeball) {
-                    damage = 3; // Freezeballs deal 3 damage to boss
-                    emoji = '❄️';
-                    // Freeze effect on boss: slow movement and turn bluish
-                    game.boss.isFrozen = true;
-                    // Store original color if not already stored
-                    if (!game.boss.frozenOriginalColor) {
-                        game.boss.frozenOriginalColor = game.boss.material.color.getHex();
-                    }
+        // Sort by distance and hit the closest target
+        if (targetsInRange.length > 0) {
+            targetsInRange.sort((a, b) => a.distance - b.distance);
+            const closestTarget = targetsInRange[0];
+            const target = closestTarget.entity;
+
+            // Determine damage based on projectile type
+            let damage = game.bowDamage; // Arrows use bow damage
+            let emoji = '🔫';
+
+            if (arrow.isFireball) {
+                damage = closestTarget.isBoss ? 5 : 3; // Fireballs deal 5 to boss, 3 to enemies
+                emoji = '🔥';
+            } else if (arrow.isFreezeball) {
+                damage = closestTarget.isBoss ? 3 : 2; // Freezeballs deal 3 to boss, 2 to enemies
+                emoji = '❄️';
+                // Freeze effect
+                target.isFrozen = true;
+                // Store original color if not already stored
+                if (!target.frozenOriginalColor) {
+                    target.frozenOriginalColor = target.material.color.getHex();
+                }
+
+                if (closestTarget.isBoss) {
                     // Turn boss bluish (mix of original red and blue)
-                    game.boss.material.color.setHex(0x6600aa); // Purple-blue
-                    game.boss.material.emissive.setHex(0x3300aa);
+                    target.material.color.setHex(0x6600aa); // Purple-blue
+                    target.material.emissive.setHex(0x3300aa);
 
                     setTimeout(() => {
-                        if (game.boss) {
-                            game.boss.isFrozen = false;
+                        if (target) {
+                            target.isFrozen = false;
                             // Restore original color
-                            if (game.boss.frozenOriginalColor !== undefined) {
-                                game.boss.material.color.setHex(game.boss.frozenOriginalColor);
-                                game.boss.material.emissive.setHex(0x660000);
-                                game.boss.frozenOriginalColor = undefined;
+                            if (target.frozenOriginalColor !== undefined) {
+                                target.material.color.setHex(target.frozenOriginalColor);
+                                target.material.emissive.setHex(0x660000);
+                                target.frozenOriginalColor = undefined;
                             }
                         }
                     }, 5000); // Frozen for 5 seconds
+                } else {
+                    // Turn enemy blue
+                    target.material.color.setHex(0x0088ff);
+                    target.material.emissive.setHex(0x0044aa);
+
+                    setTimeout(() => {
+                        if (target) {
+                            target.isFrozen = false;
+                            // Restore original color
+                            if (target.frozenOriginalColor !== undefined) {
+                                target.material.color.setHex(target.frozenOriginalColor);
+                                target.material.emissive.setHex(0x330000);
+                                target.frozenOriginalColor = undefined;
+                            }
+                        }
+                    }, 3000); // Frozen for 3 seconds
                 }
+            }
 
-                // Hit boss
-                game.boss.hp -= damage;
+            // Hit target
+            target.hp -= damage;
 
-                // Visual feedback
-                const originalColor = game.boss.material.color.getHex();
-                game.boss.material.color.setHex(0xffffff);
-                game.boss.material.emissive.setHex(0xffffff);
-                setTimeout(() => {
-                    if (game.boss && game.boss.material) {
-                        game.boss.material.color.setHex(originalColor);
-                        game.boss.material.emissive.setHex(0x660000);
-                    }
-                }, 150);
+            // Visual feedback
+            const originalColor = target.material.color.getHex();
+            const originalEmissive = closestTarget.isBoss ? 0x660000 : 0x330000;
+            target.material.color.setHex(0xffffff);
+            target.material.emissive.setHex(0xffffff);
+            setTimeout(() => {
+                if (target && target.material) {
+                    target.material.color.setHex(originalColor);
+                    target.material.emissive.setHex(originalEmissive);
+                }
+            }, 150);
 
-                showNotification(`${emoji} BOSS Hit! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP || 100}`);
-
-                if (game.boss.hp <= 0) {
+            if (closestTarget.isBoss) {
+                showNotification(`${emoji} BOSS Hit! HP: ${Math.max(0, target.hp)}/${target.maxHP || 100}`);
+                if (target.hp <= 0) {
                     defeatBoss();
                 }
-
-                hitEnemy = true; // Use same flag to remove projectile
+            } else {
+                showNotification(`${emoji} Hit! Virus HP: ${Math.max(0, target.hp)}/${target.maxHP || 5}`);
+                if (target.hp <= 0) {
+                    defeatEnemy(target, closestTarget.index);
+                }
             }
+
+            hitEnemy = true;
         }
 
         // Remove arrow if it hit, hit the ground, or traveled too far
