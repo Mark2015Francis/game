@@ -217,7 +217,7 @@ function init() {
 
     // Load grass texture
     const textureLoader = new THREE.TextureLoader();
-    const grassTexture = textureLoader.load('seamless-green-grass-pattern.avif',
+    const grassTexture = textureLoader.load('seamless-green-grass-pattern.jpg',
         // onLoad callback
         function(texture) {
             console.log('✓ Grass texture loaded successfully');
