@@ -2610,6 +2610,8 @@ function toggleEquipItem(item) {
             if (manaDisplay) {
                 manaDisplay.style.display = 'none';
             }
+            // Hide spell UI
+            updateSpellUI();
             // Re-equip sword
             game.inventory.equippedSword = true;
             equipSword();
