@@ -215,64 +215,18 @@ function init() {
     directionalLight.shadow.camera.bottom = -100;
     game.scene.add(directionalLight);
 
-    // Create ground - WAY BIGGER with grass texture
-    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-
-    // Create material with solid color first (prevents black floor if texture fails)
-    const groundMaterial = new THREE.MeshLambertMaterial({
-        color: 0x3d8c40 // Green grass color
-    });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    game.scene.add(ground);
-
-    // Try to load grass texture (try multiple formats)
-    const textureLoader = new THREE.TextureLoader();
-    const textureFormats = [
-        'seamless-green-grass-pattern.jpg',
-        'seamless-green-grass-pattern.png',
-        'seamless-green-grass-pattern.avif'
-    ];
-
-    let textureLoaded = false;
-    let currentFormatIndex = 0;
-
-    function tryLoadTexture() {
-        if (currentFormatIndex >= textureFormats.length || textureLoaded) return;
-
-        const texturePath = textureFormats[currentFormatIndex];
-        console.log(`Attempting to load texture: ${texturePath}`);
-
-        textureLoader.load(
-            texturePath,
-            // onLoad - texture loaded successfully
-            function(texture) {
-                textureLoaded = true;
-                console.log(`✓ Grass texture loaded successfully: ${texturePath}`);
-
-                // Set texture to repeat for seamless tiling
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.wrapT = THREE.RepeatWrapping;
-                texture.repeat.set(50, 50); // Repeat 50x50 times
-
-                // Apply texture to existing material
-                groundMaterial.map = texture;
-                groundMaterial.needsUpdate = true;
-            },
-            // onProgress
-            undefined,
-            // onError - texture failed to load, try next format
-            function(error) {
-                console.log(`⚠ Failed to load ${texturePath}, trying next format...`);
-                currentFormatIndex++;
-                tryLoadTexture(); // Try next format
-            }
-        );
-    }
-
-    // Start loading texture
-    tryLoadTexture();
+    // Load grass texture
+    var groundTexture = new THREE.TextureLoader().load('seamlessly-repeating-zeros.jpg');
+	groundTexture.wrapS = groundTexture.wrapT = THREE.repeatWrapping;
+	groundTexture.repeat.set(10000, 10000);
+	groundTexture.anisotropy = 4;
+	groundTexture.encoding = THREE.sRGBEncoding;
+	var groundMaterial = new THREE.MeshStandardMaterial( {map : groundTexture} );
+	var ground = new THREE.Mesh( new THREE.PlaneBufferGeometry(10000,10000),  groundMaterial);
+	ground.position.y =0.0;
+	ground.rotation.x = - Math.PI /2;
+	ground.receiveShadow = true;
+	game.scene.add(ground);
 
     // Add sun and clouds to World 1 sky
     createSun();
