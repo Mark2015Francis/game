@@ -53,6 +53,7 @@ const game = {
     bow: null,
     bowCollected: false,
     equippedBow: false,
+    bowDamage: 1,
     axe: null,
     axeCollected: false,
     equippedAxe: false,
@@ -3653,9 +3654,20 @@ function updateShopItems() {
         <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('damage')">
             <span style="font-size: 30px;">⚔️</span>
             <span style="margin-left: 20px; font-size: 18px;">Damage Upgrade (+1 DMG)</span>
-            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 10 Coins</span>
+            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Coins</span>
         </div>
     `;
+
+    // Bow upgrade (only if player has bow)
+    if (game.bowCollected) {
+        shopItems.innerHTML += `
+            <div class="shop-item" style="background: rgba(34, 139, 34, 0.2); border: 2px solid #228b22; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bowdamage')">
+                <span style="font-size: 30px;">🏹</span>
+                <span style="margin-left: 20px; font-size: 18px;">Bow Damage Upgrade (+1 Bow DMG)</span>
+                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 50 Coins</span>
+            </div>
+        `;
+    }
 
     // Magic items (only if spell book collected)
     if (game.spellBookCollected) {
@@ -3700,14 +3712,23 @@ function buyItem(itemType) {
             showNotification('❌ Not enough coins! Need 5 coins');
         }
     } else if (itemType === 'damage') {
-        if (game.coins >= 10) {
-            game.coins -= 10;
+        if (game.coins >= 20) {
+            game.coins -= 20;
             game.playerDamage += 1;
             updateCoinsDisplay();
             updateEXPDisplay(); // Updates damage display
             showNotification('⚔️ Bought damage upgrade! +1 DMG');
         } else {
-            showNotification('❌ Not enough coins! Need 10 coins');
+            showNotification('❌ Not enough coins! Need 20 coins');
+        }
+    } else if (itemType === 'bowdamage') {
+        if (game.coins >= 50) {
+            game.coins -= 50;
+            game.bowDamage += 1;
+            updateCoinsDisplay();
+            showNotification(`🏹 Bought bow damage upgrade! Bow DMG: ${game.bowDamage}`);
+        } else {
+            showNotification('❌ Not enough coins! Need 50 coins');
         }
     } else if (itemType === 'fireball') {
         if (game.hasFireball) {
@@ -6054,7 +6075,7 @@ function updateProjectiles(delta) {
 
             if (distance < 1.5) {
                 // Determine damage based on projectile type
-                let damage = 1; // Arrows deal 1 damage
+                let damage = game.bowDamage; // Arrows use bow damage
                 let emoji = '🏹';
 
                 if (arrow.isFireball) {
@@ -6116,7 +6137,7 @@ function updateProjectiles(delta) {
             const distance = arrow.position.distanceTo(game.boss.position);
             if (distance < 4) { // Boss has larger hitbox
                 // Determine damage based on projectile type
-                let damage = 1; // Arrows deal 1 damage
+                let damage = game.bowDamage; // Arrows use bow damage
                 let emoji = '🏹';
 
                 if (arrow.isFireball) {
