@@ -862,12 +862,16 @@ function createWarriorEnemy(x, z) {
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     enemy.add(glow);
 
-    // Add 6 legs arranged around the body
+    // Add 6 legs - 3 on each side (left and right)
     enemy.legs = [];
     for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
+        const side = i < 3 ? -1 : 1; // -1 for left, 1 for right
+        const legOffset = (i % 3); // 0, 1, 2 for front, middle, back
 
-        // Leg segment 1 (upper)
+        // Position along Z axis (front to back)
+        const zPosition = (legOffset - 1) * 0.8; // -0.8, 0, 0.8
+
+        // Leg segment 1 (upper) - angled outward from body
         const leg1Geometry = new THREE.CylinderGeometry(0.08, 0.08, 0.8, 6);
         const legMaterial = new THREE.MeshLambertMaterial({
             color: 0x2a0a2e,
@@ -875,33 +879,45 @@ function createWarriorEnemy(x, z) {
         });
         const leg1 = new THREE.Mesh(leg1Geometry, legMaterial);
         leg1.position.set(
-            Math.cos(angle) * 1.0,
-            -0.3,
-            Math.sin(angle) * 1.0
+            side * 1.0,
+            0.1,
+            zPosition
         );
-        leg1.rotation.z = Math.cos(angle) * 0.5;
-        leg1.rotation.x = Math.sin(angle) * 0.5;
+        leg1.rotation.z = side * 0.6; // Angle outward
         leg1.castShadow = true;
 
-        // Leg segment 2 (lower)
+        // Leg segment 2 (lower) - extends down and out
         const leg2Geometry = new THREE.CylinderGeometry(0.06, 0.06, 0.6, 6);
         const leg2 = new THREE.Mesh(leg2Geometry, legMaterial);
         leg2.position.set(
-            Math.cos(angle) * 1.4,
-            -0.9,
-            Math.sin(angle) * 1.4
+            side * 1.5,
+            -0.4,
+            zPosition
         );
-        leg2.rotation.z = -Math.cos(angle) * 0.8;
-        leg2.rotation.x = -Math.sin(angle) * 0.8;
+        leg2.rotation.z = -side * 0.8; // Angle down
         leg2.castShadow = true;
+
+        // Leg segment 3 (foot) - small bottom piece touching ground
+        const leg3Geometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 6);
+        const leg3 = new THREE.Mesh(leg3Geometry, legMaterial);
+        leg3.position.set(
+            side * 1.7,
+            -0.85,
+            zPosition
+        );
+        leg3.rotation.z = side * 0.3; // Slight angle for stability
+        leg3.castShadow = true;
 
         // Store leg data
         const legGroup = new THREE.Group();
         legGroup.add(leg1);
         legGroup.add(leg2);
+        legGroup.add(leg3);
         legGroup.userData.isLeg = true;
         legGroup.userData.legIndex = i;
-        legGroup.userData.baseAngle = angle;
+        legGroup.userData.side = side;
+        legGroup.userData.legOffset = legOffset;
+        legGroup.userData.zPosition = zPosition;
         enemy.add(legGroup);
         enemy.legs.push(legGroup);
     }
@@ -4002,7 +4018,8 @@ function updateEnemy(delta) {
                 // Animate legs - walking or retracted
                 if (child.userData && child.userData.isLeg) {
                     const legIndex = child.userData.legIndex;
-                    const baseAngle = child.userData.baseAngle;
+                    const side = child.userData.side;
+                    const zPosition = child.userData.zPosition;
 
                     if (enemy.isDashing) {
                         // Retract legs during dash - pull them inward and upward
@@ -4010,38 +4027,52 @@ function updateEnemy(delta) {
                             const retractScale = 0.3; // Scale down to 30%
                             if (segIndex === 0) { // Upper leg
                                 segment.position.set(
-                                    Math.cos(baseAngle) * 0.3,
-                                    0.2,
-                                    Math.sin(baseAngle) * 0.3
+                                    side * 0.4,
+                                    0.3,
+                                    zPosition
                                 );
                                 segment.scale.y = retractScale;
-                            } else { // Lower leg
+                            } else if (segIndex === 1) { // Middle leg
                                 segment.position.set(
-                                    Math.cos(baseAngle) * 0.4,
+                                    side * 0.5,
+                                    0.2,
+                                    zPosition
+                                );
+                                segment.scale.y = retractScale;
+                            } else { // Foot
+                                segment.position.set(
+                                    side * 0.6,
                                     0.1,
-                                    Math.sin(baseAngle) * 0.4
+                                    zPosition
                                 );
                                 segment.scale.y = retractScale;
                             }
                         });
                     } else {
-                        // Normal walking animation
+                        // Normal walking animation - legs move up and down
                         const walkCycle = Date.now() * 0.005 + legIndex * Math.PI / 3;
-                        const walkOffset = Math.sin(walkCycle) * 0.2;
+                        const walkOffset = Math.sin(walkCycle) * 0.15;
 
                         child.children.forEach((segment, segIndex) => {
                             if (segIndex === 0) { // Upper leg
                                 segment.position.set(
-                                    Math.cos(baseAngle) * 1.0,
-                                    -0.3 + walkOffset,
-                                    Math.sin(baseAngle) * 1.0
+                                    side * 1.0,
+                                    0.1 + walkOffset,
+                                    zPosition
                                 );
                                 segment.scale.y = 1;
-                            } else { // Lower leg
+                            } else if (segIndex === 1) { // Middle leg
                                 segment.position.set(
-                                    Math.cos(baseAngle) * 1.4,
-                                    -0.9 + walkOffset * 0.5,
-                                    Math.sin(baseAngle) * 1.4
+                                    side * 1.5,
+                                    -0.4 + walkOffset * 0.7,
+                                    zPosition
+                                );
+                                segment.scale.y = 1;
+                            } else { // Foot
+                                segment.position.set(
+                                    side * 1.7,
+                                    -0.85 + walkOffset * 0.5,
+                                    zPosition
                                 );
                                 segment.scale.y = 1;
                             }
@@ -4072,8 +4103,19 @@ function updateEnemy(delta) {
             if (distanceToPlayer < 2) {
                 // Damage player
                 if (!game.hasShieldProtection) {
-                    game.playerHP -= 2; // Warriors do more damage
+                    game.playerHP -= 5; // Warriors do heavy damage
                     updateHPDisplay();
+
+                    // Knockback player 2 units away from warrior
+                    const knockbackDirection = new THREE.Vector3();
+                    knockbackDirection.subVectors(game.camera.position, enemy.position);
+                    knockbackDirection.y = 0;
+                    knockbackDirection.normalize();
+                    knockbackDirection.multiplyScalar(2);
+
+                    game.camera.position.x += knockbackDirection.x;
+                    game.camera.position.z += knockbackDirection.z;
+
                     if (game.playerHP <= 0) {
                         gameOver();
                     }
