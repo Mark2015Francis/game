@@ -1297,10 +1297,10 @@ function createWorld2Boss(x, z) {
     console.log('World 2 BOSS SPAWNED at', x, z);
 }
 
-// Create World 3 boss enemy - code master virus
+// Create World 3 boss enemy - Dark Code Lord
 function createWorld3Boss(x, z) {
     const boss = new THREE.Group();
-    boss.position.set(x, 4, z);
+    boss.position.set(x, 5, z);
     boss.castShadow = true;
     boss.hp = 120; // World 3 boss has 120 HP
     boss.maxHP = 120;
@@ -1310,62 +1310,159 @@ function createWorld3Boss(x, z) {
     boss.windBlastTimer = 8; // Wind blast every 8 seconds
     boss.isStunned = false;
     boss.stunDuration = 0;
-    boss.jumpStartY = 4;
+    boss.jumpStartY = 5;
 
-    // Main core - large dark red icosahedron
-    const coreGeometry = new THREE.IcosahedronGeometry(2.5, 1);
-    const coreMaterial = new THREE.MeshLambertMaterial({
-        color: 0x880000, // Dark red
-        emissive: 0xff0000,
+    // Dark Lord Head - large menacing sphere
+    const headGeometry = new THREE.SphereGeometry(2.5, 32, 32);
+    const headMaterial = new THREE.MeshLambertMaterial({
+        color: 0x0a0a0a, // Very dark, almost black
+        emissive: 0x330000, // Dark red glow
         emissiveIntensity: 0.8
     });
-    const core = new THREE.Mesh(coreGeometry, coreMaterial);
-    core.castShadow = true;
-    boss.add(core);
-    boss.material = coreMaterial;
+    const head = new THREE.Mesh(headGeometry, headMaterial);
+    head.position.y = 3;
+    head.castShadow = true;
+    boss.add(head);
+    boss.material = headMaterial;
 
-    // Add dark wireframe overlay
-    const wireGeometry = new THREE.IcosahedronGeometry(2.6, 1);
-    const wireMaterial = new THREE.MeshBasicMaterial({
+    // Glowing red eyes - menacing stare
+    const eyeGeometry = new THREE.SphereGeometry(0.4, 16, 16);
+    const eyeMaterial = new THREE.MeshBasicMaterial({
         color: 0xff0000,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.8
+        emissive: 0xff0000,
+        emissiveIntensity: 2
     });
-    const wire = new THREE.Mesh(wireGeometry, wireMaterial);
-    boss.add(wire);
+    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    leftEye.position.set(-0.8, 3.5, 2);
+    boss.add(leftEye);
+    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+    rightEye.position.set(0.8, 3.5, 2);
+    boss.add(rightEye);
 
-    // Add 8 code fragments orbiting around
+    // Dark Crown with spikes
+    const crownBase = new THREE.CylinderGeometry(2.8, 3, 0.6, 8);
+    const crownMaterial = new THREE.MeshLambertMaterial({
+        color: 0x1a0000,
+        emissive: 0x660000,
+        emissiveIntensity: 0.5
+    });
+    const crown = new THREE.Mesh(crownBase, crownMaterial);
+    crown.position.y = 5.5;
+    boss.add(crown);
+
+    // Crown spikes - 8 sharp points
     for (let i = 0; i < 8; i++) {
+        const spikeGeometry = new THREE.ConeGeometry(0.3, 1.5, 4);
+        const spike = new THREE.Mesh(spikeGeometry, crownMaterial);
         const angle = (i / 8) * Math.PI * 2;
-        const codeGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-        const codeMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff4400,
-            emissive: 0xff4400,
-            emissiveIntensity: 1
-        });
-        const codeFragment = new THREE.Mesh(codeGeometry, codeMaterial);
-        codeFragment.position.set(Math.cos(angle) * 4, Math.sin(angle * 2) * 1, Math.sin(angle) * 4);
-        codeFragment.userData.orbitAngle = angle;
-        codeFragment.userData.isCodeFragment = true;
-        boss.add(codeFragment);
+        spike.position.set(
+            Math.cos(angle) * 2.5,
+            6.2,
+            Math.sin(angle) * 2.5
+        );
+        spike.rotation.x = Math.PI;
+        boss.add(spike);
     }
 
-    // Add glowing red aura
-    const glowGeometry = new THREE.SphereGeometry(3.5, 24, 24);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
+    // Dark Lord Body - imposing torso
+    const bodyGeometry = new THREE.CylinderGeometry(2, 2.5, 4, 8);
+    const bodyMaterial = new THREE.MeshLambertMaterial({
+        color: 0x0f0000,
+        emissive: 0x440000,
+        emissiveIntensity: 0.6
+    });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 0;
+    body.castShadow = true;
+    boss.add(body);
+
+    // Dark armor plating on body
+    for (let i = 0; i < 6; i++) {
+        const plateGeometry = new THREE.BoxGeometry(1.5, 0.8, 0.3);
+        const plateMaterial = new THREE.MeshLambertMaterial({
+            color: 0x1a0000,
+            emissive: 0x660000
+        });
+        const plate = new THREE.Mesh(plateGeometry, plateMaterial);
+        const angle = (i / 6) * Math.PI * 2;
+        plate.position.set(
+            Math.cos(angle) * 2.3,
+            0.5 - i * 0.6,
+            Math.sin(angle) * 2.3
+        );
+        plate.lookAt(0, 0.5 - i * 0.6, 0);
+        boss.add(plate);
+    }
+
+    // Flowing dark cape/energy tendrils - 4 tendrils
+    for (let i = 0; i < 4; i++) {
+        const tendrilGeometry = new THREE.CylinderGeometry(0.3, 0.1, 4, 8);
+        const tendrilMaterial = new THREE.MeshBasicMaterial({
+            color: 0x0a0000,
+            transparent: true,
+            opacity: 0.7
+        });
+        const tendril = new THREE.Mesh(tendrilGeometry, tendrilMaterial);
+        const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
+        tendril.position.set(
+            Math.cos(angle) * 1.5,
+            -2,
+            Math.sin(angle) * 1.5
+        );
+        tendril.rotation.z = Math.cos(angle) * 0.3;
+        tendril.rotation.x = Math.sin(angle) * 0.3;
+        tendril.userData.isTendril = true;
+        tendril.userData.baseAngle = angle;
+        boss.add(tendril);
+    }
+
+    // Floating dark orbs - sources of dark power (8 orbs)
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const orbGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+        const orbMaterial = new THREE.MeshBasicMaterial({
+            color: 0x440000,
+            emissive: 0xff0000,
+            emissiveIntensity: 1,
+            transparent: true,
+            opacity: 0.8
+        });
+        const orb = new THREE.Mesh(orbGeometry, orbMaterial);
+        orb.position.set(Math.cos(angle) * 5, 2, Math.sin(angle) * 5);
+        orb.userData.orbitAngle = angle;
+        orb.userData.isDarkOrb = true;
+        boss.add(orb);
+    }
+
+    // Menacing red/black wireframe aura
+    const auraGeometry = new THREE.IcosahedronGeometry(6, 1);
+    const auraMaterial = new THREE.MeshBasicMaterial({
+        color: 0x330000,
+        wireframe: true,
         transparent: true,
-        opacity: 0.15
+        opacity: 0.3
+    });
+    const aura = new THREE.Mesh(auraGeometry, auraMaterial);
+    aura.position.y = 2;
+    aura.userData.isAura = true;
+    boss.add(aura);
+
+    // Dark pulsating glow
+    const glowGeometry = new THREE.SphereGeometry(5, 24, 24);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x220000,
+        transparent: true,
+        opacity: 0.1
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.y = 2;
     boss.add(glow);
 
     game.scene.add(boss);
     game.boss = boss;
     game.bossSpawned = true;
 
-    showNotification('⚠️ CODE MASTER BOSS APPEARED! 120 HP - Beware the code storm!');
+    showNotification('⚠️ DARK CODE LORD APPEARED! 120 HP - The supreme ruler of corruption!');
     console.log('World 3 BOSS SPAWNED at', x, z);
 }
 
@@ -4402,17 +4499,34 @@ function updateWorld3Boss(delta) {
 
 // Animate World 3 boss visuals
 function animateWorld3Boss(boss, delta) {
+    const time = Date.now() * 0.001;
+
     boss.children.forEach(child => {
-        // Rotate code fragments around boss
-        if (child.userData && child.userData.isCodeFragment) {
-            child.userData.orbitAngle += delta * 3;
-            const radius = 4;
-            const height = Math.sin(child.userData.orbitAngle * 2) * 1;
+        // Animate dark orbs orbiting the Dark Lord
+        if (child.userData && child.userData.isDarkOrb) {
+            child.userData.orbitAngle += delta * 1.5;
+            const radius = 5;
+            const height = Math.sin(child.userData.orbitAngle * 3) * 1.5;
             child.position.x = Math.cos(child.userData.orbitAngle) * radius;
-            child.position.y = height;
+            child.position.y = 2 + height;
             child.position.z = Math.sin(child.userData.orbitAngle) * radius;
-            child.rotation.x += delta * 4;
-            child.rotation.y += delta * 3;
+
+            // Pulsing glow effect
+            const pulse = 0.5 + Math.sin(time * 3 + child.userData.orbitAngle) * 0.3;
+            child.material.opacity = pulse;
+        }
+
+        // Animate flowing tendrils (cape effect)
+        if (child.userData && child.userData.isTendril) {
+            const sway = Math.sin(time * 2 + child.userData.baseAngle) * 0.2;
+            child.rotation.z = Math.cos(child.userData.baseAngle) * 0.3 + sway;
+            child.rotation.x = Math.sin(child.userData.baseAngle) * 0.3 + sway * 0.5;
+        }
+
+        // Rotate the dark aura
+        if (child.userData && child.userData.isAura) {
+            child.rotation.y += delta * 0.5;
+            child.rotation.x += delta * 0.3;
         }
     });
 }
