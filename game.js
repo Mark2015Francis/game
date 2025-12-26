@@ -1662,7 +1662,7 @@ function createShieldPickup(x, z) {
         emissiveIntensity: 0.5
     });
     const shieldBody = new THREE.Mesh(shieldGeometry, shieldMaterial);
-    shieldBody.rotation.x = Math.PI / 2;
+    shieldBody.rotation.y = Math.PI / 2; // Face sideways
     shieldBody.castShadow = true;
 
     // Checkmark symbol in center (virus protection symbol)
@@ -1687,7 +1687,8 @@ function createShieldPickup(x, z) {
 
     checkGroup.add(check1);
     checkGroup.add(check2);
-    checkGroup.position.z = 0.2;
+    checkGroup.rotation.y = Math.PI / 2; // Face sideways
+    checkGroup.position.x = -0.2; // Adjust position for sideways orientation
 
     // Outer tech ring
     const ringGeometry = new THREE.TorusGeometry(1.5, 0.08, 8, 6);
@@ -1698,7 +1699,7 @@ function createShieldPickup(x, z) {
         wireframe: true
     });
     const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-    ring.rotation.x = Math.PI / 2;
+    ring.rotation.y = Math.PI / 2; // Face sideways
 
     // Inner circular core
     const coreGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16);
@@ -1708,7 +1709,7 @@ function createShieldPickup(x, z) {
         emissiveIntensity: 1
     });
     const core = new THREE.Mesh(coreGeometry, coreMaterial);
-    core.rotation.x = Math.PI / 2;
+    core.rotation.z = Math.PI / 2; // Face sideways
 
     shield.add(shieldBody);
     shield.add(checkGroup);
