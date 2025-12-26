@@ -1639,39 +1639,105 @@ function createShieldPickup(x, z) {
     // Create shield group
     const shield = new THREE.Group();
 
-    // Shield body - circular
-    const shieldGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
+    // Main shield body - hexagonal antivirus shield shape
+    const shieldShape = new THREE.Shape();
+    const radius = 1.2;
+    for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const px = Math.cos(angle) * radius;
+        const py = Math.sin(angle) * radius;
+        if (i === 0) {
+            shieldShape.moveTo(px, py);
+        } else {
+            shieldShape.lineTo(px, py);
+        }
+    }
+    shieldShape.lineTo(Math.cos(0) * radius, Math.sin(0) * radius);
+
+    const extrudeSettings = { depth: 0.3, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05 };
+    const shieldGeometry = new THREE.ExtrudeGeometry(shieldShape, extrudeSettings);
     const shieldMaterial = new THREE.MeshLambertMaterial({
-        color: 0x4169e1,
-        emissive: 0x0000ff
+        color: 0x00ff88, // Bright cyan-green (antivirus color)
+        emissive: 0x00aa55,
+        emissiveIntensity: 0.5
     });
     const shieldBody = new THREE.Mesh(shieldGeometry, shieldMaterial);
     shieldBody.rotation.x = Math.PI / 2;
     shieldBody.castShadow = true;
 
-    // Shield boss (center)
-    const bossGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const bossMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
-    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
-    boss.castShadow = true;
+    // Checkmark symbol in center (virus protection symbol)
+    const checkGroup = new THREE.Group();
+
+    // First part of checkmark
+    const check1Geometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const check1Material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 1
+    });
+    const check1 = new THREE.Mesh(check1Geometry, check1Material);
+    check1.rotation.z = -Math.PI / 4;
+    check1.position.set(-0.2, -0.15, 0);
+
+    // Second part of checkmark
+    const check2Geometry = new THREE.BoxGeometry(0.15, 1.0, 0.15);
+    const check2 = new THREE.Mesh(check2Geometry, check1Material);
+    check2.rotation.z = Math.PI / 4;
+    check2.position.set(0.3, 0.15, 0);
+
+    checkGroup.add(check1);
+    checkGroup.add(check2);
+    checkGroup.position.z = 0.2;
+
+    // Outer tech ring
+    const ringGeometry = new THREE.TorusGeometry(1.5, 0.08, 8, 6);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 0.8,
+        wireframe: true
+    });
+    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+    ring.rotation.x = Math.PI / 2;
+
+    // Inner circular core
+    const coreGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ddff,
+        emissive: 0x00aaff,
+        emissiveIntensity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.rotation.x = Math.PI / 2;
 
     shield.add(shieldBody);
-    shield.add(boss);
+    shield.add(checkGroup);
+    shield.add(ring);
+    shield.add(core);
 
     shield.position.set(x, 1.5, z);
-    shield.rotation.z = Math.PI / 4;
 
     game.scene.add(shield);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
+    // Add bright glowing aura effect (antivirus protection field)
+    const glowGeometry = new THREE.SphereGeometry(2.0, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x4169e1,
+        color: 0x00ff88,
         transparent: true,
-        opacity: 0.2
+        opacity: 0.15
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     shield.add(glow);
+
+    // Secondary inner glow
+    const innerGlowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const innerGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.25
+    });
+    const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+    shield.add(innerGlow);
 
     // Add to shields array
     game.shields.push(shield);
