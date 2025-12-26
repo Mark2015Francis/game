@@ -212,9 +212,33 @@ function init() {
     directionalLight.shadow.camera.bottom = -100;
     game.scene.add(directionalLight);
 
-    // Create ground - WAY BIGGER
+    // Create ground - WAY BIGGER with grass texture
     const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3d8c40 });
+
+    // Load grass texture
+    const textureLoader = new THREE.TextureLoader();
+    const grassTexture = textureLoader.load('seamless-green-grass-pattern.avif',
+        // onLoad callback
+        function(texture) {
+            console.log('✓ Grass texture loaded successfully');
+        },
+        // onProgress callback
+        undefined,
+        // onError callback
+        function(error) {
+            console.log('⚠ Grass texture not found, using solid color');
+        }
+    );
+
+    // Set texture to repeat for seamless tiling
+    grassTexture.wrapS = THREE.RepeatWrapping;
+    grassTexture.wrapT = THREE.RepeatWrapping;
+    grassTexture.repeat.set(50, 50); // Repeat 50x50 times across the 1000x1000 plane
+
+    const groundMaterial = new THREE.MeshLambertMaterial({
+        map: grassTexture,
+        color: 0x3d8c40 // Fallback color if texture fails to load
+    });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
