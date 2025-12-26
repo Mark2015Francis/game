@@ -2054,60 +2054,62 @@ function createRedPotionPickup(x, z) {
     console.log('Chunky code created at', x, z);
 }
 
-// Create spell book pickup
+// Create dev book pickup
 function createSpellBook(x, z) {
     game.spellBook = new THREE.Group();
 
-    // Book - rectangular shape
+    // Book - rectangular shape (normal everyday book)
     const bookGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.15);
     const bookMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b008b, // Dark purple
-        emissive: 0x4b0082
+        color: 0x1a3a5c, // Dark blue (like tech/programming books)
+        emissive: 0x0a1a2c
     });
     const book = new THREE.Mesh(bookGeometry, bookMaterial);
     book.castShadow = true;
     game.spellBook.add(book);
 
-    // Book cover design - golden star
-    const starGeometry = new THREE.CircleGeometry(0.2, 5);
-    const starMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffd700
+    // Book cover - title text lines (simulating book title)
+    const titleLineGeometry1 = new THREE.BoxGeometry(0.45, 0.08, 0.001);
+    const titleMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff // White text
     });
-    const star = new THREE.Mesh(starGeometry, starMaterial);
-    star.position.set(0, 0, 0.08);
-    game.spellBook.add(star);
+    const titleLine1 = new THREE.Mesh(titleLineGeometry1, titleMaterial);
+    titleLine1.position.set(0, 0.2, 0.076);
+    game.spellBook.add(titleLine1);
 
-    // Magical sparkles around book
-    for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        const sparkleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-        const sparkleMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            emissive: 0xffff00
-        });
-        const sparkle = new THREE.Mesh(sparkleGeometry, sparkleMaterial);
-        sparkle.position.set(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0);
-        sparkle.userData.angle = angle;
-        sparkle.userData.isSparkle = true;
-        game.spellBook.add(sparkle);
-    }
+    const titleLineGeometry2 = new THREE.BoxGeometry(0.4, 0.06, 0.001);
+    const titleLine2 = new THREE.Mesh(titleLineGeometry2, titleMaterial);
+    titleLine2.position.set(0, 0.08, 0.076);
+    game.spellBook.add(titleLine2);
+
+    // Subtitle line
+    const subtitleGeometry = new THREE.BoxGeometry(0.35, 0.04, 0.001);
+    const subtitleLine = new THREE.Mesh(subtitleGeometry, titleMaterial);
+    subtitleLine.position.set(0, -0.05, 0.076);
+    game.spellBook.add(subtitleLine);
+
+    // Author line at bottom
+    const authorGeometry = new THREE.BoxGeometry(0.25, 0.03, 0.001);
+    const authorLine = new THREE.Mesh(authorGeometry, titleMaterial);
+    authorLine.position.set(0, -0.3, 0.076);
+    game.spellBook.add(authorLine);
+
+    // Book spine (darker edge)
+    const spineGeometry = new THREE.BoxGeometry(0.15, 0.8, 0.001);
+    const spineMaterial = new THREE.MeshLambertMaterial({
+        color: 0x0f2540 // Darker blue for spine
+    });
+    const spine = new THREE.Mesh(spineGeometry, spineMaterial);
+    spine.position.set(-0.3, 0, 0);
+    spine.rotation.y = Math.PI / 2;
+    game.spellBook.add(spine);
 
     game.spellBook.position.set(x, 1.5, z);
     game.spellBook.rotation.y = Math.PI / 4;
 
     game.scene.add(game.spellBook);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x9400d3,
-        transparent: true,
-        opacity: 0.2
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.spellBook.add(glow);
-
-    console.log('Spell book created at', x, z);
+    console.log('Dev book created at', x, z);
 }
 
 // Create shop at edge of map
@@ -2299,7 +2301,7 @@ function updateInventoryUI() {
     }
     inventoryItems.appendChild(axeSlot);
 
-    // Spell Book slot
+    // Dev Book slot
     const spellBookSlot = document.createElement('div');
     spellBookSlot.className = 'inventory-slot';
     if (game.spellBookCollected) {
@@ -2308,7 +2310,7 @@ function updateInventoryUI() {
         }
         spellBookSlot.innerHTML = `
             <div class="item-icon">📖</div>
-            <div class="item-name">Spell Book</div>
+            <div class="item-name">Dev Book</div>
             ${game.equippedSpellBook ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         spellBookSlot.addEventListener('click', () => toggleEquipItem({type: 'spellbook'}));
@@ -2353,7 +2355,7 @@ function updateEquippedDisplays() {
         weaponDisplay.classList.add('active');
     } else if (game.equippedSpellBook) {
         weaponIcon.textContent = '📖';
-        weaponLabel.textContent = 'Spell Book';
+        weaponLabel.textContent = 'Dev Book';
         weaponDisplay.classList.add('active');
     } else {
         weaponDisplay.classList.remove('active');
@@ -2370,7 +2372,7 @@ function toggleEquipSword() {
             game.equippedSwordMesh = null;
         }
     } else {
-        // Equip sword - unequip bow and spell book first if equipped
+        // Equip sword - unequip bow and dev book first if equipped
         if (game.equippedBow) {
             game.equippedBow = false;
             if (game.equippedBowMesh) {
@@ -2446,7 +2448,7 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip bow - unequip sword, axe, and spell book first
+            // Equip bow - unequip sword, axe, and dev book first
             game.equippedBow = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
@@ -2487,7 +2489,7 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip axe - unequip sword, bow and spell book first
+            // Equip axe - unequip sword, bow and dev book first
             game.equippedAxe = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
@@ -2549,10 +2551,10 @@ function toggleEquipItem(item) {
             toggleInventory(); // Close inventory after using
         }
     } else if (item.type === 'spellbook') {
-        if (!game.spellBookCollected) return; // No spell book to equip
+        if (!game.spellBookCollected) return; // No dev book to equip
 
         if (game.equippedSpellBook) {
-            // Unequip spell book
+            // Unequip dev book
             game.equippedSpellBook = false;
             if (game.equippedSpellBookMesh) {
                 game.camera.remove(game.equippedSpellBookMesh);
@@ -2567,7 +2569,7 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip spell book - unequip sword, bow, and axe first
+            // Equip dev book - unequip sword, bow, and axe first
             game.equippedSpellBook = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
@@ -2923,20 +2925,20 @@ function equipAxe() {
     console.log('✓ Axe equipped successfully');
 }
 
-// Equip spell book to player
+// Equip dev book to player
 function equipSpellBook() {
-    // Remove old spell book if exists
+    // Remove old dev book if exists
     if (game.equippedSpellBookMesh) {
         game.camera.remove(game.equippedSpellBookMesh);
     }
 
-    // Create spell book mesh for first person view
+    // Create dev book mesh for first person view
     game.equippedSpellBookMesh = new THREE.Group();
 
-    // Book - rectangular shape
+    // Book - rectangular shape (normal everyday book)
     const bookGeometry = new THREE.BoxGeometry(0.4, 0.6, 0.1);
     const bookMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b008b, // Dark purple
+        color: 0x1a3a5c, // Dark blue (like tech/programming books)
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
@@ -2945,27 +2947,40 @@ function equipSpellBook() {
     book.position.set(0, 0, 0);
     book.renderOrder = 999;
 
-    // Book cover star
-    const starGeometry = new THREE.CircleGeometry(0.15, 5);
-    const starMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffd700,
+    // Book cover - title text lines
+    const titleLineGeometry = new THREE.BoxGeometry(0.3, 0.05, 0.001);
+    const titleMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff, // White text
         depthTest: false,
         depthWrite: false
     });
-    const star = new THREE.Mesh(starGeometry, starMaterial);
-    star.position.set(0, 0, 0.06);
-    star.renderOrder = 1000;
+    const titleLine1 = new THREE.Mesh(titleLineGeometry, titleMaterial);
+    titleLine1.position.set(0, 0.15, 0.051);
+    titleLine1.renderOrder = 1000;
+
+    const titleLine2 = new THREE.Mesh(titleLineGeometry, titleMaterial);
+    titleLine2.position.set(0, 0.05, 0.051);
+    titleLine2.renderOrder = 1000;
+
+    const subtitleGeometry = new THREE.BoxGeometry(0.25, 0.03, 0.001);
+    const subtitleLine = new THREE.Mesh(subtitleGeometry, titleMaterial);
+    subtitleLine.position.set(0, -0.05, 0.051);
+    subtitleLine.renderOrder = 1000;
 
     game.equippedSpellBookMesh.add(book);
-    game.equippedSpellBookMesh.add(star);
+    game.equippedSpellBookMesh.add(titleLine1);
+    game.equippedSpellBookMesh.add(titleLine2);
+    game.equippedSpellBookMesh.add(subtitleLine);
 
-    // Position spell book in left side of view
+    // Position dev book in left side of view
     game.equippedSpellBookMesh.position.set(-0.4, -0.3, -0.5);
     game.equippedSpellBookMesh.rotation.set(0.3, 0.5, 0);
 
     // Disable frustum culling
     book.frustumCulled = false;
-    star.frustumCulled = false;
+    titleLine1.frustumCulled = false;
+    titleLine2.frustumCulled = false;
+    subtitleLine.frustumCulled = false;
     game.equippedSpellBookMesh.frustumCulled = false;
 
     // Add to camera
@@ -3495,14 +3510,14 @@ function checkRedPotionPickup() {
     }
 }
 
-// Check spell book pickup
+// Check dev book pickup
 function checkSpellBookPickup() {
     if (game.spellBookCollected || !game.spellBook) return;
 
     const distance = game.camera.position.distanceTo(game.spellBook.position);
 
     if (distance < 3) {
-        // Collect spell book
+        // Collect dev book
         game.spellBookCollected = true;
         game.scene.remove(game.spellBook);
 
@@ -3510,8 +3525,8 @@ function checkSpellBookPickup() {
         updateInventoryUI();
 
         // Show notification
-        showNotification('📖 Spell Book collected! Added to inventory. Magic shop section unlocked!');
-        console.log('Spell book collected - added to inventory and magic shop unlocked');
+        showNotification('📖 Dev Book collected! Added to inventory. Dev shop section unlocked!');
+        console.log('Dev book collected - added to inventory and dev shop unlocked');
     }
 }
 
@@ -4077,54 +4092,54 @@ function updateShopItems() {
 
     // Basic items
     shopItems.innerHTML += `
-        <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('food')">
+        <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('food')">
             <span style="font-size: 30px;">💻</span>
-            <span style="margin-left: 20px; font-size: 18px;">Code - Heal 10 HP</span>
-            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 5 Kromer</span>
+            <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Code - Heal 10 HP</span>
+            <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 5 Kromer</span>
         </div>
-        <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('damage')">
+        <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('damage')">
             <span style="font-size: 30px;">⚔️</span>
-            <span style="margin-left: 20px; font-size: 18px;">Damage Upgrade (+1 DMG)</span>
-            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Kromer</span>
+            <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Damage Upgrade (+1 DMG)</span>
+            <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 20 Kromer</span>
         </div>
     `;
 
     // Bow upgrade (only if player has bow)
     if (game.bowCollected) {
         shopItems.innerHTML += `
-            <div class="shop-item" style="background: rgba(34, 139, 34, 0.2); border: 2px solid #228b22; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bowdamage')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('bowdamage')">
                 <span style="font-size: 30px;">🔫</span>
-                <span style="margin-left: 20px; font-size: 18px;">Lunar Linux Upgrade (+1 Plasma DMG)</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 50 Kromer</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Lunar Linux Upgrade (+1 Plasma DMG)</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 50 Kromer</span>
             </div>
         `;
     }
 
-    // Magic items (only if spell book collected)
+    // Admin powers (only if dev book collected)
     if (game.spellBookCollected) {
         shopItems.innerHTML += `
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #9400d3;">
-                <h3 style="text-align: center; color: #9400d3;">✨ Magic Spells ✨</h3>
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 3px solid #00ff00;">
+                <h3 style="text-align: center; color: #00ff00; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);">⚡ ADMIN POWERS ⚡</h3>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('fireball')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('fireball')">
                 <span style="font-size: 30px;">🔥</span>
-                <span style="margin-left: 20px; font-size: 18px;">Fireball Spell ${game.hasFireball ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Kromer</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Fireball Power ${game.hasFireball ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 15 Kromer</span>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bigjump')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('bigjump')">
                 <span style="font-size: 30px;">⬆️</span>
-                <span style="margin-left: 20px; font-size: 18px;">Big Jump Spell ${game.hasBigJump ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Kromer</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Big Jump Power ${game.hasBigJump ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 20 Kromer</span>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('freezeball')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('freezeball')">
                 <span style="font-size: 30px;">❄️</span>
-                <span style="margin-left: 20px; font-size: 18px;">Freeze Ball Spell ${game.hasFreezeball ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 25 Kromer</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Freeze Ball Power ${game.hasFreezeball ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 25 Kromer</span>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('dash')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('dash')">
                 <span style="font-size: 30px;">💨</span>
-                <span style="margin-left: 20px; font-size: 18px;">Dash Spell ${game.hasDash ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Kromer</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Dash Power ${game.hasDash ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 15 Kromer</span>
             </div>
         `;
     }
@@ -4163,53 +4178,53 @@ function buyItem(itemType) {
         }
     } else if (itemType === 'fireball') {
         if (game.hasFireball) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 15) {
             game.coins -= 15;
             game.hasFireball = true;
             updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
-            showNotification('🔥 Fireball spell unlocked! Equip spell book and press F to cast!');
+            showNotification('🔥 Fireball power unlocked! Equip dev book and press F to cast!');
         } else {
             showNotification('❌ Not enough Kromer! Need 15 coins');
         }
     } else if (itemType === 'bigjump') {
         if (game.hasBigJump) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 20) {
             game.coins -= 20;
             game.hasBigJump = true;
             game.jumpHeight = 25.0; // Increase jump height from 15.0
             updateKromerDisplay();
             updateShopItems(); // Refresh shop display
-            showNotification('⬆️ Big Jump spell unlocked! Your jump is now higher!');
+            showNotification('⬆️ Big Jump power unlocked! Your jump is now higher!');
         } else {
             showNotification('❌ Not enough Kromer! Need 20 coins');
         }
     } else if (itemType === 'freezeball') {
         if (game.hasFreezeball) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 25) {
             game.coins -= 25;
             game.hasFreezeball = true;
             updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
-            showNotification('❄️ Freeze Ball spell unlocked! Equip spell book and press G to cast!');
+            showNotification('❄️ Freeze Ball power unlocked! Equip dev book and press G to cast!');
         } else {
             showNotification('❌ Not enough Kromer! Need 25 coins');
         }
     } else if (itemType === 'dash') {
         if (game.hasDash) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 15) {
             game.coins -= 15;
             game.hasDash = true;
             updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
-            showNotification('💨 Dash spell unlocked! Equip spell book and press H to cast!');
+            showNotification('💨 Dash power unlocked! Equip dev book and press H to cast!');
         } else {
             showNotification('❌ Not enough Kromer! Need 15 coins');
         }
@@ -4296,7 +4311,7 @@ function enterWorldTwo() {
             game.shop = null;
         }
 
-        // Remove spell book if it exists (prevent duplicates)
+        // Remove dev book if it exists (prevent duplicates)
         if (game.spellBook) {
             game.scene.remove(game.spellBook);
             game.spellBook = null;
@@ -4352,7 +4367,7 @@ function enterWorldTwo() {
             }
         }
 
-        // Spawn spell book in World 2
+        // Spawn dev book in World 2
         const spellBookX = (Math.random() * 400 - 200);
         const spellBookZ = (Math.random() * 400 - 200);
         createSpellBook(spellBookX, spellBookZ);
@@ -4425,7 +4440,7 @@ function enterWorldThree() {
             game.shop = null;
         }
 
-        // Remove spell book if it exists
+        // Remove dev book if it exists
         if (game.spellBook) {
             game.scene.remove(game.spellBook);
             game.spellBook = null;
