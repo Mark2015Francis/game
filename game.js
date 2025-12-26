@@ -1959,72 +1959,99 @@ function createFoodPickup(x, z) {
     game.foods.push(food);
 }
 
-// Create red potion pickup
+// Create chunky code pickup
 function createRedPotionPickup(x, z) {
-    // Create red potion group
+    // Create chunky code group
     const potion = new THREE.Group();
 
-    // Potion bottle - cylindrical with rounded top
-    const bottleGeometry = new THREE.CylinderGeometry(0.3, 0.35, 0.8, 8);
-    const bottleMaterial = new THREE.MeshLambertMaterial({
-        color: 0x990000, // Dark red
-        emissive: 0x660000,
-        transparent: true,
-        opacity: 0.9
+    // Main code chunk - large dark block (bigger than regular code)
+    const chunkGeometry = new THREE.BoxGeometry(1.5, 1.2, 0.15);
+    const chunkMaterial = new THREE.MeshLambertMaterial({
+        color: 0x0a0a0a, // Very dark gray/black (code editor background)
+        emissive: 0x0a0a0a
     });
-    const bottle = new THREE.Mesh(bottleGeometry, bottleMaterial);
-    bottle.castShadow = true;
+    const chunk = new THREE.Mesh(chunkGeometry, chunkMaterial);
+    chunk.castShadow = true;
 
-    // Liquid inside - slightly smaller, brighter red
-    const liquidGeometry = new THREE.CylinderGeometry(0.25, 0.3, 0.7, 8);
-    const liquidMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff0000, // Bright red
-        emissive: 0xff0000,
-        emissiveIntensity: 0.8,
-        transparent: true,
-        opacity: 0.8
-    });
-    const liquid = new THREE.Mesh(liquidGeometry, liquidMaterial);
-    liquid.position.y = -0.05;
+    // Chunky code lines - bright purple/magenta (indicating special/rare code)
+    const createCodeLine = (yPos, width) => {
+        const lineGeometry = new THREE.BoxGeometry(width, 0.12, 0.16);
+        const lineMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff00ff, // Bright magenta (rare code color)
+            emissive: 0xff00ff,
+            emissiveIntensity: 1
+        });
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.position.y = yPos;
+        line.position.x = -0.75 + width / 2;
+        return line;
+    };
 
-    // Cork/stopper - brown top
-    const corkGeometry = new THREE.CylinderGeometry(0.2, 0.25, 0.2, 8);
-    const corkMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513 // Brown
-    });
-    const cork = new THREE.Mesh(corkGeometry, corkMaterial);
-    cork.position.y = 0.5;
+    // Multiple chunky code lines
+    const line1 = createCodeLine(0.4, 1.3);
+    const line2 = createCodeLine(0.2, 1.4);
+    const line3 = createCodeLine(0, 1.2);
+    const line4 = createCodeLine(-0.2, 1.35);
+    const line5 = createCodeLine(-0.4, 1.1);
 
-    // Label - small white band
-    const labelGeometry = new THREE.CylinderGeometry(0.36, 0.36, 0.15, 8);
-    const labelMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffffff // White
-    });
-    const label = new THREE.Mesh(labelGeometry, labelMaterial);
-    label.position.y = 0;
+    // Special symbols - bright cyan brackets/braces
+    const createSymbol = (xPos, yPos, symbol) => {
+        const symbolGeometry = new THREE.TorusGeometry(0.15, 0.05, 8, 6, Math.PI);
+        const symbolMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ffff, // Cyan symbols
+            emissive: 0x00ffff,
+            emissiveIntensity: 1
+        });
+        const sym = new THREE.Mesh(symbolGeometry, symbolMaterial);
+        sym.position.set(xPos, yPos, 0.08);
+        sym.rotation.z = symbol === 'left' ? Math.PI / 2 : -Math.PI / 2;
+        return sym;
+    };
 
-    potion.add(bottle);
-    potion.add(liquid);
-    potion.add(cork);
-    potion.add(label);
+    const leftBrace = createSymbol(-0.7, 0, 'left');
+    const rightBrace = createSymbol(0.7, 0, 'right');
 
-    potion.position.set(x, 1, z);
-    potion.rotation.z = Math.PI / 12; // Slight tilt
+    // Corner markers - yellow tech indicators
+    for (let i = 0; i < 4; i++) {
+        const markerGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.08);
+        const markerMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00, // Yellow
+            emissive: 0xffff00,
+            emissiveIntensity: 1
+        });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        const xPos = i < 2 ? -0.7 : 0.7;
+        const yPos = i % 2 === 0 ? 0.55 : -0.55;
+        marker.position.set(xPos, yPos, 0.08);
+        potion.add(marker);
+    }
+
+    potion.add(chunk);
+    potion.add(line1);
+    potion.add(line2);
+    potion.add(line3);
+    potion.add(line4);
+    potion.add(line5);
+    potion.add(leftBrace);
+    potion.add(rightBrace);
+
+    potion.position.set(x, 1.2, z);
+    potion.rotation.y = Math.PI / 4; // Slight angle
 
     game.scene.add(potion);
 
-    // Add intense red glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    // Add magenta/purple glow effect (rare/special code aura)
+    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
+        color: 0xff00ff, // Magenta glow
         transparent: true,
-        opacity: 0.3
+        opacity: 0.25
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     potion.add(glow);
 
     game.redPotions.push(potion);
-    console.log('Red potion created at', x, z);
+    console.log('Chunky code created at', x, z);
 }
 
 // Create spell book pickup
@@ -2219,13 +2246,13 @@ function updateInventoryUI() {
     }
     inventoryItems.appendChild(foodSlot);
 
-    // Red Potion slot
+    // Chunky Code slot
     const potionSlot = document.createElement('div');
     potionSlot.className = 'inventory-slot';
     if (game.redPotionCount > 0) {
         potionSlot.innerHTML = `
-            <div class="item-icon">🧪</div>
-            <div class="item-name">Red Potion x${game.redPotionCount}</div>
+            <div class="item-icon">💾</div>
+            <div class="item-name">Chunky Code x${game.redPotionCount}</div>
         `;
         potionSlot.addEventListener('click', () => toggleEquipItem({type: 'redpotion'}));
     } else {
@@ -2506,7 +2533,7 @@ function toggleEquipItem(item) {
             toggleInventory(); // Close inventory after using
         }
     } else if (item.type === 'redpotion') {
-        // Use red potion - heal 100 HP!
+        // Use chunky code - heal 100 HP!
         if (game.redPotionCount > 0) {
             const healAmount = 100;
             const previousHP = game.playerHP;
@@ -2515,10 +2542,10 @@ function toggleEquipItem(item) {
 
             updateHPDisplay();
 
-            // Remove red potion from inventory
+            // Remove chunky code from inventory
             removeItemFromInventory('redpotion');
 
-            showNotification(`🧪 Red Potion consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.redPotionCount} remaining`);
+            showNotification(`💾 Chunky Code consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.redPotionCount} remaining`);
             toggleInventory(); // Close inventory after using
         }
     } else if (item.type === 'spellbook') {
@@ -3454,7 +3481,7 @@ function checkRedPotionPickup() {
         const distance = game.camera.position.distanceTo(potion.position);
 
         if (distance < 3) {
-            // Collect red potion
+            // Collect chunky code
             game.scene.remove(potion);
             game.redPotions.splice(i, 1);
             game.redPotionCount++;
@@ -3462,7 +3489,7 @@ function checkRedPotionPickup() {
             updateInventoryUI();
 
             // Show notification (non-blocking)
-            showNotification(`🧪 Red Potion collected! (x${game.redPotionCount}) Use it to heal 100 HP!`);
+            showNotification(`💾 Chunky Code collected! (x${game.redPotionCount}) Use it to heal 100 HP!`);
             break; // Only collect one at a time
         }
     }
