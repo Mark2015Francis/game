@@ -218,7 +218,7 @@ function init() {
     // Load grass texture
     var groundTexture = new THREE.TextureLoader().load('seamlessly-repeating-zeros.jpg');
 	groundTexture.wrapS = groundTexture.wrapT = THREE.repeatWrapping;
-	groundTexture.repeat.set(100, 100);
+	groundTexture.repeat.set(200, 200);
 	groundTexture.anisotropy = 4;
 	groundTexture.encoding = THREE.sRGBEncoding;
 	var groundMaterial = new THREE.MeshStandardMaterial( {map : groundTexture} );
