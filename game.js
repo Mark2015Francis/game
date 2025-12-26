@@ -53,6 +53,11 @@ const game = {
     bow: null,
     bowCollected: false,
     equippedBow: false,
+    axe: null,
+    axeCollected: false,
+    equippedAxe: false,
+    axeCooldown: 0,
+    equippedAxeMesh: null,
     projectiles: [],
     shootCooldown: 0,
     enemyProjectiles: [],
@@ -1573,6 +1578,63 @@ function createBowPickup(x, z) {
     game.bow.add(glow);
 }
 
+// Create axe pickup
+function createAxePickup(x, z) {
+    // Create axe group
+    game.axe = new THREE.Group();
+
+    // Axe handle - long brown cylinder
+    const handleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2.5, 8);
+    const handleMaterial = new THREE.MeshLambertMaterial({
+        color: 0x8b4513,
+        emissive: 0x442200
+    });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.castShadow = true;
+
+    // Axe blade - large metallic wedge
+    const bladeGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.2);
+    const bladeMaterial = new THREE.MeshLambertMaterial({
+        color: 0x888888,
+        emissive: 0x444444,
+        emissiveIntensity: 0.5
+    });
+    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    blade.position.y = 1.3;
+    blade.castShadow = true;
+
+    // Blade edge (darker metal)
+    const edgeGeometry = new THREE.BoxGeometry(1.3, 0.1, 0.25);
+    const edgeMaterial = new THREE.MeshLambertMaterial({
+        color: 0x555555,
+        emissive: 0x222222
+    });
+    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
+    edge.position.y = 1.65;
+    edge.castShadow = true;
+
+    game.axe.add(handle);
+    game.axe.add(blade);
+    game.axe.add(edge);
+
+    game.axe.position.set(x, 1.5, z);
+    game.axe.rotation.z = Math.PI / 6;
+
+    game.scene.add(game.axe);
+
+    // Add glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff4444,
+        transparent: true,
+        opacity: 0.2
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    game.axe.add(glow);
+
+    console.log('Axe created at', x, z);
+}
+
 // Create food pickup
 function createFoodPickup(x, z) {
     // Create food group - looks like an apple
@@ -1833,6 +1895,25 @@ function updateInventoryUI() {
     }
     inventoryItems.appendChild(bowSlot);
 
+    // Axe slot
+    const axeSlot = document.createElement('div');
+    axeSlot.className = 'inventory-slot';
+    if (game.axeCollected) {
+        if (game.equippedAxe) {
+            axeSlot.classList.add('equipped');
+        }
+        axeSlot.innerHTML = `
+            <div class="item-icon">🪓</div>
+            <div class="item-name">Axe</div>
+            ${game.equippedAxe ? '<div class="item-status">EQUIPPED</div>' : ''}
+        `;
+        axeSlot.addEventListener('click', () => toggleEquipItem({type: 'axe'}));
+    } else {
+        axeSlot.classList.add('empty');
+        axeSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    }
+    inventoryItems.appendChild(axeSlot);
+
     // Spell Book slot
     const spellBookSlot = document.createElement('div');
     spellBookSlot.className = 'inventory-slot';
@@ -1852,11 +1933,13 @@ function updateInventoryUI() {
     }
     inventoryItems.appendChild(spellBookSlot);
 
-    // Empty slot
-    const slot = document.createElement('div');
-    slot.className = 'inventory-slot empty';
-    slot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
-    inventoryItems.appendChild(slot);
+    // Empty slots (6 total for future items)
+    for (let i = 0; i < 6; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'inventory-slot empty';
+        slot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+        inventoryItems.appendChild(slot);
+    }
 }
 
 // Update equipped item displays at bottom of screen
@@ -1995,6 +2078,47 @@ function toggleEquipItem(item) {
                 }
             }
             equipBow();
+        }
+        updateInventoryUI();
+        updateEquippedDisplays();
+        toggleInventory(); // Close inventory after equipping
+    } else if (item.type === 'axe') {
+        if (game.equippedAxe) {
+            // Unequip axe
+            game.equippedAxe = false;
+            if (game.equippedAxeMesh) {
+                game.camera.remove(game.equippedAxeMesh);
+                game.equippedAxeMesh = null;
+            }
+            // Re-equip sword
+            game.inventory.equippedSword = true;
+            equipSword();
+        } else {
+            // Equip axe - unequip sword, bow and spell book first
+            game.equippedAxe = true;
+            game.inventory.equippedSword = false;
+            if (game.equippedSwordMesh) {
+                game.camera.remove(game.equippedSwordMesh);
+                game.equippedSwordMesh = null;
+            }
+            game.equippedBow = false;
+            if (game.equippedBowMesh) {
+                game.camera.remove(game.equippedBowMesh);
+                game.equippedBowMesh = null;
+            }
+            if (game.equippedSpellBook) {
+                game.equippedSpellBook = false;
+                if (game.equippedSpellBookMesh) {
+                    game.camera.remove(game.equippedSpellBookMesh);
+                    game.equippedSpellBookMesh = null;
+                }
+                // Hide mana display
+                const manaDisplay = document.getElementById('manaDisplay');
+                if (manaDisplay) {
+                    manaDisplay.style.display = 'none';
+                }
+            }
+            equipAxe();
         }
         updateInventoryUI();
         updateEquippedDisplays();
@@ -2216,6 +2340,70 @@ function equipBow() {
     game.camera.add(game.equippedBowMesh);
 
     console.log('✓ Bow equipped successfully');
+}
+
+// Equip axe to player
+function equipAxe() {
+    // Remove old axe if exists
+    if (game.equippedAxeMesh) {
+        game.camera.remove(game.equippedAxeMesh);
+    }
+
+    // Create axe mesh for first person view
+    game.equippedAxeMesh = new THREE.Group();
+
+    // Axe handle - brown wooden handle
+    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8);
+    const handleMaterial = new THREE.MeshBasicMaterial({
+        color: 0x8b4513,
+        depthTest: false,
+        depthWrite: false
+    });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.set(0, 0.3, 0);
+    handle.rotation.z = Math.PI / 2;
+    handle.renderOrder = 999;
+
+    // Axe blade - large metallic blade
+    const bladeGeometry = new THREE.BoxGeometry(0.6, 0.4, 0.1);
+    const bladeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x888888,
+        depthTest: false,
+        depthWrite: false
+    });
+    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    blade.position.set(0.6, 0.3, 0);
+    blade.renderOrder = 999;
+
+    // Blade edge (darker metal for sharpness)
+    const edgeGeometry = new THREE.BoxGeometry(0.65, 0.05, 0.12);
+    const edgeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x555555,
+        depthTest: false,
+        depthWrite: false
+    });
+    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
+    edge.position.set(0.6, 0.5, 0);
+    edge.renderOrder = 1000;
+
+    game.equippedAxeMesh.add(handle);
+    game.equippedAxeMesh.add(blade);
+    game.equippedAxeMesh.add(edge);
+
+    // Position axe in right side of view
+    game.equippedAxeMesh.position.set(0.4, -0.4, -0.6);
+    game.equippedAxeMesh.rotation.set(0.2, -0.3, 0.1);
+
+    // Disable frustum culling
+    handle.frustumCulled = false;
+    blade.frustumCulled = false;
+    edge.frustumCulled = false;
+    game.equippedAxeMesh.frustumCulled = false;
+
+    // Add to camera
+    game.camera.add(game.equippedAxeMesh);
+
+    console.log('✓ Axe equipped successfully');
 }
 
 // Equip spell book to player
@@ -2699,6 +2887,31 @@ function checkBowPickup() {
     }
 }
 
+// Check axe pickup
+function checkAxePickup() {
+    if (game.axeCollected || !game.axe) return;
+
+    const distance = game.camera.position.distanceTo(game.axe.position);
+
+    if (distance < 3) {
+        // Collect axe
+        game.axeCollected = true;
+        game.scene.remove(game.axe);
+
+        // Add to inventory
+        game.inventory.items.push({
+            name: 'Axe',
+            icon: '🪓',
+            type: 'axe'
+        });
+
+        updateInventoryUI();
+
+        // Show notification (non-blocking)
+        showNotification('🪓 Axe collected! Equip it for powerful but slow attacks!');
+    }
+}
+
 // Check food pickup
 function checkFoodPickup() {
     for (let i = game.foods.length - 1; i >= 0; i--) {
@@ -2922,6 +3135,199 @@ function attackWithSword() {
 
                 const critText = isCritical ? ' CRITICAL!' : '';
                 showNotification(`⚔️ BOSS -${damage} DMG${critText}! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP}`);
+
+                if (game.boss.hp <= 0) {
+                    defeatBoss();
+                }
+            }
+        }
+    }
+}
+
+// Attack with axe
+function attackWithAxe() {
+    if (!game.equippedAxe) return;
+    if (game.isAttacking || game.axeCooldown > 0) return;
+
+    game.isAttacking = true;
+    game.axeCooldown = 2.5; // 2.5 second cooldown - much longer than sword
+
+    // Heavy swing animation - slower and more powerful
+    if (game.equippedAxeMesh) {
+        // Store original positions (matching equipAxe)
+        const originalRotationX = 0.2;
+        const originalRotationY = -0.3;
+        const originalRotationZ = 0.1;
+        const originalPosX = 0.4;
+        const originalPosY = -0.4;
+        const originalPosZ = -0.6;
+
+        // Get current position
+        const startPosX = game.equippedAxeMesh.position.x;
+        const startPosY = game.equippedAxeMesh.position.y;
+
+        // Heavy wind-up phase (slower and more pronounced)
+        let windupProgress = 0;
+        const windupDuration = 12; // frames - slower than sword for heavy feel
+        const windupInterval = setInterval(() => {
+            windupProgress += 1 / windupDuration;
+
+            // Pull axe back high and to the right
+            game.equippedAxeMesh.rotation.x = originalRotationX - (Math.PI / 4) * windupProgress;
+            game.equippedAxeMesh.rotation.y = originalRotationY + (Math.PI / 6) * windupProgress;
+            game.equippedAxeMesh.rotation.z = originalRotationZ + (Math.PI / 4) * windupProgress;
+            game.equippedAxeMesh.position.x = startPosX + 0.2 * windupProgress;
+            game.equippedAxeMesh.position.y = startPosY + 0.3 * windupProgress;
+            game.equippedAxeMesh.position.z = originalPosZ + 0.2 * windupProgress;
+
+            if (windupProgress >= 1) {
+                clearInterval(windupInterval);
+
+                // Heavy swing forward phase (powerful overhead chop)
+                let swingProgress = 0;
+                const swingDuration = 10; // frames - slower than sword
+                const swingInterval = setInterval(() => {
+                    swingProgress += 1 / swingDuration;
+                    const easeOut = 1 - Math.pow(1 - swingProgress, 3); // Ease out cubic
+
+                    // Powerful overhead chop - arc from high to low
+                    game.equippedAxeMesh.rotation.x = (originalRotationX - Math.PI / 4) + (Math.PI / 2) * easeOut;
+                    game.equippedAxeMesh.rotation.y = (originalRotationY + Math.PI / 6) - (Math.PI / 3) * easeOut;
+                    game.equippedAxeMesh.rotation.z = (originalRotationZ + Math.PI / 4) - (Math.PI * 1.5) * easeOut;
+                    game.equippedAxeMesh.position.x = (startPosX + 0.2) - 0.4 * easeOut;
+                    game.equippedAxeMesh.position.y = (startPosY + 0.3) - 0.8 * easeOut;
+                    game.equippedAxeMesh.position.z = (originalPosZ + 0.2) - 0.4 * easeOut;
+
+                    if (swingProgress >= 1) {
+                        clearInterval(swingInterval);
+
+                        // Return to rest position
+                        setTimeout(() => {
+                            let returnProgress = 0;
+                            const returnDuration = 12; // frames - slower return
+                            const returnInterval = setInterval(() => {
+                                returnProgress += 1 / returnDuration;
+                                const easeInOut = returnProgress < 0.5
+                                    ? 2 * returnProgress * returnProgress
+                                    : 1 - Math.pow(-2 * returnProgress + 2, 2) / 2;
+
+                                // Interpolate back to original position
+                                const endRotX = originalRotationX - Math.PI / 4 + Math.PI / 2;
+                                const endRotY = originalRotationY + Math.PI / 6 - Math.PI / 3;
+                                const endRotZ = originalRotationZ + Math.PI / 4 - Math.PI * 1.5;
+                                const endPosX = startPosX + 0.2 - 0.4;
+                                const endPosY = startPosY + 0.3 - 0.8;
+                                const endPosZ = originalPosZ + 0.2 - 0.4;
+
+                                game.equippedAxeMesh.rotation.x = endRotX + (originalRotationX - endRotX) * easeInOut;
+                                game.equippedAxeMesh.rotation.y = endRotY + (originalRotationY - endRotY) * easeInOut;
+                                game.equippedAxeMesh.rotation.z = endRotZ + (originalRotationZ - endRotZ) * easeInOut;
+                                game.equippedAxeMesh.position.x = endPosX + (originalPosX - endPosX) * easeInOut;
+                                game.equippedAxeMesh.position.y = endPosY + (originalPosY - endPosY) * easeInOut;
+                                game.equippedAxeMesh.position.z = endPosZ + (originalPosZ - endPosZ) * easeInOut;
+
+                                if (returnProgress >= 1) {
+                                    clearInterval(returnInterval);
+                                    game.isAttacking = false;
+
+                                    // Ensure exact reset
+                                    game.equippedAxeMesh.rotation.set(originalRotationX, originalRotationY, originalRotationZ);
+                                    game.equippedAxeMesh.position.set(originalPosX, originalPosY, originalPosZ);
+                                }
+                            }, 16);
+                        }, 50);
+                    }
+                }, 16);
+            }
+        }, 16);
+    }
+
+    // Check if hit any enemies (target crosshair - center of screen)
+    for (let i = 0; i < game.enemies.length; i++) {
+        const enemy = game.enemies[i];
+        const distance = game.camera.position.distanceTo(enemy.position);
+        if (distance < 12) { // Shorter range than sword (12 vs 15)
+            // Calculate if enemy is at crosshair (center of screen)
+            const directionToEnemy = new THREE.Vector3();
+            directionToEnemy.subVectors(enemy.position, game.camera.position);
+            directionToEnemy.normalize();
+
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(game.camera.quaternion);
+
+            const angle = forward.angleTo(directionToEnemy);
+
+            if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
+                // 5% chance for critical hit (double damage)
+                const isCritical = Math.random() < 0.05;
+                const baseDamage = game.playerDamage * 3; // 3x sword damage!
+                const damage = isCritical ? baseDamage * 2 : baseDamage;
+
+                // Deal massive damage based on player level
+                enemy.hp -= damage;
+
+                // Visual feedback - flash bright orange for axe (golden for crit)
+                const flashColor = isCritical ? 0xffdd00 : 0xff8800;
+                const originalColor = enemy.material.color.getHex();
+                enemy.material.color.setHex(flashColor);
+                enemy.material.emissive.setHex(flashColor);
+                setTimeout(() => {
+                    if (enemy && enemy.material) {
+                        enemy.material.color.setHex(originalColor);
+                        enemy.material.emissive.setHex(0x330000);
+                    }
+                }, 150);
+
+                // Show damage feedback with axe emoji
+                const critText = isCritical ? ' CRITICAL!' : '';
+                showNotification(`🪓 -${damage} DMG${critText}! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
+
+                if (enemy.hp <= 0) {
+                    defeatEnemy(enemy, i);
+                }
+
+                break; // Only hit one enemy per swing
+            }
+        }
+    }
+
+    // Check if hit boss (target crosshair - center of screen)
+    if (game.boss) {
+        const distance = game.camera.position.distanceTo(game.boss.position);
+        if (distance < 18) { // Boss has large hit range but shorter than sword
+            // Calculate if boss is at crosshair (center of screen)
+            const directionToBoss = new THREE.Vector3();
+            directionToBoss.subVectors(game.boss.position, game.camera.position);
+            directionToBoss.normalize();
+
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(game.camera.quaternion);
+
+            const angle = forward.angleTo(directionToBoss);
+
+            if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
+                // 5% chance for critical hit (double damage)
+                const isCritical = Math.random() < 0.05;
+                const baseDamage = game.playerDamage * 3; // 3x sword damage!
+                const damage = isCritical ? baseDamage * 2 : baseDamage;
+
+                // Deal massive damage to boss
+                game.boss.hp -= damage;
+
+                // Visual feedback (golden flash for crit)
+                const flashColor = isCritical ? 0xffdd00 : 0xff8800;
+                const originalColor = game.boss.material.color.getHex();
+                game.boss.material.color.setHex(flashColor);
+                game.boss.material.emissive.setHex(flashColor);
+                setTimeout(() => {
+                    if (game.boss && game.boss.material) {
+                        game.boss.material.color.setHex(originalColor);
+                        game.boss.material.emissive.setHex(0x660000);
+                    }
+                }, 150);
+
+                const critText = isCritical ? ' CRITICAL!' : '';
+                showNotification(`🪓 BOSS -${damage} DMG${critText}! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP}`);
 
                 if (game.boss.hp <= 0) {
                     defeatBoss();
@@ -3474,6 +3880,11 @@ function enterWorldThree() {
 
         // Create shop in World 3
         createShop(350, 0);
+
+        // Create axe pickup in World 3 at a random location
+        const axeX = (Math.random() * 400 - 200);
+        const axeZ = (Math.random() * 400 - 200);
+        createAxePickup(axeX, axeZ);
 
         // Spawn initial enemies in World 3 (7 enemies - more than World 2)
         for (let i = 0; i < 7; i++) {
@@ -5029,6 +5440,8 @@ function setupControls() {
         if (game.isPointerLocked && !game.inventory.isOpen) {
             if (game.equippedBow) {
                 shootArrow();
+            } else if (game.equippedAxe) {
+                attackWithAxe();
             } else {
                 attackWithSword();
             }
@@ -5116,6 +5529,8 @@ function setupControls() {
                 if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
                     if (game.equippedBow) {
                         shootArrow();
+                    } else if (game.equippedAxe) {
+                        attackWithAxe();
                     } else {
                         attackWithSword();
                     }
@@ -5617,6 +6032,7 @@ function animate() {
         updateBoss(delta);
         checkShieldPickup();
         checkBowPickup();
+        checkAxePickup();
         checkFoodPickup();
         checkSpellBookPickup();
         checkPortalPickup();
@@ -5669,6 +6085,11 @@ function animate() {
         // Reduce attack cooldown
         if (game.attackCooldown > 0) {
             game.attackCooldown -= delta;
+        }
+
+        // Reduce axe cooldown
+        if (game.axeCooldown > 0) {
+            game.axeCooldown -= delta;
         }
 
         // Reduce shoot cooldown
