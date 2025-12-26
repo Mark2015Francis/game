@@ -61,6 +61,9 @@ const game = {
     equippedAxeMesh: null,
     projectiles: [],
     shootCooldown: 0,
+    isChargingShot: false,
+    chargeStartTime: 0,
+    maxChargeTime: 2.0, // Max charge time in seconds for fully charged shot
     enemyProjectiles: [],
     bossProjectiles: [],
     totalEnemiesSpawned: 0,
@@ -3240,12 +3243,15 @@ function switchSpell() {
     updateSpellUI();
 }
 
-// Shoot arrow
-function shootArrow() {
+// Shoot arrow with optional charge parameter (0 to 1)
+function shootArrow(chargeAmount = 0) {
     if (!game.equippedBow) return;
     if (game.shootCooldown > 0) return;
 
     game.shootCooldown = 0.5; // 0.5 second cooldown
+
+    // Calculate speed multiplier based on charge (1x to 3x)
+    const speedMultiplier = 1 + (chargeAmount * 2); // 1.0 to 3.0
 
     // Create plasma arrow projectile as a group
     const arrow = new THREE.Group();
@@ -3319,11 +3325,13 @@ function shootArrow() {
     const dirY = Math.sin(pitch);
     const dirZ = -Math.cos(yaw) * Math.cos(pitch);
 
-    // Create velocity vector
+    // Create velocity vector (base speed 50, scaled by charge)
+    const baseSpeed = 50;
+    const finalSpeed = baseSpeed * speedMultiplier;
     arrow.velocity = new THREE.Vector3(
-        dirX * 50,
-        dirY * 50,
-        dirZ * 50
+        dirX * finalSpeed,
+        dirY * finalSpeed,
+        dirZ * finalSpeed
     );
 
     // Rotate arrow to point in the direction of travel
@@ -3336,10 +3344,21 @@ function shootArrow() {
     const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, direction);
     arrow.setRotationFromQuaternion(quaternion);
 
+    // Scale arrow based on charge (1.0 to 1.8x size)
+    const scaleMultiplier = 1 + (chargeAmount * 0.8);
+    arrow.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
+
     game.scene.add(arrow);
     game.projectiles.push(arrow);
 
-    showNotification('🔫 Plasma shot!');
+    // Show notification based on charge level
+    if (chargeAmount > 0.8) {
+        showNotification('⚡ Fully charged shot!');
+    } else if (chargeAmount > 0.4) {
+        showNotification('🔫 Charged plasma shot!');
+    } else {
+        showNotification('🔫 Plasma shot!');
+    }
 }
 
 // Cast fireball spell
@@ -6251,16 +6270,38 @@ function setupControls() {
         }
     });
 
-    // Mouse click for attacking
-    document.addEventListener('click', (event) => {
+    // Mouse down for starting charge or instant attacks
+    document.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return; // Only left click
         if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
             if (game.equippedBow) {
-                shootArrow();
+                // Start charging bow shot
+                if (!game.isChargingShot && game.shootCooldown <= 0) {
+                    game.isChargingShot = true;
+                    game.chargeStartTime = Date.now();
+                }
             } else if (game.equippedAxe) {
                 attackWithAxe();
             } else {
                 attackWithSword();
             }
+        }
+    });
+
+    // Mouse up for releasing charged shot
+    document.addEventListener('mouseup', (event) => {
+        if (event.button !== 0) return; // Only left click
+        if (game.isChargingShot) {
+            // Calculate charge amount (0 to 1)
+            const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
+            const chargeAmount = Math.min(chargeTime / game.maxChargeTime, 1.0);
+
+            // Fire the arrow with charge
+            shootArrow(chargeAmount);
+
+            // Reset charging state
+            game.isChargingShot = false;
+            game.chargeStartTime = 0;
         }
     });
 
@@ -6344,12 +6385,33 @@ function setupControls() {
                 event.stopPropagation();
                 if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
                     if (game.equippedBow) {
-                        shootArrow();
+                        // Start charging bow shot
+                        if (!game.isChargingShot && game.shootCooldown <= 0) {
+                            game.isChargingShot = true;
+                            game.chargeStartTime = Date.now();
+                        }
                     } else if (game.equippedAxe) {
                         attackWithAxe();
                     } else {
                         attackWithSword();
                     }
+                }
+            });
+
+            mobileAttackBtn.addEventListener('touchend', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (game.isChargingShot) {
+                    // Calculate charge amount (0 to 1)
+                    const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
+                    const chargeAmount = Math.min(chargeTime / game.maxChargeTime, 1.0);
+
+                    // Fire the arrow with charge
+                    shootArrow(chargeAmount);
+
+                    // Reset charging state
+                    game.isChargingShot = false;
+                    game.chargeStartTime = 0;
                 }
             });
         }
@@ -6578,8 +6640,12 @@ function updateMovement(delta) {
                 game.camera.position.z += game.dashDirectionZ * dashMoveSpeed;
             }
         } else {
-            // Apply normal movement
-            const moveSpeed = game.playerSpeed * delta;
+            // Apply normal movement (reduced speed while charging bow)
+            let speedMultiplier = 1.0;
+            if (game.isChargingShot) {
+                speedMultiplier = 0.5; // 50% speed while charging
+            }
+            const moveSpeed = game.playerSpeed * delta * speedMultiplier;
 
             // Forward/backward movement (keyboard or joystick)
             if (game.controls.moveForward || game.controls.moveBackward || (game.joystickActive && game.joystickDeltaY !== 0)) {
@@ -6682,6 +6748,53 @@ function updateSwordBobbing() {
         // Gradually return to rest position
         game.equippedSwordMesh.position.y = THREE.MathUtils.lerp(game.equippedSwordMesh.position.y, restPosY, 0.1);
         game.equippedSwordMesh.position.x = THREE.MathUtils.lerp(game.equippedSwordMesh.position.x, restPosX, 0.1);
+    }
+}
+
+// Update bow charging animation
+function updateBowCharging() {
+    if (!game.equippedBowMesh) return;
+
+    if (game.isChargingShot) {
+        // Calculate charge progress (0 to 1)
+        const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
+        const chargeProgress = Math.min(chargeTime / game.maxChargeTime, 1.0);
+
+        // Pulse effect based on charge
+        const pulseSpeed = 8 + (chargeProgress * 12); // Faster pulse as it charges
+        const pulse = Math.sin(Date.now() * 0.01 * pulseSpeed) * 0.5 + 0.5;
+
+        // Find the barrel and chamber meshes to animate them
+        game.equippedBowMesh.children.forEach(child => {
+            // Animate barrel glow
+            if (child.material && child.material.opacity !== undefined) {
+                child.material.opacity = 0.4 + (chargeProgress * 0.4) + (pulse * 0.2);
+            }
+            // Animate chamber and barrel emissive intensity
+            if (child.material && child.material.emissive !== undefined) {
+                child.material.emissiveIntensity = 1 + (chargeProgress * 1.5) + (pulse * 0.5);
+            }
+        });
+
+        // Scale bow slightly as it charges (1.0 to 1.15)
+        const scale = 1 + (chargeProgress * 0.15);
+        game.equippedBowMesh.scale.set(scale, scale, scale);
+    } else {
+        // Reset to normal state
+        game.equippedBowMesh.children.forEach(child => {
+            if (child.material && child.material.opacity !== undefined) {
+                child.material.opacity = THREE.MathUtils.lerp(child.material.opacity, 0.4, 0.1);
+            }
+            if (child.material && child.material.emissive !== undefined) {
+                child.material.emissiveIntensity = THREE.MathUtils.lerp(child.material.emissiveIntensity, 1, 0.1);
+            }
+        });
+
+        // Reset scale
+        const currentScale = game.equippedBowMesh.scale.x;
+        const targetScale = 1.0;
+        const newScale = THREE.MathUtils.lerp(currentScale, targetScale, 0.1);
+        game.equippedBowMesh.scale.set(newScale, newScale, newScale);
     }
 }
 
@@ -6863,6 +6976,7 @@ function animate() {
         updateEnemyProjectiles(delta);
         updateBossProjectiles(delta);
         updateSwordBobbing();
+        updateBowCharging();
         updatePortal(delta);
         updateCodeFragments(delta);
 
