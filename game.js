@@ -2209,7 +2209,7 @@ function updateInventoryUI() {
         }
         bowSlot.innerHTML = `
             <div class="item-icon">🏹</div>
-            <div class="item-name">Bow</div>
+            <div class="item-name">Lunar Linux</div>
             ${game.equippedBow ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         bowSlot.addEventListener('click', () => toggleEquipItem({type: 'bow'}));
@@ -2288,7 +2288,7 @@ function updateEquippedDisplays() {
         weaponDisplay.classList.add('active');
     } else if (game.equippedBow) {
         weaponIcon.textContent = '🏹';
-        weaponLabel.textContent = 'Bow';
+        weaponLabel.textContent = 'Lunar Linux';
         weaponDisplay.classList.add('active');
     } else if (game.equippedSpellBook) {
         weaponIcon.textContent = '📖';
@@ -2686,56 +2686,116 @@ function equipBow() {
         game.camera.remove(game.equippedBowMesh);
     }
 
-    // Create bow mesh for first person view
+    // Create laser gun mesh for first person view (Lunar Linux)
     game.equippedBowMesh = new THREE.Group();
 
-    // Bow limb (simplified as rectangle)
-    const bowLimbGeometry = new THREE.BoxGeometry(0.1, 1.5, 0.05);
-    const bowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+    // Main gun body - sleek metallic
+    const bodyGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.8);
+    const bodyMaterial = new THREE.MeshBasicMaterial({
+        color: 0x2a2a3a, // Dark blue-gray metal
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
     });
-    const bowLimb = new THREE.Mesh(bowLimbGeometry, bowMaterial);
-    bowLimb.position.set(-0.2, 0, -0.1);
-    bowLimb.renderOrder = 999;
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.set(-0.2, -0.05, -0.3);
+    body.renderOrder = 999;
 
-    // Bow string - left side
-    const stringGeometry1 = new THREE.BoxGeometry(0.02, 0.75, 0.02);
-    const stringMaterial = new THREE.MeshBasicMaterial({
-        color: 0xeeeeee,
+    // Barrel - glowing cyan energy core
+    const barrelGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+    const barrelMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
         depthTest: false,
         depthWrite: false
     });
-    const string1 = new THREE.Mesh(stringGeometry1, stringMaterial);
-    string1.position.set(-0.15, 0.35, -0.1);
-    string1.rotation.z = 0.3;
-    string1.renderOrder = 999;
+    const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+    barrel.position.set(-0.2, -0.05, -0.7);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.renderOrder = 999;
 
-    const string2 = new THREE.Mesh(stringGeometry1, stringMaterial);
-    string2.position.set(-0.15, -0.35, -0.1);
-    string2.rotation.z = -0.3;
-    string2.renderOrder = 999;
+    // Barrel glow
+    const barrelGlowGeometry = new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8);
+    const barrelGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88,
+        transparent: true,
+        opacity: 0.4,
+        depthTest: false,
+        depthWrite: false
+    });
+    const barrelGlow = new THREE.Mesh(barrelGlowGeometry, barrelGlowMaterial);
+    barrelGlow.position.set(-0.2, -0.05, -0.7);
+    barrelGlow.rotation.x = Math.PI / 2;
+    barrelGlow.renderOrder = 998;
 
-    game.equippedBowMesh.add(bowLimb);
-    game.equippedBowMesh.add(string1);
-    game.equippedBowMesh.add(string2);
+    // Energy chamber - glowing green core
+    const chamberGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+    const chamberMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00, // Bright green energy
+        emissive: 0x00ff00,
+        emissiveIntensity: 1,
+        depthTest: false,
+        depthWrite: false
+    });
+    const chamber = new THREE.Mesh(chamberGeometry, chamberMaterial);
+    chamber.position.set(-0.2, -0.05, -0.1);
+    chamber.renderOrder = 999;
 
-    // Position bow in left side of view
+    // Tech accents - yellow lines
+    const accentGeometry = new THREE.BoxGeometry(0.16, 0.02, 0.1);
+    const accentMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffff00, // Yellow tech lines
+        emissive: 0xffff00,
+        emissiveIntensity: 0.8,
+        depthTest: false,
+        depthWrite: false
+    });
+    const accent1 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent1.position.set(-0.2, 0.03, -0.2);
+    accent1.renderOrder = 999;
+
+    const accent2 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent2.position.set(-0.2, -0.13, -0.2);
+    accent2.renderOrder = 999;
+
+    // Handle/grip
+    const gripGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.15);
+    const gripMaterial = new THREE.MeshBasicMaterial({
+        color: 0x1a1a1a, // Dark grip
+        depthTest: false,
+        depthWrite: false
+    });
+    const grip = new THREE.Mesh(gripGeometry, gripMaterial);
+    grip.position.set(-0.2, -0.2, 0.05);
+    grip.renderOrder = 999;
+
+    game.equippedBowMesh.add(body);
+    game.equippedBowMesh.add(barrelGlow);
+    game.equippedBowMesh.add(barrel);
+    game.equippedBowMesh.add(chamber);
+    game.equippedBowMesh.add(accent1);
+    game.equippedBowMesh.add(accent2);
+    game.equippedBowMesh.add(grip);
+
+    // Position laser gun in left side of view
     game.equippedBowMesh.position.set(-0.3, -0.2, -0.5);
     game.equippedBowMesh.rotation.set(0, 0.2, 0);
 
     // Disable frustum culling
-    bowLimb.frustumCulled = false;
-    string1.frustumCulled = false;
-    string2.frustumCulled = false;
+    body.frustumCulled = false;
+    barrel.frustumCulled = false;
+    barrelGlow.frustumCulled = false;
+    chamber.frustumCulled = false;
+    accent1.frustumCulled = false;
+    accent2.frustumCulled = false;
+    grip.frustumCulled = false;
     game.equippedBowMesh.frustumCulled = false;
 
     // Add to camera
     game.camera.add(game.equippedBowMesh);
 
-    console.log('✓ Bow equipped successfully');
+    console.log('✓ Lunar Linux laser gun equipped successfully');
 }
 
 // Equip axe to player
@@ -2940,34 +3000,58 @@ function shootArrow() {
 
     game.shootCooldown = 0.5; // 0.5 second cooldown
 
-    // Create arrow projectile as a group
+    // Create plasma arrow projectile as a group
     const arrow = new THREE.Group();
 
-    // Arrow shaft (main body)
-    const shaftGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8);
-    const shaftMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // Brown
-    const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
-    shaft.position.y = 0;
-    arrow.add(shaft);
+    // Plasma core - bright glowing cylinder
+    const coreGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 8);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan plasma
+        emissive: 0x00ffff,
+        emissiveIntensity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.position.y = 0;
+    arrow.add(core);
 
-    // Arrowhead (cone at front)
-    const headGeometry = new THREE.ConeGeometry(0.08, 0.3, 8);
-    const headMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); // Gray metal
-    const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 0.75; // Position at front of shaft
-    arrow.add(head);
+    // Plasma glow - outer energy field
+    const glowGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1.1, 8);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88, // Green-cyan glow
+        transparent: true,
+        opacity: 0.5
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.y = 0;
+    arrow.add(glow);
 
-    // Fletching (feathers at back) - 3 small triangular fins
-    const fletchingMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red feathers
+    // Plasma tip - pointed energy front
+    const tipGeometry = new THREE.ConeGeometry(0.1, 0.4, 8);
+    const tipMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff, // Bright white tip
+        emissive: 0xffffff,
+        emissiveIntensity: 1
+    });
+    const tip = new THREE.Mesh(tipGeometry, tipMaterial);
+    tip.position.y = 0.7; // Position at front
+    arrow.add(tip);
+
+    // Energy trail particles - 3 small spheres at back
     for (let i = 0; i < 3; i++) {
         const angle = (i / 3) * Math.PI * 2;
-        const fletchingGeometry = new THREE.BoxGeometry(0.02, 0.15, 0.1);
-        const fletching = new THREE.Mesh(fletchingGeometry, fletchingMaterial);
-        fletching.position.y = -0.5; // Position at back of shaft
-        fletching.position.x = Math.cos(angle) * 0.05;
-        fletching.position.z = Math.sin(angle) * 0.05;
-        fletching.rotation.y = angle;
-        arrow.add(fletching);
+        const particleGeometry = new THREE.SphereGeometry(0.06, 8, 8);
+        const particleMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            emissive: 0x00ffff,
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.7
+        });
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        particle.position.y = -0.5; // Position at back
+        particle.position.x = Math.cos(angle) * 0.1;
+        particle.position.z = Math.sin(angle) * 0.1;
+        arrow.add(particle);
     }
 
     // Position at camera
@@ -3008,7 +3092,7 @@ function shootArrow() {
     game.scene.add(arrow);
     game.projectiles.push(arrow);
 
-    showNotification('🏹 Arrow shot!');
+    showNotification('🏹 Plasma shot!');
 }
 
 // Cast fireball spell
@@ -3949,7 +4033,7 @@ function updateShopItems() {
         shopItems.innerHTML += `
             <div class="shop-item" style="background: rgba(34, 139, 34, 0.2); border: 2px solid #228b22; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bowdamage')">
                 <span style="font-size: 30px;">🏹</span>
-                <span style="margin-left: 20px; font-size: 18px;">Bow Damage Upgrade (+1 Bow DMG)</span>
+                <span style="margin-left: 20px; font-size: 18px;">Lunar Linux Upgrade (+1 Plasma DMG)</span>
                 <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 50 Coins</span>
             </div>
         `;
@@ -4012,7 +4096,7 @@ function buyItem(itemType) {
             game.coins -= 50;
             game.bowDamage += 1;
             updateCoinsDisplay();
-            showNotification(`🏹 Bought bow damage upgrade! Bow DMG: ${game.bowDamage}`);
+            showNotification(`🏹 Bought Lunar Linux upgrade! Plasma DMG: ${game.bowDamage}`);
         } else {
             showNotification('❌ Not enough coins! Need 50 coins');
         }
