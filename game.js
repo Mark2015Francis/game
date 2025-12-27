@@ -6651,7 +6651,7 @@ function updateMovement(delta) {
             // Apply normal movement (reduced speed while charging bow)
             let speedMultiplier = 1.0;
             if (game.isChargingShot) {
-                speedMultiplier = 0.5; // 50% speed while charging
+                speedMultiplier = 0.25; // 25% speed while charging (very slow)
             }
             const moveSpeed = game.playerSpeed * delta * speedMultiplier;
 
