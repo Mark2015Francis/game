@@ -559,6 +559,54 @@
                 margin-top: 8px;
             }
         }
+        /* Mobile landscape mode - fullscreen inventory */
+        @media (max-width: 768px) and (orientation: landscape) {
+            #inventory.visible {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                transform: none;
+                border-radius: 0;
+                padding: 40px 10px 10px 10px;
+                max-width: unset;
+                max-height: unset;
+                overflow-y: auto;
+                box-sizing: border-box;
+            }
+            #inventory h2 {
+                font-size: 18px;
+                margin-bottom: 8px;
+            }
+            #inventoryCloseBtn {
+                top: 5px;
+                left: 5px;
+                padding: 6px 12px;
+                font-size: 13px;
+            }
+            #inventoryItems {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+            }
+            .inventory-slot {
+                padding: 8px;
+            }
+            .item-icon {
+                font-size: 32px;
+                margin-bottom: 4px;
+            }
+            .item-name {
+                font-size: 12px;
+            }
+            .item-status {
+                font-size: 10px;
+            }
+            #inventoryHelp {
+                font-size: 10px;
+                margin-top: 10px;
+            }
+        }
     </style>
 </head>
 <body>
