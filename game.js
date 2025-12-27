@@ -7211,8 +7211,8 @@ function animate() {
             }
         }
 
-        // Enemy spawner
-        if (!game.isGameOver) {
+        // Enemy spawner (only when game is not paused)
+        if (!game.isGameOver && !game.inventory.isOpen && !game.isShopOpen) {
             game.enemySpawnTimer += delta;
             if (game.enemySpawnTimer >= game.enemySpawnInterval) {
                 spawnEnemy();
