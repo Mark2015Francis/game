@@ -413,25 +413,45 @@
                 height: 100vh;
                 transform: none;
                 border-radius: 0;
-                padding: 60px 20px 20px 20px;
+                padding: 50px 10px 10px 10px;
                 min-width: unset;
                 overflow-y: auto;
+                box-sizing: border-box;
+            }
+            #inventory h2 {
+                font-size: 20px;
+                margin-top: 0;
+                margin-bottom: 10px;
+                padding-bottom: 8px;
             }
             #inventoryCloseBtn {
                 display: block;
+                top: 8px;
+                left: 8px;
+                padding: 8px 15px;
+                font-size: 14px;
             }
             #inventoryItems {
                 grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                margin: 10px 0;
+            }
+            .inventory-slot {
+                padding: 10px;
             }
             .item-icon {
-                font-size: 50px;
+                font-size: 40px;
+                margin-bottom: 5px;
             }
             .item-name {
-                font-size: 16px;
+                font-size: 13px;
+            }
+            .item-status {
+                font-size: 10px;
             }
             #inventoryHelp {
-                font-size: 14px;
-                margin-top: 20px;
+                font-size: 11px;
+                margin-top: 10px;
             }
         }
     </style>
