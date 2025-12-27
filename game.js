@@ -97,6 +97,7 @@ const game = {
     hasBigJump: false,
     hasFreezeball: false,
     hasDash: false,
+    hasFasterCharge: false,
     fireballCooldown: 0,
     freezeballCooldown: 0,
     dashCooldown: 0,
@@ -4338,6 +4339,11 @@ function updateShopItems() {
                 <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Dash Power ${game.hasDash ? '(Owned)' : ''}</span>
                 <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 15 Kromer</span>
             </div>
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('fastercharge')">
+                <span style="font-size: 30px;">⚡</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Faster Charge ${game.hasFasterCharge ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 15 Kromer</span>
+            </div>
         `;
     }
 }
@@ -4421,6 +4427,18 @@ function buyItem(itemType) {
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
             showNotification('💨 Dash power unlocked! Equip dev book and press H to cast!');
+        } else {
+            showNotification('❌ Not enough Kromer! Need 15 coins');
+        }
+    } else if (itemType === 'fastercharge') {
+        if (game.hasFasterCharge) {
+            showNotification('❌ You already own this power!');
+        } else if (game.coins >= 15) {
+            game.coins -= 15;
+            game.hasFasterCharge = true;
+            updateKromerDisplay();
+            updateShopItems(); // Refresh shop display
+            showNotification('⚡ Faster Charge unlocked! Bow charges 10% faster!');
         } else {
             showNotification('❌ Not enough Kromer! Need 15 coins');
         }
@@ -6294,9 +6312,10 @@ function setupControls() {
     document.addEventListener('mouseup', (event) => {
         if (event.button !== 0) return; // Only left click
         if (game.isChargingShot) {
-            // Calculate charge amount (0 to 1)
+            // Calculate charge amount (0 to 1) - 10% faster with Faster Charge power
             const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
-            const chargeAmount = Math.min(chargeTime / game.maxChargeTime, 1.0);
+            const effectiveMaxChargeTime = game.hasFasterCharge ? game.maxChargeTime * 0.9 : game.maxChargeTime;
+            const chargeAmount = Math.min(chargeTime / effectiveMaxChargeTime, 1.0);
 
             // Fire the arrow with charge
             shootArrow(chargeAmount);
@@ -6404,9 +6423,10 @@ function setupControls() {
                 event.preventDefault();
                 event.stopPropagation();
                 if (game.isChargingShot) {
-                    // Calculate charge amount (0 to 1)
+                    // Calculate charge amount (0 to 1) - 10% faster with Faster Charge power
                     const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
-                    const chargeAmount = Math.min(chargeTime / game.maxChargeTime, 1.0);
+                    const effectiveMaxChargeTime = game.hasFasterCharge ? game.maxChargeTime * 0.9 : game.maxChargeTime;
+                    const chargeAmount = Math.min(chargeTime / effectiveMaxChargeTime, 1.0);
 
                     // Fire the arrow with charge
                     shootArrow(chargeAmount);
@@ -6760,9 +6780,10 @@ function updateBowCharging() {
     }
 
     if (game.isChargingShot) {
-        // Calculate charge progress (0 to 1)
+        // Calculate charge progress (0 to 1) - 10% faster with Faster Charge power
         const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
-        const chargeProgress = Math.min(chargeTime / game.maxChargeTime, 1.0);
+        const effectiveMaxChargeTime = game.hasFasterCharge ? game.maxChargeTime * 0.9 : game.maxChargeTime;
+        const chargeProgress = Math.min(chargeTime / effectiveMaxChargeTime, 1.0);
 
         // Pulse effect based on charge
         const pulseSpeed = 8 + (chargeProgress * 12); // Faster pulse as it charges
