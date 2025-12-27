@@ -4394,7 +4394,7 @@ function buyItem(itemType) {
             game.hasBigJump = true;
             updateKromerDisplay();
             updateShopItems(); // Refresh shop display
-            showNotification('⬆️ Big Jump power unlocked! Equip dev book to use higher jumps!');
+            showNotification('⬆️ Big Jump power unlocked! Equip dev book and jump with mana for super jumps!');
         } else {
             showNotification('❌ Not enough Kromer! Need 20 coins');
         }
@@ -6193,27 +6193,21 @@ function setupControls() {
                 break;
             case 'Space':
                 if (game.controls.canJump) {
-                    // Determine base jump height based on dev book and Big Jump power
-                    let baseJumpHeight = 15.0; // Normal jump height
-                    if (game.equippedSpellBook && game.hasBigJump) {
-                        baseJumpHeight = 25.0; // Enhanced jump height with dev book equipped
-                    }
-
-                    // Check if using big jump spell (double jump with mana)
+                    // Check if using Big Jump spell (super jump with mana)
                     if (game.hasBigJump && game.equippedSpellBook) {
                         const manaCost = 5;
                         if (game.playerMana >= manaCost) {
-                            // Use big jump with mana (double the enhanced height)
-                            game.velocity.y = baseJumpHeight * 2;
+                            // Use Big Jump with mana (super high jump)
+                            game.velocity.y = 50.0;
                             game.playerMana -= manaCost;
                             updateManaDisplay();
                         } else {
-                            // Not enough mana, use enhanced jump without mana cost
-                            game.velocity.y = baseJumpHeight;
+                            // Not enough mana, use normal jump
+                            game.velocity.y = 15.0;
                         }
                     } else {
-                        // Normal jump (15.0 if no dev book, or if Big Jump not owned)
-                        game.velocity.y = baseJumpHeight;
+                        // Normal jump
+                        game.velocity.y = 15.0;
                     }
                     game.controls.canJump = false;
                 }
@@ -6430,27 +6424,21 @@ function setupControls() {
                 event.preventDefault();
                 event.stopPropagation();
                 if (game.controls.canJump && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
-                    // Determine base jump height based on dev book and Big Jump power
-                    let baseJumpHeight = 15.0; // Normal jump height
-                    if (game.equippedSpellBook && game.hasBigJump) {
-                        baseJumpHeight = 25.0; // Enhanced jump height with dev book equipped
-                    }
-
-                    // Check if using big jump spell (double jump with mana)
+                    // Check if using Big Jump spell (super jump with mana)
                     if (game.hasBigJump && game.equippedSpellBook) {
                         const manaCost = 5;
                         if (game.playerMana >= manaCost) {
-                            // Use big jump with mana (double the enhanced height)
-                            game.velocity.y = baseJumpHeight * 2;
+                            // Use Big Jump with mana (super high jump)
+                            game.velocity.y = 50.0;
                             game.playerMana -= manaCost;
                             updateManaDisplay();
                         } else {
-                            // Not enough mana, use enhanced jump without mana cost
-                            game.velocity.y = baseJumpHeight;
+                            // Not enough mana, use normal jump
+                            game.velocity.y = 15.0;
                         }
                     } else {
-                        // Normal jump (15.0 if no dev book, or if Big Jump not owned)
-                        game.velocity.y = baseJumpHeight;
+                        // Normal jump
+                        game.velocity.y = 15.0;
                     }
                     game.controls.canJump = false;
                 }
