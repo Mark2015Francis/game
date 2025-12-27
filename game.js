@@ -6761,7 +6761,15 @@ function updateSwordBobbing() {
 
 // Update bow charging animation
 function updateBowCharging() {
-    if (!game.equippedBowMesh) return;
+    const chargeOverlay = document.getElementById('chargeOverlay');
+
+    if (!game.equippedBowMesh) {
+        // Hide charge overlay if bow not equipped
+        if (chargeOverlay) {
+            chargeOverlay.style.opacity = '0';
+        }
+        return;
+    }
 
     if (game.isChargingShot) {
         // Calculate charge progress (0 to 1)
@@ -6771,6 +6779,13 @@ function updateBowCharging() {
         // Pulse effect based on charge
         const pulseSpeed = 8 + (chargeProgress * 12); // Faster pulse as it charges
         const pulse = Math.sin(Date.now() * 0.01 * pulseSpeed) * 0.5 + 0.5;
+
+        // Update charge overlay opacity (0 to 1, with pulse)
+        if (chargeOverlay) {
+            const baseOpacity = chargeProgress * 0.6; // 0 to 0.6
+            const pulseOpacity = pulse * 0.2; // 0 to 0.2
+            chargeOverlay.style.opacity = (baseOpacity + pulseOpacity).toString();
+        }
 
         // Find the barrel and chamber meshes to animate them
         game.equippedBowMesh.children.forEach(child => {
@@ -6788,6 +6803,12 @@ function updateBowCharging() {
         const scale = 1 + (chargeProgress * 0.15);
         game.equippedBowMesh.scale.set(scale, scale, scale);
     } else {
+        // Fade out charge overlay
+        if (chargeOverlay) {
+            const currentOpacity = parseFloat(chargeOverlay.style.opacity) || 0;
+            chargeOverlay.style.opacity = Math.max(0, currentOpacity - 0.05).toString();
+        }
+
         // Reset to normal state
         game.equippedBowMesh.children.forEach(child => {
             if (child.material && child.material.opacity !== undefined) {
