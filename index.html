@@ -508,54 +508,55 @@
                 font-size: 11px;
                 max-width: 70%;
             }
-            /* Inventory - smaller on mobile */
+            /* Inventory - much smaller on mobile */
             #inventory.visible {
                 position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                transform: none;
-                border-radius: 0;
-                padding: 50px 10px 10px 10px;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 90vw;
+                max-width: 350px;
+                max-height: 70vh;
+                border-radius: 8px;
+                padding: 35px 8px 8px 8px;
                 min-width: unset;
                 overflow-y: auto;
                 box-sizing: border-box;
             }
             #inventory h2 {
-                font-size: 20px;
+                font-size: 16px;
                 margin-top: 0;
-                margin-bottom: 10px;
-                padding-bottom: 8px;
+                margin-bottom: 8px;
+                padding-bottom: 6px;
             }
             #inventoryCloseBtn {
                 display: block;
-                top: 8px;
-                left: 8px;
-                padding: 8px 15px;
-                font-size: 14px;
+                top: 5px;
+                left: 5px;
+                padding: 5px 10px;
+                font-size: 12px;
             }
             #inventoryItems {
                 grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
-                margin: 10px 0;
+                gap: 6px;
+                margin: 8px 0;
             }
             .inventory-slot {
-                padding: 10px;
+                padding: 6px;
             }
             .item-icon {
-                font-size: 40px;
-                margin-bottom: 5px;
+                font-size: 28px;
+                margin-bottom: 3px;
             }
             .item-name {
-                font-size: 13px;
+                font-size: 11px;
             }
             .item-status {
-                font-size: 10px;
+                font-size: 9px;
             }
             #inventoryHelp {
-                font-size: 11px;
-                margin-top: 10px;
+                font-size: 9px;
+                margin-top: 8px;
             }
         }
     </style>
