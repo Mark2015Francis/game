@@ -4258,7 +4258,7 @@ function checkShopProximity() {
     if (distance < 10) {
         // Show prompt if not already showing
         if (!game.isShopOpen) {
-            showNotification('Press E to open shop');
+            showNotification('Press E to open Shopping Network');
         }
     }
 }
