@@ -796,6 +796,14 @@
     <canvas id="gameCanvas"></canvas>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="game.js"></script>
+    <!-- Load game modules in order -->
+    <script src="utils.js"></script>
+    <script src="gameState.js"></script>
+    <script src="ui.js"></script>
+    <script src="world.js"></script>
+    <script src="enemies.js"></script>
+    <script src="items.js"></script>
+    <script src="player.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>
