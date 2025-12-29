@@ -3396,23 +3396,12 @@ function defeatEnemy(enemy, index) {
 
 // Enemy shoots projectile at player
 function shootEnemyProjectile(enemy) {
-    const projectileGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const projectileMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, emissive: 0x00ff00 }); // Green to match worm virus
-    const projectile = new THREE.Mesh(projectileGeometry, projectileMaterial);
-
-    // Position at enemy
-    projectile.position.copy(enemy.position);
-
-    // Calculate direction to player
-    const direction = new THREE.Vector3();
-    direction.subVectors(game.camera.position, enemy.position);
-    direction.normalize();
-
-    // Set velocity toward player
-    projectile.velocity = new THREE.Vector3(
-        direction.x * 30,
-        direction.y * 30,
-        direction.z * 30
+    const projectile = createProjectile(
+        createSphere(0.3, 8),
+        createBasicMaterial(0x00ff00),
+        enemy.position,
+        game.camera.position,
+        30
     );
 
     game.scene.add(projectile);
@@ -3421,38 +3410,15 @@ function shootEnemyProjectile(enemy) {
 
 // Boss shoots high damage projectile at player
 function shootBossProjectile(boss) {
-    const projectileGeometry = new THREE.SphereGeometry(0.5, 16, 16); // Larger than enemy projectiles
-    const projectileMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff00ff,
-        emissive: 0xff00ff
-    });
-    const projectile = new THREE.Mesh(projectileGeometry, projectileMaterial);
-
-    // Position at boss
-    projectile.position.copy(boss.position);
-    projectile.position.y = boss.position.y; // Same height as boss
-
-    // Calculate direction to player
-    const direction = new THREE.Vector3();
-    direction.subVectors(game.camera.position, boss.position);
-    direction.normalize();
-
-    // Set velocity toward player - faster than enemy projectiles
-    projectile.velocity = new THREE.Vector3(
-        direction.x * 40,
-        direction.y * 40,
-        direction.z * 40
+    const projectile = createProjectile(
+        createSphere(0.5),
+        createBasicMaterial(0xff00ff),
+        boss.position,
+        game.camera.position,
+        40
     );
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(0.7, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff00ff,
-        transparent: true,
-        opacity: 0.3
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    projectile.add(glow);
+    projectile.add(createGlowSphere(0.7, 0xff00ff, 0.3));
 
     game.scene.add(projectile);
     game.bossProjectiles.push(projectile);
@@ -3460,43 +3426,21 @@ function shootBossProjectile(boss) {
 
 // World 3 boss shoots code fragments that freeze player
 function shootCodeProjectile(boss) {
-    const codeGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6); // Code cube
-    const codeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff4400,
-        emissive: 0xff4400,
-        emissiveIntensity: 1
-    });
-    const projectile = new THREE.Mesh(codeGeometry, codeMaterial);
-
-    // Position at boss
-    projectile.position.copy(boss.position);
-    projectile.position.y = boss.position.y;
-
-    // Calculate direction to player
-    const direction = new THREE.Vector3();
-    direction.subVectors(game.camera.position, boss.position);
-    direction.normalize();
-
-    // Set velocity toward player
-    projectile.velocity = new THREE.Vector3(
-        direction.x * 35,
-        direction.y * 35,
-        direction.z * 35
+    const projectile = createProjectile(
+        createBox(0.6, 0.6, 0.6),
+        createBasicMaterial(0xff4400),
+        boss.position,
+        game.camera.position,
+        35
     );
 
-    // Mark as code projectile (freezes on hit)
     projectile.isCodeProjectile = true;
 
     // Add trail effect
-    const trailGeometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-    const trailMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff4400,
-        transparent: true,
-        opacity: 0.3,
-        wireframe: true
-    });
-    const trail = new THREE.Mesh(trailGeometry, trailMaterial);
-    projectile.add(trail);
+    projectile.add(new THREE.Mesh(
+        createBox(0.8, 0.8, 0.8),
+        createBasicMaterial(0xff4400, { transparent: true, opacity: 0.3, wireframe: true })
+    ));
 
     game.scene.add(projectile);
     game.bossProjectiles.push(projectile);

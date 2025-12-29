@@ -1,50 +1,34 @@
 // Items, pickups, weapons, and spells
 
 function createShieldPickup(x, z) {
-    // Create shield group
     const shield = new THREE.Group();
 
     // Shield body - circular
-    const shieldGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
-    const shieldMaterial = new THREE.MeshLambertMaterial({
-        color: 0x4169e1,
-        emissive: 0x0000ff
-    });
-    const shieldBody = new THREE.Mesh(shieldGeometry, shieldMaterial);
+    const shieldBody = createMesh(
+        createCylinder(1.2, 1.2, 0.2, 16),
+        createLambertMaterial(0x4169e1, 0x0000ff)
+    );
     shieldBody.rotation.x = Math.PI / 2;
-    shieldBody.castShadow = true;
 
     // Shield boss (center)
-    const bossGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const bossMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
-    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
-    boss.castShadow = true;
+    const boss = createMesh(
+        createSphere(0.3, 8),
+        createLambertMaterial(0xffd700, 0xffd700, 0)
+    );
 
     shield.add(shieldBody);
     shield.add(boss);
+    shield.add(createGlowSphere(1.8, 0x4169e1, 0.2));
 
     shield.position.set(x, 1.5, z);
     shield.rotation.z = Math.PI / 4;
 
     game.scene.add(shield);
-
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x4169e1,
-        transparent: true,
-        opacity: 0.2
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    shield.add(glow);
-
-    // Add to shields array
     game.shields.push(shield);
 }
 
 // Create bow pickup
 function createBowPickup(x, z) {
-    // Create bow group
     game.bow = new THREE.Group();
 
     // Bow body - curved shape
@@ -52,147 +36,97 @@ function createBowPickup(x, z) {
     bowCurve.moveTo(0, -1);
     bowCurve.quadraticCurveTo(-0.3, 0, 0, 1);
 
-    const extrudeSettings = { depth: 0.1, bevelEnabled: false };
-    const bowGeometry = new THREE.ExtrudeGeometry(bowCurve, extrudeSettings);
-    const bowMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513,
-        emissive: 0x442200
-    });
-    const bowBody = new THREE.Mesh(bowGeometry, bowMaterial);
-    bowBody.castShadow = true;
+    const bowBody = createMesh(
+        new THREE.ExtrudeGeometry(bowCurve, { depth: 0.1, bevelEnabled: false }),
+        createLambertMaterial(0x8b4513, 0x442200)
+    );
 
     // String
     const stringGeometry = new THREE.BufferGeometry();
-    const stringVertices = new Float32Array([
-        0, -1, 0.05,
-        0, 1, 0.05
-    ]);
-    stringGeometry.setAttribute('position', new THREE.BufferAttribute(stringVertices, 3));
-    const stringMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-    const bowString = new THREE.Line(stringGeometry, stringMaterial);
+    stringGeometry.setAttribute('position', new THREE.BufferAttribute(
+        new Float32Array([0, -1, 0.05, 0, 1, 0.05]), 3
+    ));
+    const bowString = new THREE.Line(stringGeometry, new THREE.LineBasicMaterial({ color: 0xffffff }));
 
     game.bow.add(bowBody);
     game.bow.add(bowString);
+    game.bow.add(createGlowSphere(1.5, 0x8b4513, 0.2));
 
     game.bow.position.set(x, 1.5, z);
     game.bow.rotation.y = Math.PI / 4;
 
     game.scene.add(game.bow);
-
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
-        transparent: true,
-        opacity: 0.2
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.bow.add(glow);
 }
 
 // Create axe pickup
 function createAxePickup(x, z) {
-    // Create axe group
     game.axe = new THREE.Group();
 
-    // Axe handle - long brown cylinder
-    const handleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2.5, 8);
-    const handleMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513,
-        emissive: 0x442200
-    });
-    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-    handle.castShadow = true;
+    // Axe handle
+    const handle = createMesh(
+        createCylinder(0.1, 0.1, 2.5, 8),
+        createLambertMaterial(0x8b4513, 0x442200)
+    );
 
-    // Axe blade - large metallic wedge
-    const bladeGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.2);
-    const bladeMaterial = new THREE.MeshLambertMaterial({
-        color: 0x888888,
-        emissive: 0x444444,
-        emissiveIntensity: 0.5
-    });
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+    // Axe blade
+    const blade = createMesh(
+        createBox(1.2, 0.8, 0.2),
+        createLambertMaterial(0x888888, 0x444444, 0.5)
+    );
     blade.position.y = 1.3;
-    blade.castShadow = true;
 
-    // Blade edge (darker metal)
-    const edgeGeometry = new THREE.BoxGeometry(1.3, 0.1, 0.25);
-    const edgeMaterial = new THREE.MeshLambertMaterial({
-        color: 0x555555,
-        emissive: 0x222222
-    });
-    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
+    // Blade edge
+    const edge = createMesh(
+        createBox(1.3, 0.1, 0.25),
+        createLambertMaterial(0x555555, 0x222222)
+    );
     edge.position.y = 1.65;
-    edge.castShadow = true;
 
     game.axe.add(handle);
     game.axe.add(blade);
     game.axe.add(edge);
+    game.axe.add(createGlowSphere(1.5, 0xff4444, 0.2));
 
     game.axe.position.set(x, 1.5, z);
     game.axe.rotation.z = Math.PI / 6;
 
     game.scene.add(game.axe);
-
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff4444,
-        transparent: true,
-        opacity: 0.2
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.axe.add(glow);
-
     console.log('Axe created at', x, z);
 }
 
 // Create food pickup
 function createFoodPickup(x, z) {
-    // Create food group - looks like an apple
     const food = new THREE.Group();
 
-    // Apple body - red sphere
-    const appleGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-    const appleMaterial = new THREE.MeshLambertMaterial({
-        color: 0xff0000,
-        emissive: 0x440000
-    });
-    const appleBody = new THREE.Mesh(appleGeometry, appleMaterial);
-    appleBody.scale.set(1, 1.2, 1); // Slightly elongated
-    appleBody.castShadow = true;
+    // Apple body
+    const appleBody = createMesh(
+        createSphere(0.5),
+        createLambertMaterial(0xff0000, 0x440000)
+    );
+    appleBody.scale.set(1, 1.2, 1);
 
-    // Stem - small brown cylinder
-    const stemGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
-    const stemMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
-    const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+    // Stem
+    const stem = createMesh(
+        createCylinder(0.05, 0.05, 0.3, 8),
+        createLambertMaterial(0x8b4513, 0x8b4513, 0)
+    );
     stem.position.y = 0.75;
 
-    // Leaf - small green diamond
-    const leafGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.15);
-    const leafMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-    const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+    // Leaf
+    const leaf = createMesh(
+        createBox(0.3, 0.1, 0.15),
+        createLambertMaterial(0x00ff00, 0x00ff00, 0)
+    );
     leaf.position.set(0.1, 0.85, 0);
     leaf.rotation.z = 0.3;
 
     food.add(appleBody);
     food.add(stem);
     food.add(leaf);
+    food.add(createGlowSphere(1.2, 0xff6666, 0.2));
 
     food.position.set(x, 1, z);
-
     game.scene.add(food);
-
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff6666,
-        transparent: true,
-        opacity: 0.2
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    food.add(glow);
-
     game.foods.push(food);
 }
 
@@ -200,55 +134,39 @@ function createFoodPickup(x, z) {
 function createSpellBook(x, z) {
     game.spellBook = new THREE.Group();
 
-    // Book - rectangular shape
-    const bookGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.15);
-    const bookMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b008b, // Dark purple
-        emissive: 0x4b0082
-    });
-    const book = new THREE.Mesh(bookGeometry, bookMaterial);
-    book.castShadow = true;
-    game.spellBook.add(book);
+    // Book
+    game.spellBook.add(createMesh(
+        createBox(0.6, 0.8, 0.15),
+        createLambertMaterial(0x8b008b, 0x4b0082)
+    ));
 
-    // Book cover design - golden star
-    const starGeometry = new THREE.CircleGeometry(0.2, 5);
-    const starMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffd700
-    });
-    const star = new THREE.Mesh(starGeometry, starMaterial);
+    // Book cover star
+    const star = new THREE.Mesh(
+        new THREE.CircleGeometry(0.2, 5),
+        createBasicMaterial(0xffd700, { emissiveIntensity: 0 })
+    );
     star.position.set(0, 0, 0.08);
     game.spellBook.add(star);
 
-    // Magical sparkles around book
-    for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        const sparkleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-        const sparkleMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            emissive: 0xffff00
-        });
-        const sparkle = new THREE.Mesh(sparkleGeometry, sparkleMaterial);
-        sparkle.position.set(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0);
-        sparkle.userData.angle = angle;
-        sparkle.userData.isSparkle = true;
-        game.spellBook.add(sparkle);
-    }
+    // Magical sparkles
+    const sparkles = createOrbitingObjects(
+        8,
+        () => createSphere(0.05, 8),
+        createBasicMaterial(0xffff00),
+        0.5,
+        { isSparkle: true }
+    );
+    sparkles.forEach(s => {
+        s.position.y = Math.sin(s.userData.orbitAngle) * 0.5;
+        game.spellBook.add(s);
+    });
+
+    game.spellBook.add(createGlowSphere(1.5, 0x9400d3, 0.2));
 
     game.spellBook.position.set(x, 1.5, z);
     game.spellBook.rotation.y = Math.PI / 4;
 
     game.scene.add(game.spellBook);
-
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x9400d3,
-        transparent: true,
-        opacity: 0.2
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.spellBook.add(glow);
-
     console.log('Spell book created at', x, z);
 }
 
