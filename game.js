@@ -53,6 +53,7 @@ const game = {
     bow: null,
     bowCollected: false,
     equippedBow: false,
+    bowDamage: 1,
     axe: null,
     axeCollected: false,
     equippedAxe: false,
@@ -60,6 +61,9 @@ const game = {
     equippedAxeMesh: null,
     projectiles: [],
     shootCooldown: 0,
+    isChargingShot: false,
+    chargeStartTime: 0,
+    maxChargeTime: 2.0, // Max charge time in seconds for fully charged shot
     enemyProjectiles: [],
     bossProjectiles: [],
     totalEnemiesSpawned: 0,
@@ -78,11 +82,13 @@ const game = {
     portalSpawned: false,
     currentWorld: 1,
     foods: [],
+    redPotions: [],
     coins: 0,
     shop: null,
     isShopOpen: false,
     shieldCount: 0,
     foodCount: 0,
+    redPotionCount: 0,
     spellBook: null,
     spellBookCollected: false,
     equippedSpellBook: false,
@@ -91,6 +97,7 @@ const game = {
     hasBigJump: false,
     hasFreezeball: false,
     hasDash: false,
+    hasFasterCharge: false,
     fireballCooldown: 0,
     freezeballCooldown: 0,
     dashCooldown: 0,
@@ -113,7 +120,9 @@ const game = {
     // Joystick controls
     joystickActive: false,
     joystickDeltaX: 0,
-    joystickDeltaY: 0
+    joystickDeltaY: 0,
+    // Damage numbers
+    damageNumbers: []
 };
 
 // Detect if running on mobile device
@@ -212,13 +221,70 @@ function init() {
     directionalLight.shadow.camera.bottom = -100;
     game.scene.add(directionalLight);
 
-    // Create ground - WAY BIGGER
-    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3d8c40 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    game.scene.add(ground);
+    // Load grass texture
+    var groundTexture = new THREE.TextureLoader().load('seamlessly-repeating-zeros.jpg');
+	groundTexture.wrapS = groundTexture.wrapT = THREE.repeatWrapping;
+	groundTexture.repeat.set(200, 200);
+	groundTexture.anisotropy = 4;
+	groundTexture.encoding = THREE.sRGBEncoding;
+	var groundMaterial = new THREE.MeshStandardMaterial( {map : groundTexture} );
+	var ground = new THREE.Mesh( new THREE.PlaneBufferGeometry(10000,10000),  groundMaterial);
+	ground.position.y =0.0;
+	ground.rotation.x = - Math.PI /2;
+	ground.receiveShadow = true;
+	game.scene.add(ground);
+
+    // Load building/wall texture (big-0-1.jpg)
+    const buildingTextureLoader = new THREE.TextureLoader();
+    const buildingTextureFormats = [
+        'big-0-1.jpg',
+        'big-0-1.png'
+    ];
+
+    let buildingTextureLoaded = false;
+    let currentBuildingFormatIndex = 0;
+
+    function tryLoadBuildingTexture() {
+        if (currentBuildingFormatIndex >= buildingTextureFormats.length || buildingTextureLoaded) return;
+
+        const texturePath = buildingTextureFormats[currentBuildingFormatIndex];
+        console.log(`Attempting to load building texture: ${texturePath}`);
+
+        buildingTextureLoader.load(
+            texturePath,
+            // onLoad - texture loaded successfully
+            function(texture) {
+                buildingTextureLoaded = true;
+                console.log(`✓ Building texture loaded successfully: ${texturePath}`);
+
+                // Set texture to repeat for tiling
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+
+                // Store texture globally for use in createBox and createWall
+                game.buildingTexture = texture;
+
+                // Update all existing boxes and walls with the texture
+                game.objects.forEach(obj => {
+                    if (obj.geometry && obj.geometry.type === 'BoxGeometry' && obj.material) {
+                        obj.material.map = texture;
+                        obj.material.needsUpdate = true;
+                    }
+                });
+            },
+            // onProgress
+            undefined,
+            // onError - texture failed to load, try next format
+            function(error) {
+                console.log(`⚠ Failed to load ${texturePath}, trying next format...`);
+                currentBuildingFormatIndex++;
+                tryLoadBuildingTexture(); // Try next format
+            }
+        );
+    }
+
+    // Start loading building texture
+    tryLoadBuildingTexture();
 
     // Add sun and clouds to World 1 sky
     createSun();
@@ -270,11 +336,15 @@ function init() {
     const bowZ = (Math.random() * 600 - 300);
     createBowPickup(bowX, bowZ);
 
-    // Create multiple food pickup items at random positions
+    // Create food/potion pickups at random positions (5% chance for red potion)
     for (let i = 0; i < 5; i++) {
         const foodX = (Math.random() * 600 - 300);
         const foodZ = (Math.random() * 600 - 300);
-        createFoodPickup(foodX, foodZ);
+        if (Math.random() < 0.05) {
+            createRedPotionPickup(foodX, foodZ);
+        } else {
+            createFoodPickup(foodX, foodZ);
+        }
     }
 
     // Create shop at edge of map
@@ -585,7 +655,14 @@ function createAshClouds() {
 // Create a wall
 function createWall(x, z, height, width, depth, color) {
     const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshLambertMaterial({ color });
+
+    // Create material with texture if available, otherwise use color
+    const materialConfig = { color };
+    if (game.buildingTexture) {
+        materialConfig.map = game.buildingTexture;
+    }
+    const material = new THREE.MeshLambertMaterial(materialConfig);
+
     const wall = new THREE.Mesh(geometry, material);
     wall.position.set(x, height / 2, z);
     wall.castShadow = true;
@@ -597,7 +674,14 @@ function createWall(x, z, height, width, depth, color) {
 // Create a box
 function createBox(x, z, y, width, height, depth, color) {
     const geometry = new THREE.BoxGeometry(width, height, depth);
-    const material = new THREE.MeshLambertMaterial({ color });
+
+    // Create material with texture if available, otherwise use color
+    const materialConfig = { color };
+    if (game.buildingTexture) {
+        materialConfig.map = game.buildingTexture;
+    }
+    const material = new THREE.MeshLambertMaterial(materialConfig);
+
     const box = new THREE.Mesh(geometry, material);
     box.position.set(x, height / 2, y);
     box.castShadow = true;
@@ -1561,85 +1645,186 @@ function createShieldPickup(x, z) {
     // Create shield group
     const shield = new THREE.Group();
 
-    // Shield body - circular
-    const shieldGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.2, 16);
+    // Main shield body - hexagonal antivirus shield shape
+    const shieldShape = new THREE.Shape();
+    const radius = 1.2;
+    for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const px = Math.cos(angle) * radius;
+        const py = Math.sin(angle) * radius;
+        if (i === 0) {
+            shieldShape.moveTo(px, py);
+        } else {
+            shieldShape.lineTo(px, py);
+        }
+    }
+    shieldShape.lineTo(Math.cos(0) * radius, Math.sin(0) * radius);
+
+    const extrudeSettings = { depth: 0.3, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05 };
+    const shieldGeometry = new THREE.ExtrudeGeometry(shieldShape, extrudeSettings);
     const shieldMaterial = new THREE.MeshLambertMaterial({
-        color: 0x4169e1,
-        emissive: 0x0000ff
+        color: 0x00ff88, // Bright cyan-green (antivirus color)
+        emissive: 0x00aa55,
+        emissiveIntensity: 0.5
     });
     const shieldBody = new THREE.Mesh(shieldGeometry, shieldMaterial);
-    shieldBody.rotation.x = Math.PI / 2;
+    shieldBody.rotation.y = Math.PI / 2; // Face sideways
     shieldBody.castShadow = true;
 
-    // Shield boss (center)
-    const bossGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-    const bossMaterial = new THREE.MeshLambertMaterial({ color: 0xffd700 });
-    const boss = new THREE.Mesh(bossGeometry, bossMaterial);
-    boss.castShadow = true;
+    // Checkmark symbol in center (virus protection symbol)
+    const checkGroup = new THREE.Group();
+
+    // First part of checkmark
+    const check1Geometry = new THREE.BoxGeometry(0.15, 0.6, 0.15);
+    const check1Material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 1
+    });
+    const check1 = new THREE.Mesh(check1Geometry, check1Material);
+    check1.rotation.z = -Math.PI / 4;
+    check1.position.set(-0.2, -0.15, 0);
+
+    // Second part of checkmark
+    const check2Geometry = new THREE.BoxGeometry(0.15, 1.0, 0.15);
+    const check2 = new THREE.Mesh(check2Geometry, check1Material);
+    check2.rotation.z = Math.PI / 4;
+    check2.position.set(0.3, 0.15, 0);
+
+    checkGroup.add(check1);
+    checkGroup.add(check2);
+    checkGroup.rotation.y = Math.PI / 2; // Face sideways
+    checkGroup.position.x = -0.2; // Adjust position for sideways orientation
+
+    // Outer tech ring
+    const ringGeometry = new THREE.TorusGeometry(1.5, 0.08, 8, 6);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 0.8,
+        wireframe: true
+    });
+    const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+    ring.rotation.y = Math.PI / 2; // Face sideways
+
+    // Inner circular core
+    const coreGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ddff,
+        emissive: 0x00aaff,
+        emissiveIntensity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.rotation.z = Math.PI / 2; // Face sideways
 
     shield.add(shieldBody);
-    shield.add(boss);
+    shield.add(checkGroup);
+    shield.add(ring);
+    shield.add(core);
 
     shield.position.set(x, 1.5, z);
-    shield.rotation.z = Math.PI / 4;
 
     game.scene.add(shield);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
+    // Add bright glowing aura effect (antivirus protection field)
+    const glowGeometry = new THREE.SphereGeometry(2.0, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x4169e1,
+        color: 0x00ff88,
         transparent: true,
-        opacity: 0.2
+        opacity: 0.15
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     shield.add(glow);
+
+    // Secondary inner glow
+    const innerGlowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    const innerGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.25
+    });
+    const innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+    shield.add(innerGlow);
 
     // Add to shields array
     game.shields.push(shield);
 }
 
-// Create bow pickup
+// Create bow pickup (Lunar Linux laser gun)
 function createBowPickup(x, z) {
-    // Create bow group
+    // Create laser gun group
     game.bow = new THREE.Group();
 
-    // Bow body - curved shape
-    const bowCurve = new THREE.Shape();
-    bowCurve.moveTo(0, -1);
-    bowCurve.quadraticCurveTo(-0.3, 0, 0, 1);
-
-    const extrudeSettings = { depth: 0.1, bevelEnabled: false };
-    const bowGeometry = new THREE.ExtrudeGeometry(bowCurve, extrudeSettings);
-    const bowMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513,
-        emissive: 0x442200
+    // Main gun body - sleek dark metallic
+    const bodyGeometry = new THREE.BoxGeometry(0.4, 0.4, 1.5);
+    const bodyMaterial = new THREE.MeshLambertMaterial({
+        color: 0x2a2a3a, // Dark blue-gray metal
+        emissive: 0x1a1a2a
     });
-    const bowBody = new THREE.Mesh(bowGeometry, bowMaterial);
-    bowBody.castShadow = true;
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.castShadow = true;
+    body.position.z = 0.3;
 
-    // String
-    const stringGeometry = new THREE.BufferGeometry();
-    const stringVertices = new Float32Array([
-        0, -1, 0.05,
-        0, 1, 0.05
-    ]);
-    stringGeometry.setAttribute('position', new THREE.BufferAttribute(stringVertices, 3));
-    const stringMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
-    const bowString = new THREE.Line(stringGeometry, stringMaterial);
+    // Barrel - glowing cyan energy core
+    const barrelGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1.0, 8);
+    const barrelMaterial = new THREE.MeshLambertMaterial({
+        color: 0x00ffff, // Bright cyan
+        emissive: 0x00ffff,
+        emissiveIntensity: 1
+    });
+    const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.z = -0.5;
+    barrel.castShadow = true;
 
-    game.bow.add(bowBody);
-    game.bow.add(bowString);
+    // Energy chamber - glowing green sphere
+    const chamberGeometry = new THREE.SphereGeometry(0.25, 12, 12);
+    const chamberMaterial = new THREE.MeshLambertMaterial({
+        color: 0x00ff00, // Bright green energy
+        emissive: 0x00ff00,
+        emissiveIntensity: 1
+    });
+    const chamber = new THREE.Mesh(chamberGeometry, chamberMaterial);
+    chamber.position.z = 0.8;
+
+    // Tech accent lines - yellow
+    const accent1Geometry = new THREE.BoxGeometry(0.42, 0.05, 0.3);
+    const accentMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffff00, // Yellow tech
+        emissive: 0xffff00,
+        emissiveIntensity: 0.8
+    });
+    const accent1 = new THREE.Mesh(accent1Geometry, accentMaterial);
+    accent1.position.set(0, 0.15, 0.5);
+
+    const accent2 = new THREE.Mesh(accent1Geometry, accentMaterial);
+    accent2.position.set(0, -0.15, 0.5);
+
+    // Handle/grip
+    const gripGeometry = new THREE.BoxGeometry(0.25, 0.5, 0.4);
+    const gripMaterial = new THREE.MeshLambertMaterial({
+        color: 0x1a1a1a // Dark grip
+    });
+    const grip = new THREE.Mesh(gripGeometry, gripMaterial);
+    grip.position.set(0, -0.35, 0.9);
+
+    game.bow.add(body);
+    game.bow.add(barrel);
+    game.bow.add(chamber);
+    game.bow.add(accent1);
+    game.bow.add(accent2);
+    game.bow.add(grip);
 
     game.bow.position.set(x, 1.5, z);
     game.bow.rotation.y = Math.PI / 4;
+    game.bow.rotation.z = Math.PI / 2; // Rotate to horizontal
 
     game.scene.add(game.bow);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    // Add cyan/green glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+        color: 0x00ff88, // Cyan-green glow
         transparent: true,
         opacity: 0.2
     });
@@ -1649,101 +1834,178 @@ function createBowPickup(x, z) {
 
 // Create axe pickup
 function createAxePickup(x, z) {
-    // Create axe group
+    // Create Virus Slicer group - futuristic energy axe
     game.axe = new THREE.Group();
 
-    // Axe handle - long brown cylinder
-    const handleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2.5, 8);
+    // Tech handle - dark metallic with cyan accents
+    const handleGeometry = new THREE.CylinderGeometry(0.12, 0.08, 2.5, 8);
     const handleMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513,
-        emissive: 0x442200
+        color: 0x2a2a3a, // Dark blue-gray tech metal
+        emissive: 0x1a1a2a
     });
     const handle = new THREE.Mesh(handleGeometry, handleMaterial);
     handle.castShadow = true;
-
-    // Axe blade - large metallic wedge
-    const bladeGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.2);
-    const bladeMaterial = new THREE.MeshLambertMaterial({
-        color: 0x888888,
-        emissive: 0x444444,
-        emissiveIntensity: 0.5
-    });
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.y = 1.3;
-    blade.castShadow = true;
-
-    // Blade edge (darker metal)
-    const edgeGeometry = new THREE.BoxGeometry(1.3, 0.1, 0.25);
-    const edgeMaterial = new THREE.MeshLambertMaterial({
-        color: 0x555555,
-        emissive: 0x222222
-    });
-    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
-    edge.position.y = 1.65;
-    edge.castShadow = true;
-
     game.axe.add(handle);
-    game.axe.add(blade);
-    game.axe.add(edge);
+
+    // Energy core in handle
+    const coreGeometry = new THREE.CylinderGeometry(0.06, 0.06, 2.2, 8);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan energy core
+        emissive: 0x00ffff,
+        emissiveIntensity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    game.axe.add(core);
+
+    // Energy blade - glowing cyan double-bladed axe head
+    const blade1Geometry = new THREE.BoxGeometry(1.4, 0.6, 0.08);
+    const bladeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan energy
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.9
+    });
+    const blade1 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade1.position.y = 1.3;
+    blade1.position.x = 0.7;
+    game.axe.add(blade1);
+
+    const blade2 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade2.position.y = 1.3;
+    blade2.position.x = -0.7;
+    game.axe.add(blade2);
+
+    // Energy blade glow
+    const bladeGlow1Geometry = new THREE.BoxGeometry(1.5, 0.7, 0.15);
+    const bladeGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88, // Green-cyan glow
+        emissive: 0x00ff88,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.4
+    });
+    const bladeGlow1 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow1.position.y = 1.3;
+    bladeGlow1.position.x = 0.7;
+    game.axe.add(bladeGlow1);
+
+    const bladeGlow2 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow2.position.y = 1.3;
+    bladeGlow2.position.x = -0.7;
+    game.axe.add(bladeGlow2);
+
+    // Tech connector/emitter at blade junction
+    const emitterGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+    const emitterMaterial = new THREE.MeshLambertMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 0.8
+    });
+    const emitter = new THREE.Mesh(emitterGeometry, emitterMaterial);
+    emitter.position.y = 1.3;
+    emitter.castShadow = true;
+    game.axe.add(emitter);
+
+    // Circuit patterns on handle (tech details)
+    for (let i = 0; i < 4; i++) {
+        const circuitGeometry = new THREE.TorusGeometry(0.14, 0.02, 8, 16);
+        const circuitMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 0.8
+        });
+        const circuit = new THREE.Mesh(circuitGeometry, circuitMaterial);
+        circuit.position.y = -0.8 + (i * 0.5);
+        circuit.rotation.x = Math.PI / 2;
+        game.axe.add(circuit);
+    }
 
     game.axe.position.set(x, 1.5, z);
     game.axe.rotation.z = Math.PI / 6;
 
     game.scene.add(game.axe);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
+    // Cyan/green energy glow effect
+    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff4444,
+        color: 0x00ffaa,
         transparent: true,
-        opacity: 0.2
+        opacity: 0.25
     });
     const glow = new THREE.Mesh(glowGeometry, glowMaterial);
     game.axe.add(glow);
 
-    console.log('Axe created at', x, z);
+    console.log('Virus Slicer created at', x, z);
 }
 
 // Create food pickup
 function createFoodPickup(x, z) {
-    // Create food group - looks like an apple
+    // Create code pickup - looks like a piece of code
     const food = new THREE.Group();
 
-    // Apple body - red sphere
-    const appleGeometry = new THREE.SphereGeometry(0.5, 16, 16);
-    const appleMaterial = new THREE.MeshLambertMaterial({
-        color: 0xff0000,
-        emissive: 0x440000
+    // Code background - flat rectangular plane
+    const codeBackgroundGeometry = new THREE.BoxGeometry(1.2, 0.8, 0.1);
+    const codeBackgroundMaterial = new THREE.MeshLambertMaterial({
+        color: 0x1e1e1e, // Dark gray/black (like code editor background)
+        emissive: 0x0a0a0a
     });
-    const appleBody = new THREE.Mesh(appleGeometry, appleMaterial);
-    appleBody.scale.set(1, 1.2, 1); // Slightly elongated
-    appleBody.castShadow = true;
+    const codeBackground = new THREE.Mesh(codeBackgroundGeometry, codeBackgroundMaterial);
+    codeBackground.castShadow = true;
 
-    // Stem - small brown cylinder
-    const stemGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8);
-    const stemMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
-    const stem = new THREE.Mesh(stemGeometry, stemMaterial);
-    stem.position.y = 0.75;
+    // Code lines - bright green/cyan bars representing lines of code
+    const createCodeLine = (yPos, width) => {
+        const lineGeometry = new THREE.BoxGeometry(width, 0.08, 0.12);
+        const lineMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00, // Bright green (classic code color)
+            emissive: 0x00ff00,
+            emissiveIntensity: 0.8
+        });
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.position.y = yPos;
+        line.position.x = -0.6 + width / 2;
+        return line;
+    };
 
-    // Leaf - small green diamond
-    const leafGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.15);
-    const leafMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-    const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-    leaf.position.set(0.1, 0.85, 0);
-    leaf.rotation.z = 0.3;
+    // Multiple code lines at different lengths
+    const line1 = createCodeLine(0.25, 0.9);
+    const line2 = createCodeLine(0.1, 1.0);
+    const line3 = createCodeLine(-0.05, 0.7);
+    const line4 = createCodeLine(-0.2, 0.85);
 
-    food.add(appleBody);
-    food.add(stem);
-    food.add(leaf);
+    // Curly braces - code symbols
+    const createBrace = (xPos, yPos, rotation) => {
+        const braceGeometry = new THREE.TorusGeometry(0.15, 0.04, 8, 6, Math.PI);
+        const braceMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00, // Yellow braces
+            emissive: 0xffff00,
+            emissiveIntensity: 1
+        });
+        const brace = new THREE.Mesh(braceGeometry, braceMaterial);
+        brace.position.set(xPos, yPos, 0.06);
+        brace.rotation.z = rotation;
+        return brace;
+    };
+
+    const leftBrace = createBrace(-0.5, 0, Math.PI / 2);
+    const rightBrace = createBrace(0.5, 0, -Math.PI / 2);
+
+    food.add(codeBackground);
+    food.add(line1);
+    food.add(line2);
+    food.add(line3);
+    food.add(line4);
+    food.add(leftBrace);
+    food.add(rightBrace);
 
     food.position.set(x, 1, z);
 
     game.scene.add(food);
 
-    // Add glow effect
+    // Add green/cyan glow effect (code aura)
     const glowGeometry = new THREE.SphereGeometry(1.2, 16, 16);
     const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff6666,
+        color: 0x00ff88,
         transparent: true,
         opacity: 0.2
     });
@@ -1753,129 +2015,271 @@ function createFoodPickup(x, z) {
     game.foods.push(food);
 }
 
-// Create spell book pickup
+// Create chunky code pickup
+function createRedPotionPickup(x, z) {
+    // Create chunky code group
+    const potion = new THREE.Group();
+
+    // Main code chunk - large dark block (bigger than regular code)
+    const chunkGeometry = new THREE.BoxGeometry(1.5, 1.2, 0.15);
+    const chunkMaterial = new THREE.MeshLambertMaterial({
+        color: 0x0a0a0a, // Very dark gray/black (code editor background)
+        emissive: 0x0a0a0a
+    });
+    const chunk = new THREE.Mesh(chunkGeometry, chunkMaterial);
+    chunk.castShadow = true;
+
+    // Chunky code lines - bright purple/magenta (indicating special/rare code)
+    const createCodeLine = (yPos, width) => {
+        const lineGeometry = new THREE.BoxGeometry(width, 0.12, 0.16);
+        const lineMaterial = new THREE.MeshBasicMaterial({
+            color: 0xff00ff, // Bright magenta (rare code color)
+            emissive: 0xff00ff,
+            emissiveIntensity: 1
+        });
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.position.y = yPos;
+        line.position.x = -0.75 + width / 2;
+        return line;
+    };
+
+    // Multiple chunky code lines
+    const line1 = createCodeLine(0.4, 1.3);
+    const line2 = createCodeLine(0.2, 1.4);
+    const line3 = createCodeLine(0, 1.2);
+    const line4 = createCodeLine(-0.2, 1.35);
+    const line5 = createCodeLine(-0.4, 1.1);
+
+    // Special symbols - bright cyan brackets/braces
+    const createSymbol = (xPos, yPos, symbol) => {
+        const symbolGeometry = new THREE.TorusGeometry(0.15, 0.05, 8, 6, Math.PI);
+        const symbolMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ffff, // Cyan symbols
+            emissive: 0x00ffff,
+            emissiveIntensity: 1
+        });
+        const sym = new THREE.Mesh(symbolGeometry, symbolMaterial);
+        sym.position.set(xPos, yPos, 0.08);
+        sym.rotation.z = symbol === 'left' ? Math.PI / 2 : -Math.PI / 2;
+        return sym;
+    };
+
+    const leftBrace = createSymbol(-0.7, 0, 'left');
+    const rightBrace = createSymbol(0.7, 0, 'right');
+
+    // Corner markers - yellow tech indicators
+    for (let i = 0; i < 4; i++) {
+        const markerGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.08);
+        const markerMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffff00, // Yellow
+            emissive: 0xffff00,
+            emissiveIntensity: 1
+        });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        const xPos = i < 2 ? -0.7 : 0.7;
+        const yPos = i % 2 === 0 ? 0.55 : -0.55;
+        marker.position.set(xPos, yPos, 0.08);
+        potion.add(marker);
+    }
+
+    potion.add(chunk);
+    potion.add(line1);
+    potion.add(line2);
+    potion.add(line3);
+    potion.add(line4);
+    potion.add(line5);
+    potion.add(leftBrace);
+    potion.add(rightBrace);
+
+    potion.position.set(x, 1.2, z);
+    potion.rotation.y = Math.PI / 4; // Slight angle
+
+    game.scene.add(potion);
+
+    // Add magenta/purple glow effect (rare/special code aura)
+    const glowGeometry = new THREE.SphereGeometry(1.8, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff00ff, // Magenta glow
+        transparent: true,
+        opacity: 0.25
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    potion.add(glow);
+
+    game.redPotions.push(potion);
+    console.log('Chunky code created at', x, z);
+}
+
+// Create dev book pickup
 function createSpellBook(x, z) {
     game.spellBook = new THREE.Group();
 
-    // Book - rectangular shape
+    // Book - rectangular shape (normal everyday book)
     const bookGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.15);
     const bookMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b008b, // Dark purple
-        emissive: 0x4b0082
+        color: 0x1a3a5c, // Dark blue (like tech/programming books)
+        emissive: 0x0a1a2c
     });
     const book = new THREE.Mesh(bookGeometry, bookMaterial);
     book.castShadow = true;
     game.spellBook.add(book);
 
-    // Book cover design - golden star
-    const starGeometry = new THREE.CircleGeometry(0.2, 5);
-    const starMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffd700
+    // Book cover - title text lines (simulating book title)
+    const titleLineGeometry1 = new THREE.BoxGeometry(0.45, 0.08, 0.001);
+    const titleMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff // White text
     });
-    const star = new THREE.Mesh(starGeometry, starMaterial);
-    star.position.set(0, 0, 0.08);
-    game.spellBook.add(star);
+    const titleLine1 = new THREE.Mesh(titleLineGeometry1, titleMaterial);
+    titleLine1.position.set(0, 0.2, 0.076);
+    game.spellBook.add(titleLine1);
 
-    // Magical sparkles around book
-    for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        const sparkleGeometry = new THREE.SphereGeometry(0.05, 8, 8);
-        const sparkleMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
-            emissive: 0xffff00
-        });
-        const sparkle = new THREE.Mesh(sparkleGeometry, sparkleMaterial);
-        sparkle.position.set(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0);
-        sparkle.userData.angle = angle;
-        sparkle.userData.isSparkle = true;
-        game.spellBook.add(sparkle);
-    }
+    const titleLineGeometry2 = new THREE.BoxGeometry(0.4, 0.06, 0.001);
+    const titleLine2 = new THREE.Mesh(titleLineGeometry2, titleMaterial);
+    titleLine2.position.set(0, 0.08, 0.076);
+    game.spellBook.add(titleLine2);
+
+    // Subtitle line
+    const subtitleGeometry = new THREE.BoxGeometry(0.35, 0.04, 0.001);
+    const subtitleLine = new THREE.Mesh(subtitleGeometry, titleMaterial);
+    subtitleLine.position.set(0, -0.05, 0.076);
+    game.spellBook.add(subtitleLine);
+
+    // Author line at bottom
+    const authorGeometry = new THREE.BoxGeometry(0.25, 0.03, 0.001);
+    const authorLine = new THREE.Mesh(authorGeometry, titleMaterial);
+    authorLine.position.set(0, -0.3, 0.076);
+    game.spellBook.add(authorLine);
+
+    // Book spine (darker edge)
+    const spineGeometry = new THREE.BoxGeometry(0.15, 0.8, 0.001);
+    const spineMaterial = new THREE.MeshLambertMaterial({
+        color: 0x0f2540 // Darker blue for spine
+    });
+    const spine = new THREE.Mesh(spineGeometry, spineMaterial);
+    spine.position.set(-0.3, 0, 0);
+    spine.rotation.y = Math.PI / 2;
+    game.spellBook.add(spine);
 
     game.spellBook.position.set(x, 1.5, z);
     game.spellBook.rotation.y = Math.PI / 4;
 
     game.scene.add(game.spellBook);
 
-    // Add glow effect
-    const glowGeometry = new THREE.SphereGeometry(1.5, 16, 16);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x9400d3,
-        transparent: true,
-        opacity: 0.2
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    game.spellBook.add(glow);
-
-    console.log('Spell book created at', x, z);
+    console.log('Dev book created at', x, z);
 }
 
 // Create shop at edge of map
 function createShop(x, z) {
     game.shop = new THREE.Group();
 
-    // Shop building - larger box
-    const buildingGeometry = new THREE.BoxGeometry(12, 8, 10);
-    const buildingMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b4513, // Brown wood
-        emissive: 0x221100
+    // Wormhole dimensions - 5 units long
+    const wormholeLength = 5;
+    const numRings = 15;
+    const startRadius = 4;
+    const endRadius = 0.5;
+
+    // Create swirling rings forming the wormhole tunnel
+    for (let i = 0; i < numRings; i++) {
+        const progress = i / (numRings - 1);
+
+        // Calculate ring position along the tunnel (0 to 5 units)
+        const zPos = progress * wormholeLength;
+
+        // Ring radius decreases as we go deeper
+        const radius = startRadius - (startRadius - endRadius) * progress;
+
+        // Create torus ring
+        const ringGeometry = new THREE.TorusGeometry(radius, 0.15, 8, 32);
+
+        // Alternate colors for cosmic effect - purple to cyan gradient
+        const hue = 0.7 - progress * 0.15; // Purple (0.7) to cyan (0.55)
+        const color = new THREE.Color().setHSL(hue, 1, 0.5);
+
+        const ringMaterial = new THREE.MeshBasicMaterial({
+            color: color,
+            emissive: color,
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.7 - progress * 0.3 // Fade as it goes deeper
+        });
+
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.z = zPos;
+
+        // Rotate ring for spiral effect
+        ring.rotation.z = progress * Math.PI * 2;
+
+        // Store animation data
+        ring.userData.rotationSpeed = 0.5 + progress * 0.5;
+        ring.userData.initialRotation = ring.rotation.z;
+
+        game.shop.add(ring);
+    }
+
+    // Create glowing particles inside the wormhole
+    for (let i = 0; i < 25; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distanceFromCenter = Math.random() * 3;
+        const depth = Math.random() * wormholeLength;
+
+        const particleGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+        const particleColor = Math.random() > 0.5 ? 0x00ffff : 0xff00ff; // Cyan or magenta
+        const particleMaterial = new THREE.MeshBasicMaterial({
+            color: particleColor,
+            emissive: particleColor,
+            emissiveIntensity: 1,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        particle.position.x = Math.cos(angle) * distanceFromCenter;
+        particle.position.y = Math.sin(angle) * distanceFromCenter;
+        particle.position.z = depth;
+
+        // Store animation data
+        particle.userData.angle = angle;
+        particle.userData.radius = distanceFromCenter;
+        particle.userData.depth = depth;
+        particle.userData.speed = 0.5 + Math.random() * 1.0;
+
+        game.shop.add(particle);
+    }
+
+    // Central core - dark void with bright edge
+    const coreGeometry = new THREE.CylinderGeometry(startRadius * 0.9, endRadius * 0.9, wormholeLength, 32);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x000033, // Very dark blue
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.BackSide
     });
-    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-    building.position.y = 4;
-    building.castShadow = true;
-    building.receiveShadow = true;
-    game.shop.add(building);
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.rotation.x = Math.PI / 2;
+    core.position.z = wormholeLength / 2;
+    game.shop.add(core);
 
-    // Roof - pyramid shape
-    const roofGeometry = new THREE.ConeGeometry(8, 4, 4);
-    const roofMaterial = new THREE.MeshLambertMaterial({
-        color: 0x8b0000 // Dark red
+    // Outer glow - bright edge at entrance
+    const glowGeometry = new THREE.TorusGeometry(startRadius + 0.3, 0.4, 8, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.6
     });
-    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-    roof.position.y = 10;
-    roof.rotation.y = Math.PI / 4;
-    roof.castShadow = true;
-    game.shop.add(roof);
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.z = 0;
+    game.shop.add(glow);
 
-    // Sign - "SHOP"
-    const signGeometry = new THREE.BoxGeometry(8, 2, 0.2);
-    const signMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffd700 // Gold
-    });
-    const sign = new THREE.Mesh(signGeometry, signMaterial);
-    sign.position.set(0, 6, -5.1);
-    game.shop.add(sign);
+    // Position wormhole angled into the ground with entrance poking out
+    game.shop.position.set(x, 1.5, z);
+    game.shop.rotation.x = Math.PI * 0.4; // Tilt 72 degrees into the ground
+    game.shop.rotation.y = Math.PI; // Face toward center of map
 
-    // Shopkeeper - golden sphere with hat
-    const shopkeeperGeometry = new THREE.SphereGeometry(0.8, 16, 16);
-    const shopkeeperMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffcc00,
-        emissive: 0x885500
-    });
-    const shopkeeper = new THREE.Mesh(shopkeeperGeometry, shopkeeperMaterial);
-    shopkeeper.position.set(0, 2, -4);
-    game.shop.add(shopkeeper);
-
-    // Hat on shopkeeper
-    const hatGeometry = new THREE.ConeGeometry(0.6, 1, 8);
-    const hatMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
-    const hat = new THREE.Mesh(hatGeometry, hatMaterial);
-    hat.position.set(0, 3, -4);
-    game.shop.add(hat);
-
-    // Shopkeeper eyes
-    const eyeGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-    const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    leftEye.position.set(-0.3, 2.2, -3.3);
-    game.shop.add(leftEye);
-    const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-    rightEye.position.set(0.3, 2.2, -3.3);
-    game.shop.add(rightEye);
-
-    game.shop.position.set(x, 0, z);
     game.scene.add(game.shop);
 
-    // Create invisible collision box for the shop building
+    // Create invisible collision box (same size as before for shop interaction)
     const collisionBox = new THREE.Mesh(
         new THREE.BoxGeometry(12, 8, 10),
         new THREE.MeshBasicMaterial({ visible: false })
@@ -1884,7 +2288,7 @@ function createShop(x, z) {
     game.scene.add(collisionBox);
     game.objects.push(collisionBox);
 
-    console.log('Shop created at', x, z);
+    console.log('Wormhole shop created at', x, z);
 }
 
 // Initialize inventory system
@@ -1905,7 +2309,7 @@ function updateInventoryUI() {
     }
     swordSlot.innerHTML = `
         <div class="item-icon">⚔️</div>
-        <div class="item-name">Sword</div>
+        <div class="item-name">Virus Destroyer</div>
         ${game.inventory.equippedSword ? '<div class="item-status">EQUIPPED</div>' : ''}
     `;
     swordSlot.addEventListener('click', () => toggleEquipSword());
@@ -1920,7 +2324,7 @@ function updateInventoryUI() {
         }
         shieldSlot.innerHTML = `
             <div class="item-icon">🛡️</div>
-            <div class="item-name">Shield x${game.shieldCount}</div>
+            <div class="item-name">Anti Virus x${game.shieldCount}</div>
             ${game.inventory.equippedShield ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         shieldSlot.addEventListener('click', () => toggleEquipItem({type: 'shield'}));
@@ -1935,8 +2339,8 @@ function updateInventoryUI() {
     foodSlot.className = 'inventory-slot';
     if (game.foodCount > 0) {
         foodSlot.innerHTML = `
-            <div class="item-icon">🍎</div>
-            <div class="item-name">Food x${game.foodCount}</div>
+            <div class="item-icon">💻</div>
+            <div class="item-name">Code x${game.foodCount}</div>
         `;
         foodSlot.addEventListener('click', () => toggleEquipItem({type: 'food'}));
     } else {
@@ -1944,6 +2348,21 @@ function updateInventoryUI() {
         foodSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
     }
     inventoryItems.appendChild(foodSlot);
+
+    // Chunky Code slot
+    const potionSlot = document.createElement('div');
+    potionSlot.className = 'inventory-slot';
+    if (game.redPotionCount > 0) {
+        potionSlot.innerHTML = `
+            <div class="item-icon">💾</div>
+            <div class="item-name">Chunky Code x${game.redPotionCount}</div>
+        `;
+        potionSlot.addEventListener('click', () => toggleEquipItem({type: 'redpotion'}));
+    } else {
+        potionSlot.classList.add('empty');
+        potionSlot.innerHTML = '<div class="item-icon">—</div><div class="item-name">Empty</div>';
+    }
+    inventoryItems.appendChild(potionSlot);
 
     // Bow slot
     const bowSlot = document.createElement('div');
@@ -1953,8 +2372,8 @@ function updateInventoryUI() {
             bowSlot.classList.add('equipped');
         }
         bowSlot.innerHTML = `
-            <div class="item-icon">🏹</div>
-            <div class="item-name">Bow</div>
+            <div class="item-icon">🔫</div>
+            <div class="item-name">Lunar Linux</div>
             ${game.equippedBow ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         bowSlot.addEventListener('click', () => toggleEquipItem({type: 'bow'}));
@@ -1973,7 +2392,7 @@ function updateInventoryUI() {
         }
         axeSlot.innerHTML = `
             <div class="item-icon">🪓</div>
-            <div class="item-name">Axe</div>
+            <div class="item-name">Virus Slicer</div>
             ${game.equippedAxe ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         axeSlot.addEventListener('click', () => toggleEquipItem({type: 'axe'}));
@@ -1983,7 +2402,7 @@ function updateInventoryUI() {
     }
     inventoryItems.appendChild(axeSlot);
 
-    // Spell Book slot
+    // Dev Book slot
     const spellBookSlot = document.createElement('div');
     spellBookSlot.className = 'inventory-slot';
     if (game.spellBookCollected) {
@@ -1992,7 +2411,7 @@ function updateInventoryUI() {
         }
         spellBookSlot.innerHTML = `
             <div class="item-icon">📖</div>
-            <div class="item-name">Spell Book</div>
+            <div class="item-name">Dev Book</div>
             ${game.equippedSpellBook ? '<div class="item-status">EQUIPPED</div>' : ''}
         `;
         spellBookSlot.addEventListener('click', () => toggleEquipItem({type: 'spellbook'}));
@@ -2029,15 +2448,19 @@ function updateEquippedDisplays() {
 
     if (game.inventory.equippedSword) {
         weaponIcon.textContent = '⚔️';
-        weaponLabel.textContent = 'Sword';
+        weaponLabel.textContent = 'Virus Destroyer';
         weaponDisplay.classList.add('active');
     } else if (game.equippedBow) {
-        weaponIcon.textContent = '🏹';
-        weaponLabel.textContent = 'Bow';
+        weaponIcon.textContent = '🔫';
+        weaponLabel.textContent = 'Lunar Linux';
+        weaponDisplay.classList.add('active');
+    } else if (game.equippedAxe) {
+        weaponIcon.textContent = '🪓';
+        weaponLabel.textContent = 'Virus Slicer';
         weaponDisplay.classList.add('active');
     } else if (game.equippedSpellBook) {
         weaponIcon.textContent = '📖';
-        weaponLabel.textContent = 'Spell Book';
+        weaponLabel.textContent = 'Dev Book';
         weaponDisplay.classList.add('active');
     } else {
         weaponDisplay.classList.remove('active');
@@ -2054,7 +2477,7 @@ function toggleEquipSword() {
             game.equippedSwordMesh = null;
         }
     } else {
-        // Equip sword - unequip bow and spell book first if equipped
+        // Equip sword - unequip bow and dev book first if equipped
         if (game.equippedBow) {
             game.equippedBow = false;
             if (game.equippedBowMesh) {
@@ -2095,6 +2518,9 @@ function removeItemFromInventory(itemType) {
     } else if (itemType === 'food' && game.foodCount > 0) {
         game.foodCount--;
         updateInventoryUI();
+    } else if (itemType === 'redpotion' && game.redPotionCount > 0) {
+        game.redPotionCount--;
+        updateInventoryUI();
     }
 }
 
@@ -2127,7 +2553,7 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip bow - unequip sword, axe, and spell book first
+            // Equip bow - unequip sword, axe, and dev book first
             game.equippedBow = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
@@ -2168,7 +2594,7 @@ function toggleEquipItem(item) {
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip axe - unequip sword, bow and spell book first
+            // Equip axe - unequip sword, bow and dev book first
             game.equippedAxe = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
@@ -2210,14 +2636,30 @@ function toggleEquipItem(item) {
             // Remove food from inventory
             removeItemFromInventory('food');
 
-            showNotification(`🍎 Food consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.foodCount} remaining`);
+            showNotification(`💻 Code consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.foodCount} remaining`);
+            toggleInventory(); // Close inventory after using
+        }
+    } else if (item.type === 'redpotion') {
+        // Use chunky code - heal 100 HP!
+        if (game.redPotionCount > 0) {
+            const healAmount = 100;
+            const previousHP = game.playerHP;
+            game.playerHP = Math.min(game.playerHP + healAmount, game.maxPlayerHP);
+            const actualHeal = game.playerHP - previousHP;
+
+            updateHPDisplay();
+
+            // Remove chunky code from inventory
+            removeItemFromInventory('redpotion');
+
+            showNotification(`💾 Chunky Code consumed! Healed ${actualHeal} HP (${game.playerHP}/${game.maxPlayerHP}) | ${game.redPotionCount} remaining`);
             toggleInventory(); // Close inventory after using
         }
     } else if (item.type === 'spellbook') {
-        if (!game.spellBookCollected) return; // No spell book to equip
+        if (!game.spellBookCollected) return; // No dev book to equip
 
         if (game.equippedSpellBook) {
-            // Unequip spell book
+            // Unequip dev book
             game.equippedSpellBook = false;
             if (game.equippedSpellBookMesh) {
                 game.camera.remove(game.equippedSpellBookMesh);
@@ -2228,11 +2670,13 @@ function toggleEquipItem(item) {
             if (manaDisplay) {
                 manaDisplay.style.display = 'none';
             }
+            // Hide spell UI
+            updateSpellUI();
             // Re-equip sword
             game.inventory.equippedSword = true;
             equipSword();
         } else {
-            // Equip spell book - unequip sword, bow, and axe first
+            // Equip dev book - unequip sword, bow, and axe first
             game.equippedSpellBook = true;
             game.inventory.equippedSword = false;
             if (game.equippedSwordMesh) {
@@ -2286,22 +2730,38 @@ function equipSword() {
     hand.position.set(0.15, -0.8, -0.1);
     hand.renderOrder = 999;
 
-    // Blade - large, bright white for maximum visibility
-    const bladeGeometry = new THREE.BoxGeometry(0.15, 2.5, 0.08);
+    // Virus Destroyer Blade - bright cyan energy blade
+    const bladeGeometry = new THREE.BoxGeometry(0.2, 2.5, 0.05);
     const bladeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: 0x00ffff, // Bright cyan (antivirus color)
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
         side: THREE.DoubleSide,
-        depthTest: false, // Always render on top
+        depthTest: false,
         depthWrite: false
     });
     const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
     blade.position.set(0, 0.8, -0.1);
     blade.renderOrder = 999;
 
-    // Handle - brown wood
-    const handleGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+    // Energy glow around blade
+    const bladeGlowGeometry = new THREE.BoxGeometry(0.25, 2.6, 0.1);
+    const bladeGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const bladeGlow = new THREE.Mesh(bladeGlowGeometry, bladeGlowMaterial);
+    bladeGlow.position.set(0, 0.8, -0.1);
+    bladeGlow.renderOrder = 998;
+
+    // Handle - dark tech grip with green accents
+    const handleGeometry = new THREE.BoxGeometry(0.12, 0.5, 0.12);
     const handleMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+        color: 0x1a1a1a, // Dark gray/black tech
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
@@ -2310,10 +2770,29 @@ function equipSword() {
     handle.position.set(0, -0.5, -0.1);
     handle.renderOrder = 999;
 
-    // Guard (crossguard) - bright gold
-    const guardGeometry = new THREE.BoxGeometry(0.5, 0.08, 0.1);
+    // Handle accents - green tech lines
+    const accentGeometry = new THREE.BoxGeometry(0.13, 0.08, 0.13);
+    const accentMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00,
+        emissiveIntensity: 1,
+        side: THREE.DoubleSide,
+        depthTest: false,
+        depthWrite: false
+    });
+    const accent1 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent1.position.set(0, -0.35, -0.1);
+    accent1.renderOrder = 999;
+    const accent2 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent2.position.set(0, -0.65, -0.1);
+    accent2.renderOrder = 999;
+
+    // Guard - futuristic hexagonal guard
+    const guardGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.15);
     const guardMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff00,
+        color: 0x00ddff, // Cyan tech
+        emissive: 0x00aaff,
+        emissiveIntensity: 0.8,
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
@@ -2322,10 +2801,12 @@ function equipSword() {
     guard.position.set(0, -0.25, -0.1);
     guard.renderOrder = 999;
 
-    // Pommel - bright gold sphere
-    const pommelGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+    // Pommel - glowing energy core
+    const pommelGeometry = new THREE.SphereGeometry(0.12, 8, 8);
     const pommelMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffff00,
+        color: 0x00ff00, // Bright green energy core
+        emissive: 0x00ff00,
+        emissiveIntensity: 1,
         depthTest: false,
         depthWrite: false
     });
@@ -2335,20 +2816,26 @@ function equipSword() {
 
     game.equippedSwordMesh.add(arm);
     game.equippedSwordMesh.add(hand);
+    game.equippedSwordMesh.add(bladeGlow);
     game.equippedSwordMesh.add(blade);
     game.equippedSwordMesh.add(handle);
+    game.equippedSwordMesh.add(accent1);
+    game.equippedSwordMesh.add(accent2);
     game.equippedSwordMesh.add(guard);
     game.equippedSwordMesh.add(pommel);
 
-    // Position sword with arm clearly visible in camera view (right side)
+    // Position virus destroyer with arm clearly visible in camera view (right side)
     game.equippedSwordMesh.position.set(0.3, -0.3, -0.5);
     game.equippedSwordMesh.rotation.set(-0.2, 0.1, 0.05);
 
-    // Disable frustum culling for all sword parts to ensure they're always rendered
+    // Disable frustum culling for all parts to ensure they're always rendered
     arm.frustumCulled = false;
     hand.frustumCulled = false;
+    bladeGlow.frustumCulled = false;
     blade.frustumCulled = false;
     handle.frustumCulled = false;
+    accent1.frustumCulled = false;
+    accent2.frustumCulled = false;
     guard.frustumCulled = false;
     pommel.frustumCulled = false;
     game.equippedSwordMesh.frustumCulled = false;
@@ -2356,7 +2843,7 @@ function equipSword() {
     // Add to camera so it moves with player's view
     game.camera.add(game.equippedSwordMesh);
 
-    console.log('✓ Sword with arm equipped successfully');
+    console.log('✓ Virus Destroyer with arm equipped successfully');
     console.log('  Position:', game.equippedSwordMesh.position);
     console.log('  Rotation:', game.equippedSwordMesh.rotation);
     console.log('  Visible:', game.equippedSwordMesh.visible);
@@ -2369,56 +2856,116 @@ function equipBow() {
         game.camera.remove(game.equippedBowMesh);
     }
 
-    // Create bow mesh for first person view
+    // Create laser gun mesh for first person view (Lunar Linux)
     game.equippedBowMesh = new THREE.Group();
 
-    // Bow limb (simplified as rectangle)
-    const bowLimbGeometry = new THREE.BoxGeometry(0.1, 1.5, 0.05);
-    const bowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+    // Main gun body - sleek metallic
+    const bodyGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.8);
+    const bodyMaterial = new THREE.MeshBasicMaterial({
+        color: 0x2a2a3a, // Dark blue-gray metal
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
     });
-    const bowLimb = new THREE.Mesh(bowLimbGeometry, bowMaterial);
-    bowLimb.position.set(-0.2, 0, -0.1);
-    bowLimb.renderOrder = 999;
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.set(-0.2, -0.05, -0.3);
+    body.renderOrder = 999;
 
-    // Bow string - left side
-    const stringGeometry1 = new THREE.BoxGeometry(0.02, 0.75, 0.02);
-    const stringMaterial = new THREE.MeshBasicMaterial({
-        color: 0xeeeeee,
+    // Barrel - glowing cyan energy core
+    const barrelGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8);
+    const barrelMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
         depthTest: false,
         depthWrite: false
     });
-    const string1 = new THREE.Mesh(stringGeometry1, stringMaterial);
-    string1.position.set(-0.15, 0.35, -0.1);
-    string1.rotation.z = 0.3;
-    string1.renderOrder = 999;
+    const barrel = new THREE.Mesh(barrelGeometry, barrelMaterial);
+    barrel.position.set(-0.2, -0.05, -0.7);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.renderOrder = 999;
 
-    const string2 = new THREE.Mesh(stringGeometry1, stringMaterial);
-    string2.position.set(-0.15, -0.35, -0.1);
-    string2.rotation.z = -0.3;
-    string2.renderOrder = 999;
+    // Barrel glow
+    const barrelGlowGeometry = new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8);
+    const barrelGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88,
+        transparent: true,
+        opacity: 0.4,
+        depthTest: false,
+        depthWrite: false
+    });
+    const barrelGlow = new THREE.Mesh(barrelGlowGeometry, barrelGlowMaterial);
+    barrelGlow.position.set(-0.2, -0.05, -0.7);
+    barrelGlow.rotation.x = Math.PI / 2;
+    barrelGlow.renderOrder = 998;
 
-    game.equippedBowMesh.add(bowLimb);
-    game.equippedBowMesh.add(string1);
-    game.equippedBowMesh.add(string2);
+    // Energy chamber - glowing green core
+    const chamberGeometry = new THREE.SphereGeometry(0.08, 8, 8);
+    const chamberMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff00, // Bright green energy
+        emissive: 0x00ff00,
+        emissiveIntensity: 1,
+        depthTest: false,
+        depthWrite: false
+    });
+    const chamber = new THREE.Mesh(chamberGeometry, chamberMaterial);
+    chamber.position.set(-0.2, -0.05, -0.1);
+    chamber.renderOrder = 999;
 
-    // Position bow in left side of view
+    // Tech accents - yellow lines
+    const accentGeometry = new THREE.BoxGeometry(0.16, 0.02, 0.1);
+    const accentMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffff00, // Yellow tech lines
+        emissive: 0xffff00,
+        emissiveIntensity: 0.8,
+        depthTest: false,
+        depthWrite: false
+    });
+    const accent1 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent1.position.set(-0.2, 0.03, -0.2);
+    accent1.renderOrder = 999;
+
+    const accent2 = new THREE.Mesh(accentGeometry, accentMaterial);
+    accent2.position.set(-0.2, -0.13, -0.2);
+    accent2.renderOrder = 999;
+
+    // Handle/grip
+    const gripGeometry = new THREE.BoxGeometry(0.1, 0.25, 0.15);
+    const gripMaterial = new THREE.MeshBasicMaterial({
+        color: 0x1a1a1a, // Dark grip
+        depthTest: false,
+        depthWrite: false
+    });
+    const grip = new THREE.Mesh(gripGeometry, gripMaterial);
+    grip.position.set(-0.2, -0.2, 0.05);
+    grip.renderOrder = 999;
+
+    game.equippedBowMesh.add(body);
+    game.equippedBowMesh.add(barrelGlow);
+    game.equippedBowMesh.add(barrel);
+    game.equippedBowMesh.add(chamber);
+    game.equippedBowMesh.add(accent1);
+    game.equippedBowMesh.add(accent2);
+    game.equippedBowMesh.add(grip);
+
+    // Position laser gun in left side of view
     game.equippedBowMesh.position.set(-0.3, -0.2, -0.5);
     game.equippedBowMesh.rotation.set(0, 0.2, 0);
 
     // Disable frustum culling
-    bowLimb.frustumCulled = false;
-    string1.frustumCulled = false;
-    string2.frustumCulled = false;
+    body.frustumCulled = false;
+    barrel.frustumCulled = false;
+    barrelGlow.frustumCulled = false;
+    chamber.frustumCulled = false;
+    accent1.frustumCulled = false;
+    accent2.frustumCulled = false;
+    grip.frustumCulled = false;
     game.equippedBowMesh.frustumCulled = false;
 
     // Add to camera
     game.camera.add(game.equippedBowMesh);
 
-    console.log('✓ Bow equipped successfully');
+    console.log('✓ Lunar Linux laser gun equipped successfully');
 }
 
 // Equip axe to player
@@ -2428,13 +2975,13 @@ function equipAxe() {
         game.camera.remove(game.equippedAxeMesh);
     }
 
-    // Create axe mesh for first person view
+    // Create Virus Slicer mesh for first person view - futuristic energy axe
     game.equippedAxeMesh = new THREE.Group();
 
-    // Axe handle - brown wooden handle
-    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8);
+    // Tech handle - dark metallic
+    const handleGeometry = new THREE.CylinderGeometry(0.05, 0.04, 1.2, 8);
     const handleMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b4513,
+        color: 0x2a2a3a, // Dark blue-gray tech metal
         depthTest: false,
         depthWrite: false
     });
@@ -2443,62 +2990,132 @@ function equipAxe() {
     handle.rotation.z = Math.PI / 2;
     handle.renderOrder = 999;
 
-    // Axe blade - large metallic blade
-    const bladeGeometry = new THREE.BoxGeometry(0.6, 0.4, 0.1);
-    const bladeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x888888,
+    // Energy core in handle (glowing cyan)
+    const coreGeometry = new THREE.CylinderGeometry(0.025, 0.025, 1.1, 8);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
         depthTest: false,
         depthWrite: false
     });
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    blade.position.set(0.6, 0.3, 0);
-    blade.renderOrder = 999;
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.position.set(0, 0.3, 0);
+    core.rotation.z = Math.PI / 2;
+    core.renderOrder = 999;
 
-    // Blade edge (darker metal for sharpness)
-    const edgeGeometry = new THREE.BoxGeometry(0.65, 0.05, 0.12);
-    const edgeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x555555,
+    // Energy blade 1 - bright cyan
+    const blade1Geometry = new THREE.BoxGeometry(0.7, 0.3, 0.04);
+    const bladeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.9,
         depthTest: false,
         depthWrite: false
     });
-    const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
-    edge.position.set(0.6, 0.5, 0);
-    edge.renderOrder = 1000;
+    const blade1 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade1.position.set(0.6, 0.5, 0);
+    blade1.renderOrder = 999;
+
+    // Energy blade 2 (opposite side)
+    const blade2 = new THREE.Mesh(blade1Geometry, bladeMaterial);
+    blade2.position.set(0.6, 0.1, 0);
+    blade2.renderOrder = 999;
+
+    // Blade glow 1
+    const bladeGlow1Geometry = new THREE.BoxGeometry(0.75, 0.35, 0.08);
+    const bladeGlowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88,
+        emissive: 0x00ff88,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.4,
+        depthTest: false,
+        depthWrite: false
+    });
+    const bladeGlow1 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow1.position.set(0.6, 0.5, 0);
+    bladeGlow1.renderOrder = 998;
+
+    // Blade glow 2
+    const bladeGlow2 = new THREE.Mesh(bladeGlow1Geometry, bladeGlowMaterial);
+    bladeGlow2.position.set(0.6, 0.1, 0);
+    bladeGlow2.renderOrder = 998;
+
+    // Tech emitter at blade junction
+    const emitterGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
+    const emitterMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        emissive: 0x00ffff,
+        emissiveIntensity: 1,
+        depthTest: false,
+        depthWrite: false
+    });
+    const emitter = new THREE.Mesh(emitterGeometry, emitterMaterial);
+    emitter.position.set(0.25, 0.3, 0);
+    emitter.renderOrder = 1000;
+
+    // Circuit rings on handle
+    for (let i = 0; i < 2; i++) {
+        const circuitGeometry = new THREE.TorusGeometry(0.06, 0.01, 8, 16);
+        const circuitMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 1,
+            depthTest: false,
+            depthWrite: false
+        });
+        const circuit = new THREE.Mesh(circuitGeometry, circuitMaterial);
+        circuit.position.set(0, 0.3 - (i * 0.3), 0);
+        circuit.renderOrder = 1000;
+        game.equippedAxeMesh.add(circuit);
+        circuit.frustumCulled = false;
+    }
 
     game.equippedAxeMesh.add(handle);
-    game.equippedAxeMesh.add(blade);
-    game.equippedAxeMesh.add(edge);
+    game.equippedAxeMesh.add(core);
+    game.equippedAxeMesh.add(blade1);
+    game.equippedAxeMesh.add(blade2);
+    game.equippedAxeMesh.add(bladeGlow1);
+    game.equippedAxeMesh.add(bladeGlow2);
+    game.equippedAxeMesh.add(emitter);
 
-    // Position axe in right side of view
+    // Position Virus Slicer in right side of view
     game.equippedAxeMesh.position.set(0.4, -0.4, -0.6);
     game.equippedAxeMesh.rotation.set(0.2, -0.3, 0.1);
 
     // Disable frustum culling
     handle.frustumCulled = false;
-    blade.frustumCulled = false;
-    edge.frustumCulled = false;
+    core.frustumCulled = false;
+    blade1.frustumCulled = false;
+    blade2.frustumCulled = false;
+    bladeGlow1.frustumCulled = false;
+    bladeGlow2.frustumCulled = false;
+    emitter.frustumCulled = false;
     game.equippedAxeMesh.frustumCulled = false;
 
     // Add to camera
     game.camera.add(game.equippedAxeMesh);
 
-    console.log('✓ Axe equipped successfully');
+    console.log('✓ Virus Slicer equipped successfully');
 }
 
-// Equip spell book to player
+// Equip dev book to player
 function equipSpellBook() {
-    // Remove old spell book if exists
+    // Remove old dev book if exists
     if (game.equippedSpellBookMesh) {
         game.camera.remove(game.equippedSpellBookMesh);
     }
 
-    // Create spell book mesh for first person view
+    // Create dev book mesh for first person view
     game.equippedSpellBookMesh = new THREE.Group();
 
-    // Book - rectangular shape
+    // Book - rectangular shape (normal everyday book)
     const bookGeometry = new THREE.BoxGeometry(0.4, 0.6, 0.1);
     const bookMaterial = new THREE.MeshBasicMaterial({
-        color: 0x8b008b, // Dark purple
+        color: 0x1a3a5c, // Dark blue (like tech/programming books)
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false
@@ -2507,27 +3124,40 @@ function equipSpellBook() {
     book.position.set(0, 0, 0);
     book.renderOrder = 999;
 
-    // Book cover star
-    const starGeometry = new THREE.CircleGeometry(0.15, 5);
-    const starMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffd700,
+    // Book cover - title text lines
+    const titleLineGeometry = new THREE.BoxGeometry(0.3, 0.05, 0.001);
+    const titleMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff, // White text
         depthTest: false,
         depthWrite: false
     });
-    const star = new THREE.Mesh(starGeometry, starMaterial);
-    star.position.set(0, 0, 0.06);
-    star.renderOrder = 1000;
+    const titleLine1 = new THREE.Mesh(titleLineGeometry, titleMaterial);
+    titleLine1.position.set(0, 0.15, 0.051);
+    titleLine1.renderOrder = 1000;
+
+    const titleLine2 = new THREE.Mesh(titleLineGeometry, titleMaterial);
+    titleLine2.position.set(0, 0.05, 0.051);
+    titleLine2.renderOrder = 1000;
+
+    const subtitleGeometry = new THREE.BoxGeometry(0.25, 0.03, 0.001);
+    const subtitleLine = new THREE.Mesh(subtitleGeometry, titleMaterial);
+    subtitleLine.position.set(0, -0.05, 0.051);
+    subtitleLine.renderOrder = 1000;
 
     game.equippedSpellBookMesh.add(book);
-    game.equippedSpellBookMesh.add(star);
+    game.equippedSpellBookMesh.add(titleLine1);
+    game.equippedSpellBookMesh.add(titleLine2);
+    game.equippedSpellBookMesh.add(subtitleLine);
 
-    // Position spell book in left side of view
+    // Position dev book in left side of view
     game.equippedSpellBookMesh.position.set(-0.4, -0.3, -0.5);
     game.equippedSpellBookMesh.rotation.set(0.3, 0.5, 0);
 
     // Disable frustum culling
     book.frustumCulled = false;
-    star.frustumCulled = false;
+    titleLine1.frustumCulled = false;
+    titleLine2.frustumCulled = false;
+    subtitleLine.frustumCulled = false;
     game.equippedSpellBookMesh.frustumCulled = false;
 
     // Add to camera
@@ -2616,41 +3246,68 @@ function switchSpell() {
     updateSpellUI();
 }
 
-// Shoot arrow
-function shootArrow() {
+// Shoot arrow with optional charge parameter (0 to 1)
+function shootArrow(chargeAmount = 0) {
     if (!game.equippedBow) return;
     if (game.shootCooldown > 0) return;
 
     game.shootCooldown = 0.5; // 0.5 second cooldown
 
-    // Create arrow projectile as a group
+    // Calculate speed multiplier based on charge (1x to 3x)
+    const speedMultiplier = 1 + (chargeAmount * 2); // 1.0 to 3.0
+
+    // Create plasma arrow projectile as a group
     const arrow = new THREE.Group();
 
-    // Arrow shaft (main body)
-    const shaftGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 8);
-    const shaftMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // Brown
-    const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
-    shaft.position.y = 0;
-    arrow.add(shaft);
+    // Plasma core - bright glowing cylinder
+    const coreGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.0, 8);
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Bright cyan plasma
+        emissive: 0x00ffff,
+        emissiveIntensity: 1
+    });
+    const core = new THREE.Mesh(coreGeometry, coreMaterial);
+    core.position.y = 0;
+    arrow.add(core);
 
-    // Arrowhead (cone at front)
-    const headGeometry = new THREE.ConeGeometry(0.08, 0.3, 8);
-    const headMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 }); // Gray metal
-    const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 0.75; // Position at front of shaft
-    arrow.add(head);
+    // Plasma glow - outer energy field
+    const glowGeometry = new THREE.CylinderGeometry(0.12, 0.12, 1.1, 8);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x00ff88, // Green-cyan glow
+        transparent: true,
+        opacity: 0.5
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.y = 0;
+    arrow.add(glow);
 
-    // Fletching (feathers at back) - 3 small triangular fins
-    const fletchingMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red feathers
+    // Plasma tip - pointed energy front
+    const tipGeometry = new THREE.ConeGeometry(0.1, 0.4, 8);
+    const tipMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff, // Bright white tip
+        emissive: 0xffffff,
+        emissiveIntensity: 1
+    });
+    const tip = new THREE.Mesh(tipGeometry, tipMaterial);
+    tip.position.y = 0.7; // Position at front
+    arrow.add(tip);
+
+    // Energy trail particles - 3 small spheres at back
     for (let i = 0; i < 3; i++) {
         const angle = (i / 3) * Math.PI * 2;
-        const fletchingGeometry = new THREE.BoxGeometry(0.02, 0.15, 0.1);
-        const fletching = new THREE.Mesh(fletchingGeometry, fletchingMaterial);
-        fletching.position.y = -0.5; // Position at back of shaft
-        fletching.position.x = Math.cos(angle) * 0.05;
-        fletching.position.z = Math.sin(angle) * 0.05;
-        fletching.rotation.y = angle;
-        arrow.add(fletching);
+        const particleGeometry = new THREE.SphereGeometry(0.06, 8, 8);
+        const particleMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            emissive: 0x00ffff,
+            emissiveIntensity: 0.8,
+            transparent: true,
+            opacity: 0.7
+        });
+        const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+        particle.position.y = -0.5; // Position at back
+        particle.position.x = Math.cos(angle) * 0.1;
+        particle.position.z = Math.sin(angle) * 0.1;
+        arrow.add(particle);
     }
 
     // Position at camera
@@ -2671,11 +3328,13 @@ function shootArrow() {
     const dirY = Math.sin(pitch);
     const dirZ = -Math.cos(yaw) * Math.cos(pitch);
 
-    // Create velocity vector
+    // Create velocity vector (base speed 50, scaled by charge)
+    const baseSpeed = 50;
+    const finalSpeed = baseSpeed * speedMultiplier;
     arrow.velocity = new THREE.Vector3(
-        dirX * 50,
-        dirY * 50,
-        dirZ * 50
+        dirX * finalSpeed,
+        dirY * finalSpeed,
+        dirZ * finalSpeed
     );
 
     // Rotate arrow to point in the direction of travel
@@ -2688,10 +3347,21 @@ function shootArrow() {
     const quaternion = new THREE.Quaternion().setFromUnitVectors(upVector, direction);
     arrow.setRotationFromQuaternion(quaternion);
 
+    // Scale arrow based on charge (1.0 to 1.8x size)
+    const scaleMultiplier = 1 + (chargeAmount * 0.8);
+    arrow.scale.set(scaleMultiplier, scaleMultiplier, scaleMultiplier);
+
     game.scene.add(arrow);
     game.projectiles.push(arrow);
 
-    showNotification('🏹 Arrow shot!');
+    // Show notification based on charge level
+    if (chargeAmount > 0.8) {
+        showNotification('⚡ Fully charged shot!');
+    } else if (chargeAmount > 0.4) {
+        showNotification('🔫 Charged plasma shot!');
+    } else {
+        showNotification('🔫 Plasma shot!');
+    }
 }
 
 // Cast fireball spell
@@ -2935,7 +3605,7 @@ function checkShieldPickup() {
             updateInventoryUI();
 
             // Show notification (non-blocking)
-            showNotification(`🛡️ Shield collected! (x${game.shieldCount}) Protects you from one enemy hit.`);
+            showNotification(`🛡️ Anti Virus collected! (x${game.shieldCount}) Protects you from one virus hit.`);
             break; // Only collect one shield per frame
         }
     }
@@ -2954,15 +3624,15 @@ function checkBowPickup() {
 
         // Add to inventory
         game.inventory.items.push({
-            name: 'Bow',
-            icon: '🏹',
+            name: 'Lunar Linux',
+            icon: '🔫',
             type: 'bow'
         });
 
         updateInventoryUI();
 
         // Show notification (non-blocking)
-        showNotification('🏹 Bow collected! Equip it to shoot arrows.');
+        showNotification('🔫 Lunar Linux collected! Equip it to shoot plasma arrows.');
     }
 }
 
@@ -2979,7 +3649,7 @@ function checkAxePickup() {
 
         // Add to inventory
         game.inventory.items.push({
-            name: 'Axe',
+            name: 'Virus Slicer',
             icon: '🪓',
             type: 'axe'
         });
@@ -2987,7 +3657,7 @@ function checkAxePickup() {
         updateInventoryUI();
 
         // Show notification (non-blocking)
-        showNotification('🪓 Axe collected! Equip it for powerful but slow attacks!');
+        showNotification('🪓 Virus Slicer collected! Equip it for powerful but slow attacks!');
     }
 }
 
@@ -3006,20 +3676,41 @@ function checkFoodPickup() {
             updateInventoryUI();
 
             // Show notification (non-blocking)
-            showNotification(`🍎 Food collected! (x${game.foodCount}) Use it to heal 10 HP.`);
+            showNotification(`💻 Code collected! (x${game.foodCount}) Use it to heal 10 HP.`);
             break; // Only collect one at a time
         }
     }
 }
 
-// Check spell book pickup
+// Check red potion pickup
+function checkRedPotionPickup() {
+    for (let i = game.redPotions.length - 1; i >= 0; i--) {
+        const potion = game.redPotions[i];
+        const distance = game.camera.position.distanceTo(potion.position);
+
+        if (distance < 3) {
+            // Collect chunky code
+            game.scene.remove(potion);
+            game.redPotions.splice(i, 1);
+            game.redPotionCount++;
+
+            updateInventoryUI();
+
+            // Show notification (non-blocking)
+            showNotification(`💾 Chunky Code collected! (x${game.redPotionCount}) Use it to heal 100 HP!`);
+            break; // Only collect one at a time
+        }
+    }
+}
+
+// Check dev book pickup
 function checkSpellBookPickup() {
     if (game.spellBookCollected || !game.spellBook) return;
 
     const distance = game.camera.position.distanceTo(game.spellBook.position);
 
     if (distance < 3) {
-        // Collect spell book
+        // Collect dev book
         game.spellBookCollected = true;
         game.scene.remove(game.spellBook);
 
@@ -3027,8 +3718,8 @@ function checkSpellBookPickup() {
         updateInventoryUI();
 
         // Show notification
-        showNotification('📖 Spell Book collected! Added to inventory. Magic shop section unlocked!');
-        console.log('Spell book collected - added to inventory and magic shop unlocked');
+        showNotification('📖 Dev Book collected! Added to inventory. Dev shop section unlocked!');
+        console.log('Dev book collected - added to inventory and dev shop unlocked');
     }
 }
 
@@ -3130,7 +3821,13 @@ function attackWithSword() {
         }, 16);
     }
 
-    // Check if hit any enemies (target crosshair - center of screen)
+    // Find all targets in range and angle, then hit the closest one
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(game.camera.quaternion);
+
+    const targetsInRange = [];
+
+    // Check enemies
     for (let i = 0; i < game.enemies.length; i++) {
         const enemy = game.enemies[i];
         const distance = game.camera.position.distanceTo(enemy.position);
@@ -3140,45 +3837,20 @@ function attackWithSword() {
             directionToEnemy.subVectors(enemy.position, game.camera.position);
             directionToEnemy.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToEnemy);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
-
-                // Deal damage based on player level
-                enemy.hp -= damage;
-
-                // Visual feedback - flash bright white for visibility (golden for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xffffff;
-                const originalColor = enemy.material.color.getHex();
-                enemy.material.color.setHex(flashColor);
-                enemy.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (enemy && enemy.material) {
-                        enemy.material.color.setHex(originalColor);
-                        enemy.material.emissive.setHex(0x330000);
-                    }
-                }, 150);
-
-                // Show damage feedback
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`⚔️ -${damage} DMG${critText}! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
-
-                if (enemy.hp <= 0) {
-                    defeatEnemy(enemy, i);
-                }
-
-                break; // Only hit one enemy per swing
+                targetsInRange.push({
+                    entity: enemy,
+                    distance: distance,
+                    index: i,
+                    isBoss: false
+                });
             }
         }
     }
 
-    // Check if hit boss (target crosshair - center of screen)
+    // Check boss
     if (game.boss) {
         const distance = game.camera.position.distanceTo(game.boss.position);
         if (distance < 20) { // Boss has larger hit range
@@ -3187,37 +3859,59 @@ function attackWithSword() {
             directionToBoss.subVectors(game.boss.position, game.camera.position);
             directionToBoss.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToBoss);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
+                targetsInRange.push({
+                    entity: game.boss,
+                    distance: distance,
+                    index: -1,
+                    isBoss: true
+                });
+            }
+        }
+    }
 
-                // Deal damage to boss
-                game.boss.hp -= damage;
+    // Sort by distance and hit the closest target
+    if (targetsInRange.length > 0) {
+        targetsInRange.sort((a, b) => a.distance - b.distance);
+        const closestTarget = targetsInRange[0];
+        const target = closestTarget.entity;
 
-                // Visual feedback (golden flash for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xffffff;
-                const originalColor = game.boss.material.color.getHex();
-                game.boss.material.color.setHex(flashColor);
-                game.boss.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (game.boss && game.boss.material) {
-                        game.boss.material.color.setHex(originalColor);
-                        game.boss.material.emissive.setHex(0x660000);
-                    }
-                }, 150);
+        // 5% chance for critical hit (double damage)
+        const isCritical = Math.random() < 0.05;
+        const damage = isCritical ? game.playerDamage * 2 : game.playerDamage;
 
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`⚔️ BOSS -${damage} DMG${critText}! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP}`);
+        // Deal damage
+        target.hp -= damage;
 
-                if (game.boss.hp <= 0) {
-                    defeatBoss();
-                }
+        // Spawn damage number
+        spawnDamageNumber(damage, target.position);
+
+        // Visual feedback - flash bright white for visibility (golden for crit)
+        const flashColor = isCritical ? 0xffdd00 : 0xffffff;
+        const originalColor = target.material.color.getHex();
+        const originalEmissive = closestTarget.isBoss ? 0x660000 : 0x330000;
+        target.material.color.setHex(flashColor);
+        target.material.emissive.setHex(flashColor);
+        setTimeout(() => {
+            if (target && target.material) {
+                target.material.color.setHex(originalColor);
+                target.material.emissive.setHex(originalEmissive);
+            }
+        }, 150);
+
+        // Show damage feedback
+        const critText = isCritical ? ' CRITICAL!' : '';
+        if (closestTarget.isBoss) {
+            showNotification(`⚔️ BOSS -${damage} DMG${critText}! HP: ${Math.max(0, target.hp)}/${target.maxHP}`);
+            if (target.hp <= 0) {
+                defeatBoss();
+            }
+        } else {
+            showNotification(`⚔️ -${damage} DMG${critText}! Virus HP: ${Math.max(0, target.hp)}/5`);
+            if (target.hp <= 0) {
+                defeatEnemy(target, closestTarget.index);
             }
         }
     }
@@ -3321,7 +4015,13 @@ function attackWithAxe() {
         }, 16);
     }
 
-    // Check if hit any enemies (target crosshair - center of screen)
+    // Find all targets in range and angle, then hit the closest one
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(game.camera.quaternion);
+
+    const targetsInRange = [];
+
+    // Check enemies
     for (let i = 0; i < game.enemies.length; i++) {
         const enemy = game.enemies[i];
         const distance = game.camera.position.distanceTo(enemy.position);
@@ -3331,46 +4031,20 @@ function attackWithAxe() {
             directionToEnemy.subVectors(enemy.position, game.camera.position);
             directionToEnemy.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToEnemy);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const baseDamage = game.playerDamage * 3; // 3x sword damage!
-                const damage = isCritical ? baseDamage * 2 : baseDamage;
-
-                // Deal massive damage based on player level
-                enemy.hp -= damage;
-
-                // Visual feedback - flash bright orange for axe (golden for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xff8800;
-                const originalColor = enemy.material.color.getHex();
-                enemy.material.color.setHex(flashColor);
-                enemy.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (enemy && enemy.material) {
-                        enemy.material.color.setHex(originalColor);
-                        enemy.material.emissive.setHex(0x330000);
-                    }
-                }, 150);
-
-                // Show damage feedback with axe emoji
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`🪓 -${damage} DMG${critText}! Enemy HP: ${Math.max(0, enemy.hp)}/5`);
-
-                if (enemy.hp <= 0) {
-                    defeatEnemy(enemy, i);
-                }
-
-                break; // Only hit one enemy per swing
+                targetsInRange.push({
+                    entity: enemy,
+                    distance: distance,
+                    index: i,
+                    isBoss: false
+                });
             }
         }
     }
 
-    // Check if hit boss (target crosshair - center of screen)
+    // Check boss
     if (game.boss) {
         const distance = game.camera.position.distanceTo(game.boss.position);
         if (distance < 18) { // Boss has large hit range but shorter than sword
@@ -3379,38 +4053,60 @@ function attackWithAxe() {
             directionToBoss.subVectors(game.boss.position, game.camera.position);
             directionToBoss.normalize();
 
-            const forward = new THREE.Vector3(0, 0, -1);
-            forward.applyQuaternion(game.camera.quaternion);
-
             const angle = forward.angleTo(directionToBoss);
 
             if (angle < Math.PI / 6) { // Tight 30 degree cone targeting crosshair
-                // 5% chance for critical hit (double damage)
-                const isCritical = Math.random() < 0.05;
-                const baseDamage = game.playerDamage * 3; // 3x sword damage!
-                const damage = isCritical ? baseDamage * 2 : baseDamage;
+                targetsInRange.push({
+                    entity: game.boss,
+                    distance: distance,
+                    index: -1,
+                    isBoss: true
+                });
+            }
+        }
+    }
 
-                // Deal massive damage to boss
-                game.boss.hp -= damage;
+    // Sort by distance and hit the closest target
+    if (targetsInRange.length > 0) {
+        targetsInRange.sort((a, b) => a.distance - b.distance);
+        const closestTarget = targetsInRange[0];
+        const target = closestTarget.entity;
 
-                // Visual feedback (golden flash for crit)
-                const flashColor = isCritical ? 0xffdd00 : 0xff8800;
-                const originalColor = game.boss.material.color.getHex();
-                game.boss.material.color.setHex(flashColor);
-                game.boss.material.emissive.setHex(flashColor);
-                setTimeout(() => {
-                    if (game.boss && game.boss.material) {
-                        game.boss.material.color.setHex(originalColor);
-                        game.boss.material.emissive.setHex(0x660000);
-                    }
-                }, 150);
+        // 5% chance for critical hit (double damage)
+        const isCritical = Math.random() < 0.05;
+        const baseDamage = game.playerDamage * 3; // 3x sword damage!
+        const damage = isCritical ? baseDamage * 2 : baseDamage;
 
-                const critText = isCritical ? ' CRITICAL!' : '';
-                showNotification(`🪓 BOSS -${damage} DMG${critText}! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP}`);
+        // Deal damage
+        target.hp -= damage;
 
-                if (game.boss.hp <= 0) {
-                    defeatBoss();
-                }
+        // Spawn damage number
+        spawnDamageNumber(damage, target.position);
+
+        // Visual feedback - flash bright orange for axe (golden for crit)
+        const flashColor = isCritical ? 0xffdd00 : 0xff8800;
+        const originalColor = target.material.color.getHex();
+        const originalEmissive = closestTarget.isBoss ? 0x660000 : 0x330000;
+        target.material.color.setHex(flashColor);
+        target.material.emissive.setHex(flashColor);
+        setTimeout(() => {
+            if (target && target.material) {
+                target.material.color.setHex(originalColor);
+                target.material.emissive.setHex(originalEmissive);
+            }
+        }, 150);
+
+        // Show damage feedback with axe emoji
+        const critText = isCritical ? ' CRITICAL!' : '';
+        if (closestTarget.isBoss) {
+            showNotification(`🪓 BOSS -${damage} DMG${critText}! HP: ${Math.max(0, target.hp)}/${target.maxHP}`);
+            if (target.hp <= 0) {
+                defeatBoss();
+            }
+        } else {
+            showNotification(`🪓 -${damage} DMG${critText}! Virus HP: ${Math.max(0, target.hp)}/5`);
+            if (target.hp <= 0) {
+                defeatEnemy(target, closestTarget.index);
             }
         }
     }
@@ -3439,9 +4135,9 @@ function defeatBoss() {
 
     // Award coins - boss drops 10 coins
     game.coins += 10;
-    updateCoinsDisplay();
+    updateKromerDisplay();
 
-    showNotification('🎉 BOSS DEFEATED! +1000 EXP +10 Coins!');
+    showNotification('🎉 BOSS DEFEATED! +1000 EXP +10 Kromer!');
     console.log('Boss defeated!');
 
     // Spawn portal to next world
@@ -3560,10 +4256,22 @@ function checkShopProximity() {
     if (!game.shop) return;
 
     const distance = game.camera.position.distanceTo(game.shop.position);
+    const mobileInteractBtn = document.getElementById('mobileInteractBtn');
+
     if (distance < 10) {
         // Show prompt if not already showing
         if (!game.isShopOpen) {
-            showNotification('Press E to open shop');
+            showNotification('Press E to open Shopping Network');
+        }
+
+        // Show mobile interact button when near shop
+        if (mobileInteractBtn && game.isMobile) {
+            mobileInteractBtn.style.display = 'flex';
+        }
+    } else {
+        // Hide mobile interact button when far from shop
+        if (mobileInteractBtn) {
+            mobileInteractBtn.style.display = 'none';
         }
     }
 }
@@ -3594,43 +4302,59 @@ function updateShopItems() {
 
     // Basic items
     shopItems.innerHTML += `
-        <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('food')">
-            <span style="font-size: 30px;">🍖</span>
-            <span style="margin-left: 20px; font-size: 18px;">Food - Heal 10 HP</span>
-            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 5 Coins</span>
+        <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('food')">
+            <span style="font-size: 30px;">💻</span>
+            <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Code - Heal 10 HP</span>
+            <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 5 Kromer</span>
         </div>
-        <div class="shop-item" style="background: rgba(255, 255, 255, 0.1); border: 2px solid #666; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('damage')">
+        <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('damage')">
             <span style="font-size: 30px;">⚔️</span>
-            <span style="margin-left: 20px; font-size: 18px;">Damage Upgrade (+1 DMG)</span>
-            <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 10 Coins</span>
+            <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Damage Upgrade (+1 DMG)</span>
+            <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 20 Kromer</span>
         </div>
     `;
 
-    // Magic items (only if spell book collected)
+    // Bow upgrade (only if player has bow)
+    if (game.bowCollected) {
+        shopItems.innerHTML += `
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('bowdamage')">
+                <span style="font-size: 30px;">🔫</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Lunar Linux Upgrade (+1 Plasma DMG)</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 50 Kromer</span>
+            </div>
+        `;
+    }
+
+    // Admin powers (only if dev book collected)
     if (game.spellBookCollected) {
         shopItems.innerHTML += `
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #9400d3;">
-                <h3 style="text-align: center; color: #9400d3;">✨ Magic Spells ✨</h3>
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 3px solid #00ff00;">
+                <h3 style="text-align: center; color: #00ff00; font-family: 'Courier New', monospace; text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);">⚡ ADMIN POWERS ⚡</h3>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('fireball')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('fireball')">
                 <span style="font-size: 30px;">🔥</span>
-                <span style="margin-left: 20px; font-size: 18px;">Fireball Spell ${game.hasFireball ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Coins</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Fireball Power ${game.hasFireball ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 15 Kromer</span>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('bigjump')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('bigjump')">
                 <span style="font-size: 30px;">⬆️</span>
-                <span style="margin-left: 20px; font-size: 18px;">Big Jump Spell ${game.hasBigJump ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 20 Coins</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Big Jump Power ${game.hasBigJump ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 20 Kromer</span>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('freezeball')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('freezeball')">
                 <span style="font-size: 30px;">❄️</span>
-                <span style="margin-left: 20px; font-size: 18px;">Freeze Ball Spell ${game.hasFreezeball ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 25 Coins</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Freeze Ball Power ${game.hasFreezeball ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 25 Kromer</span>
             </div>
-            <div class="shop-item" style="background: rgba(148, 0, 211, 0.2); border: 2px solid #9400d3; border-radius: 5px; padding: 15px; margin: 10px 0; cursor: pointer;" onclick="buyItem('dash')">
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('dash')">
                 <span style="font-size: 30px;">💨</span>
-                <span style="margin-left: 20px; font-size: 18px;">Dash Spell ${game.hasDash ? '(Owned)' : ''}</span>
-                <span style="float: right; color: #ffd700; font-size: 18px; font-weight: bold;">💰 15 Coins</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Dash Power ${game.hasDash ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 15 Kromer</span>
+            </div>
+            <div class="shop-item" style="background: #000000; border: 3px solid #00ff00; border-radius: 8px; padding: 18px; margin: 12px 0; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);" onmouseover="this.style.boxShadow='0 0 25px rgba(0, 255, 0, 0.6)'" onmouseout="this.style.boxShadow='0 0 15px rgba(0, 255, 0, 0.3)'" onclick="buyItem('fastercharge')">
+                <span style="font-size: 30px;">⚡</span>
+                <span style="margin-left: 20px; font-size: 18px; color: #00ff00; font-family: 'Courier New', monospace;">Faster Charge ${game.hasFasterCharge ? '(Owned)' : ''}</span>
+                <span style="float: right; color: #00ff00; font-size: 18px; font-weight: bold; font-family: 'Courier New', monospace;">💰 15 Kromer</span>
             </div>
         `;
     }
@@ -3643,72 +4367,92 @@ function buyItem(itemType) {
             game.coins -= 5;
             game.playerHP = Math.min(game.playerHP + 10, game.maxPlayerHP);
             updateHPDisplay();
-            updateCoinsDisplay();
-            showNotification('🍖 Bought food! +10 HP');
+            updateKromerDisplay();
+            showNotification('💻 Bought code! +10 HP');
         } else {
-            showNotification('❌ Not enough coins! Need 5 coins');
+            showNotification('❌ Not enough Kromer! Need 5 coins');
         }
     } else if (itemType === 'damage') {
-        if (game.coins >= 10) {
-            game.coins -= 10;
+        if (game.coins >= 20) {
+            game.coins -= 20;
             game.playerDamage += 1;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateEXPDisplay(); // Updates damage display
             showNotification('⚔️ Bought damage upgrade! +1 DMG');
         } else {
-            showNotification('❌ Not enough coins! Need 10 coins');
+            showNotification('❌ Not enough Kromer! Need 20 coins');
+        }
+    } else if (itemType === 'bowdamage') {
+        if (game.coins >= 50) {
+            game.coins -= 50;
+            game.bowDamage += 1;
+            updateKromerDisplay();
+            showNotification(`🔫 Bought Lunar Linux upgrade! Plasma DMG: ${game.bowDamage}`);
+        } else {
+            showNotification('❌ Not enough Kromer! Need 50 coins');
         }
     } else if (itemType === 'fireball') {
         if (game.hasFireball) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 15) {
             game.coins -= 15;
             game.hasFireball = true;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
-            showNotification('🔥 Fireball spell unlocked! Equip spell book and press F to cast!');
+            showNotification('🔥 Fireball power unlocked! Equip dev book and press F to cast!');
         } else {
-            showNotification('❌ Not enough coins! Need 15 coins');
+            showNotification('❌ Not enough Kromer! Need 15 coins');
         }
     } else if (itemType === 'bigjump') {
         if (game.hasBigJump) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 20) {
             game.coins -= 20;
             game.hasBigJump = true;
-            game.jumpHeight = 25.0; // Increase jump height from 15.0
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
-            showNotification('⬆️ Big Jump spell unlocked! Your jump is now higher!');
+            showNotification('⬆️ Big Jump power unlocked! Equip dev book and jump with mana for super jumps!');
         } else {
-            showNotification('❌ Not enough coins! Need 20 coins');
+            showNotification('❌ Not enough Kromer! Need 20 coins');
         }
     } else if (itemType === 'freezeball') {
         if (game.hasFreezeball) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 25) {
             game.coins -= 25;
             game.hasFreezeball = true;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
-            showNotification('❄️ Freeze Ball spell unlocked! Equip spell book and press G to cast!');
+            showNotification('❄️ Freeze Ball power unlocked! Equip dev book and press G to cast!');
         } else {
-            showNotification('❌ Not enough coins! Need 25 coins');
+            showNotification('❌ Not enough Kromer! Need 25 coins');
         }
     } else if (itemType === 'dash') {
         if (game.hasDash) {
-            showNotification('❌ You already own this spell!');
+            showNotification('❌ You already own this power!');
         } else if (game.coins >= 15) {
             game.coins -= 15;
             game.hasDash = true;
-            updateCoinsDisplay();
+            updateKromerDisplay();
             updateShopItems(); // Refresh shop display
             updateSpellUI(); // Update spell UI
-            showNotification('💨 Dash spell unlocked! Equip spell book and press H to cast!');
+            showNotification('💨 Dash power unlocked! Equip dev book and press H to cast!');
         } else {
-            showNotification('❌ Not enough coins! Need 15 coins');
+            showNotification('❌ Not enough Kromer! Need 15 coins');
+        }
+    } else if (itemType === 'fastercharge') {
+        if (game.hasFasterCharge) {
+            showNotification('❌ You already own this power!');
+        } else if (game.coins >= 15) {
+            game.coins -= 15;
+            game.hasFasterCharge = true;
+            updateKromerDisplay();
+            updateShopItems(); // Refresh shop display
+            showNotification('⚡ Faster Charge unlocked! Bow charges 10% faster!');
+        } else {
+            showNotification('❌ Not enough Kromer! Need 15 coins');
         }
     }
 }
@@ -3777,6 +4521,10 @@ function enterWorldTwo() {
         game.foods.forEach(food => game.scene.remove(food));
         game.foods = [];
 
+        // Remove all red potions
+        game.redPotions.forEach(potion => game.scene.remove(potion));
+        game.redPotions = [];
+
         // Remove bow if it exists
         if (game.bow) {
             game.scene.remove(game.bow);
@@ -3789,7 +4537,7 @@ function enterWorldTwo() {
             game.shop = null;
         }
 
-        // Remove spell book if it exists (prevent duplicates)
+        // Remove dev book if it exists (prevent duplicates)
         if (game.spellBook) {
             game.scene.remove(game.spellBook);
             game.spellBook = null;
@@ -3834,14 +4582,18 @@ function enterWorldTwo() {
             createShieldPickup(randomX, randomZ);
         }
 
-        // Spawn food in World 2 (limited to 4)
+        // Spawn food/potions in World 2 (limited to 4, 5% chance for red potion)
         for (let i = 0; i < 4; i++) {
             const foodX = (Math.random() * 600 - 300);
             const foodZ = (Math.random() * 600 - 300);
-            createFoodPickup(foodX, foodZ);
+            if (Math.random() < 0.05) {
+                createRedPotionPickup(foodX, foodZ);
+            } else {
+                createFoodPickup(foodX, foodZ);
+            }
         }
 
-        // Spawn spell book in World 2
+        // Spawn dev book in World 2
         const spellBookX = (Math.random() * 400 - 200);
         const spellBookZ = (Math.random() * 400 - 200);
         createSpellBook(spellBookX, spellBookZ);
@@ -3856,7 +4608,7 @@ function enterWorldTwo() {
         spawnEnemy();
         spawnEnemy(); // 5 initial enemies in World 2 (more than World 1's 3)
 
-        showNotification('🎮 Welcome to World 2! Enemies are stronger here!');
+        showNotification('🎮 Welcome to World 2! Viruses are stronger here!');
         console.log('Entered World 2');
     }, 1000);
 }
@@ -3898,6 +4650,10 @@ function enterWorldThree() {
         game.foods.forEach(food => game.scene.remove(food));
         game.foods = [];
 
+        // Remove all red potions
+        game.redPotions.forEach(potion => game.scene.remove(potion));
+        game.redPotions = [];
+
         // Remove bow if it exists
         if (game.bow) {
             game.scene.remove(game.bow);
@@ -3910,10 +4666,16 @@ function enterWorldThree() {
             game.shop = null;
         }
 
-        // Remove spell book if it exists
+        // Remove dev book if it exists
         if (game.spellBook) {
             game.scene.remove(game.spellBook);
             game.spellBook = null;
+        }
+
+        // Remove axe if it exists (only if not collected)
+        if (game.axe && !game.axeCollected) {
+            game.scene.remove(game.axe);
+            game.axe = null;
         }
 
         // Remove World 2 sky elements (galaxy and spirals)
@@ -3921,9 +4683,9 @@ function enterWorldThree() {
             game.scene.remove(game.galaxy);
             game.galaxy = null;
         }
-        if (game.spirals) {
+        if (game.spirals && game.spirals.length > 0) {
             game.spirals.forEach(spiral => game.scene.remove(spiral));
-            game.spirals = [];
+            game.spirals = []; // Reset spirals array
         }
 
         // Add World 3 ash clouds
@@ -3950,11 +4712,15 @@ function enterWorldThree() {
             createShieldPickup(randomX, randomZ);
         }
 
-        // Spawn food in World 3 (limited to 3)
+        // Spawn food/potions in World 3 (limited to 3, 5% chance for red potion)
         for (let i = 0; i < 3; i++) {
             const foodX = (Math.random() * 600 - 300);
             const foodZ = (Math.random() * 600 - 300);
-            createFoodPickup(foodX, foodZ);
+            if (Math.random() < 0.05) {
+                createRedPotionPickup(foodX, foodZ);
+            } else {
+                createFoodPickup(foodX, foodZ);
+            }
         }
 
         // Create shop in World 3
@@ -3992,13 +4758,13 @@ function defeatEnemy(enemy, index) {
 
     // Award coins - all enemies drop 1 coin
     game.coins += 1;
-    updateCoinsDisplay();
+    updateKromerDisplay();
 
     // Check for level up
     checkLevelUp();
 
     // Show notification
-    showNotification(`💀 Enemy defeated! +${expReward} EXP +1 Coin | ${game.enemies.length} remaining`);
+    showNotification(`💀 Virus defeated! +${expReward} EXP +1 Kromer | ${game.enemies.length} remaining`);
 }
 
 // Enemy shoots projectile at player
@@ -4165,7 +4931,7 @@ function updateEnemyProjectiles(delta) {
                 game.hasShieldProtection = false;
                 game.inventory.equippedShield = false;
                 removeItemFromInventory('shield');
-                showNotification('🛡️ Shield absorbed projectile!');
+                showNotification('🛡️ Anti Virus absorbed projectile!');
             } else {
                 game.playerHP -= 2; // Enemy projectiles deal 2 damage
                 updateHPDisplay();
@@ -4209,7 +4975,7 @@ function updateBossProjectiles(delta) {
                 game.hasShieldProtection = false;
                 game.inventory.equippedShield = false;
                 removeItemFromInventory('shield');
-                showNotification('🛡️ Shield absorbed boss projectile!');
+                showNotification('🛡️ Anti Virus absorbed boss projectile!');
             } else {
                 // Code projectiles (World 3 boss) do 1 damage and freeze
                 if (projectile.isCodeProjectile) {
@@ -4615,7 +5381,7 @@ function updateEnemy(delta) {
                     // Shield blocks hit
                     game.hasShieldProtection = false;
                     updateShieldDisplay();
-                    showNotification('🛡️ Shield blocked attack!');
+                    showNotification('🛡️ Anti Virus blocked attack!');
                 }
             }
 
@@ -4730,7 +5496,7 @@ function updateEnemy(delta) {
                     enemy.position.x -= pushDirection.x * 12;
                     enemy.position.z -= pushDirection.z * 12;
 
-                    showNotification('🛡️ Shield absorbed the hit! Find another shield for protection.');
+                    showNotification('🛡️ Anti Virus absorbed the hit! Find another Anti Virus for protection.');
                 } else {
                     // Take damage
                     game.playerHP -= 1;
@@ -4905,11 +5671,16 @@ function updateWorld2Boss(delta) {
     // Update teleport timer
     boss.teleportTimer -= delta;
     if (boss.teleportTimer <= 0) {
-        // Teleport to a new position 15 units away in a random direction
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 15;
-        const newX = game.camera.position.x + Math.cos(angle) * distance;
-        const newZ = game.camera.position.z + Math.sin(angle) * distance;
+        // Teleport 40 units behind the player
+        const distance = 40;
+
+        // Calculate direction player is facing (from camera rotation)
+        const playerForwardX = -Math.sin(game.rotation.y);
+        const playerForwardZ = -Math.cos(game.rotation.y);
+
+        // Teleport behind player (opposite of forward direction)
+        const newX = game.camera.position.x - playerForwardX * distance;
+        const newZ = game.camera.position.z - playerForwardZ * distance;
 
         // Create teleport effect at old position
         createTeleportEffect(boss.position.x, boss.position.z);
@@ -4921,7 +5692,7 @@ function updateWorld2Boss(delta) {
         createTeleportEffect(newX, newZ);
 
         boss.teleportTimer = game.bossTeleportCooldown;
-        showNotification('⚡ Boss teleported!');
+        showNotification('⚡ Boss teleported behind you!');
     }
 
     // Update shoot timer
@@ -5123,7 +5894,7 @@ function checkBossCollision() {
                 boss.position.x -= pushDirection.x * 20;
                 boss.position.z -= pushDirection.z * 20;
 
-                showNotification('🛡️ Shield absorbed the boss hit!');
+                showNotification('🛡️ Anti Virus absorbed the boss hit!');
             } else {
                 // Take 2 damage from boss
                 game.playerHP -= 2;
@@ -5229,7 +6000,7 @@ function createShockwave(x, z) {
                     game.hasShieldProtection = false;
                     game.inventory.equippedShield = false;
                     removeItemFromInventory('shield'); // Remove shield from inventory
-                    showNotification('🛡️ Shield absorbed shockwave!');
+                    showNotification('🛡️ Anti Virus absorbed shockwave!');
                 } else {
                     game.playerHP -= 3;
                     updateHPDisplay();
@@ -5380,10 +6151,10 @@ function updateManaDisplay() {
 }
 
 // Update coin display
-function updateCoinsDisplay() {
+function updateKromerDisplay() {
     const coinDisplay = document.getElementById('coinDisplay');
     if (coinDisplay) {
-        coinDisplay.textContent = `💰 Coins: ${game.coins}`;
+        coinDisplay.textContent = `💰 Kromer: ${game.coins}`;
     }
 }
 
@@ -5395,7 +6166,7 @@ function gameOver() {
     const instructions = document.getElementById('instructions');
     instructions.innerHTML = `
         <h1 style="color: #ff0000;">GAME OVER!</h1>
-        <p>The enemies overwhelmed you!</p>
+        <p>The viruses infected your computer!</p>
         <p>Refresh the page to try again</p>
     `;
     instructions.classList.remove('hidden');
@@ -5407,7 +6178,7 @@ function setupControls() {
 
     // Pointer lock
     document.body.addEventListener('click', () => {
-        if (!game.isPointerLocked) {
+        if (!game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
             document.body.requestPointerLock();
         }
     });
@@ -5421,6 +6192,17 @@ function setupControls() {
             instructions.classList.remove('hidden');
         }
     });
+
+    // Prevent shop menu clicks from propagating to body (prevents unpausing on mobile)
+    const shopMenu = document.getElementById('shopMenu');
+    if (shopMenu) {
+        shopMenu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        shopMenu.addEventListener('touchend', (event) => {
+            event.stopPropagation();
+        });
+    }
 
     // Mouse movement
     document.addEventListener('mousemove', (event) => {
@@ -5457,21 +6239,21 @@ function setupControls() {
                 break;
             case 'Space':
                 if (game.controls.canJump) {
-                    // Check if using big jump spell
+                    // Check if using Big Jump spell (super jump with mana)
                     if (game.hasBigJump && game.equippedSpellBook) {
                         const manaCost = 5;
                         if (game.playerMana >= manaCost) {
-                            // Use big jump
-                            game.velocity.y = game.jumpHeight * 2; // Double jump height
+                            // Use Big Jump with mana (super high jump)
+                            game.velocity.y = 50.0;
                             game.playerMana -= manaCost;
                             updateManaDisplay();
                         } else {
                             // Not enough mana, use normal jump
-                            game.velocity.y = game.jumpHeight;
+                            game.velocity.y = 15.0;
                         }
                     } else {
                         // Normal jump
-                        game.velocity.y = game.jumpHeight;
+                        game.velocity.y = 15.0;
                     }
                     game.controls.canJump = false;
                 }
@@ -5536,16 +6318,39 @@ function setupControls() {
         }
     });
 
-    // Mouse click for attacking
-    document.addEventListener('click', (event) => {
-        if (game.isPointerLocked && !game.inventory.isOpen) {
+    // Mouse down for starting charge or instant attacks
+    document.addEventListener('mousedown', (event) => {
+        if (event.button !== 0) return; // Only left click
+        if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
             if (game.equippedBow) {
-                shootArrow();
+                // Start charging bow shot
+                if (!game.isChargingShot && game.shootCooldown <= 0) {
+                    game.isChargingShot = true;
+                    game.chargeStartTime = Date.now();
+                }
             } else if (game.equippedAxe) {
                 attackWithAxe();
             } else {
                 attackWithSword();
             }
+        }
+    });
+
+    // Mouse up for releasing charged shot
+    document.addEventListener('mouseup', (event) => {
+        if (event.button !== 0) return; // Only left click
+        if (game.isChargingShot) {
+            // Calculate charge amount (0 to 1) - 10% faster with Faster Charge power
+            const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
+            const effectiveMaxChargeTime = game.hasFasterCharge ? game.maxChargeTime * 0.9 : game.maxChargeTime;
+            const chargeAmount = Math.min(chargeTime / effectiveMaxChargeTime, 1.0);
+
+            // Fire the arrow with charge
+            shootArrow(chargeAmount);
+
+            // Reset charging state
+            game.isChargingShot = false;
+            game.chargeStartTime = 0;
         }
     });
 
@@ -5629,12 +6434,34 @@ function setupControls() {
                 event.stopPropagation();
                 if (game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
                     if (game.equippedBow) {
-                        shootArrow();
+                        // Start charging bow shot
+                        if (!game.isChargingShot && game.shootCooldown <= 0) {
+                            game.isChargingShot = true;
+                            game.chargeStartTime = Date.now();
+                        }
                     } else if (game.equippedAxe) {
                         attackWithAxe();
                     } else {
                         attackWithSword();
                     }
+                }
+            });
+
+            mobileAttackBtn.addEventListener('touchend', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (game.isChargingShot) {
+                    // Calculate charge amount (0 to 1) - 10% faster with Faster Charge power
+                    const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
+                    const effectiveMaxChargeTime = game.hasFasterCharge ? game.maxChargeTime * 0.9 : game.maxChargeTime;
+                    const chargeAmount = Math.min(chargeTime / effectiveMaxChargeTime, 1.0);
+
+                    // Fire the arrow with charge
+                    shootArrow(chargeAmount);
+
+                    // Reset charging state
+                    game.isChargingShot = false;
+                    game.chargeStartTime = 0;
                 }
             });
         }
@@ -5645,21 +6472,21 @@ function setupControls() {
                 event.preventDefault();
                 event.stopPropagation();
                 if (game.controls.canJump && game.isPointerLocked && !game.inventory.isOpen && !game.isShopOpen) {
-                    // Check if using big jump spell
+                    // Check if using Big Jump spell (super jump with mana)
                     if (game.hasBigJump && game.equippedSpellBook) {
                         const manaCost = 5;
                         if (game.playerMana >= manaCost) {
-                            // Use big jump
-                            game.velocity.y = game.jumpHeight * 2; // Double jump height
+                            // Use Big Jump with mana (super high jump)
+                            game.velocity.y = 50.0;
                             game.playerMana -= manaCost;
                             updateManaDisplay();
                         } else {
                             // Not enough mana, use normal jump
-                            game.velocity.y = game.jumpHeight;
+                            game.velocity.y = 15.0;
                         }
                     } else {
                         // Normal jump
-                        game.velocity.y = game.jumpHeight;
+                        game.velocity.y = 15.0;
                     }
                     game.controls.canJump = false;
                 }
@@ -5672,6 +6499,16 @@ function setupControls() {
                 event.preventDefault();
                 event.stopPropagation();
                 toggleInventory();
+            });
+        }
+
+        // Interact button (for shop)
+        const mobileInteractBtn = document.getElementById('mobileInteractBtn');
+        if (mobileInteractBtn) {
+            mobileInteractBtn.addEventListener('touchstart', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleShop();
             });
         }
 
@@ -5822,16 +6659,10 @@ function updateMovement(delta) {
     let moveZ = Number(game.controls.moveForward) - Number(game.controls.moveBackward);
     let moveX = Number(game.controls.moveRight) - Number(game.controls.moveLeft);
 
-    // Add joystick Y input for forward/backward (invert Y axis: negative = forward)
+    // Add joystick input for movement (invert Y axis: negative = forward)
     if (game.joystickActive) {
         moveZ += -game.joystickDeltaY;
-        // Note: joystick X is used for camera rotation, not strafing
-    }
-
-    // Apply joystick X input to camera rotation (turning left/right)
-    if (game.joystickActive && game.joystickDeltaX !== 0) {
-        const turnSpeed = 2.5; // Adjust sensitivity for mobile turning
-        game.rotation.y -= game.joystickDeltaX * turnSpeed * delta;
+        moveX += game.joystickDeltaX; // Joystick X controls strafing left/right
     }
 
     game.direction.z = moveZ;
@@ -5863,8 +6694,12 @@ function updateMovement(delta) {
                 game.camera.position.z += game.dashDirectionZ * dashMoveSpeed;
             }
         } else {
-            // Apply normal movement
-            const moveSpeed = game.playerSpeed * delta;
+            // Apply normal movement (reduced speed while charging bow)
+            let speedMultiplier = 1.0;
+            if (game.isChargingShot) {
+                speedMultiplier = 0.25; // 25% speed while charging (very slow)
+            }
+            const moveSpeed = game.playerSpeed * delta * speedMultiplier;
 
             // Forward/backward movement (keyboard or joystick)
             if (game.controls.moveForward || game.controls.moveBackward || (game.joystickActive && game.joystickDeltaY !== 0)) {
@@ -5874,8 +6709,8 @@ function updateMovement(delta) {
                 game.camera.position.z += forward.z * game.direction.z * moveSpeed;
             }
 
-            // Left/right movement (keyboard only - joystick X now controls camera rotation)
-            if (game.controls.moveLeft || game.controls.moveRight) {
+            // Left/right strafing movement (keyboard or joystick)
+            if (game.controls.moveLeft || game.controls.moveRight || (game.joystickActive && game.joystickDeltaX !== 0)) {
                 const right = new THREE.Vector3(1, 0, 0);
                 right.applyAxisAngle(new THREE.Vector3(0, 1, 0), game.rotation.y);
                 game.camera.position.x += right.x * game.direction.x * moveSpeed;
@@ -5970,6 +6805,162 @@ function updateSwordBobbing() {
     }
 }
 
+// Update bow charging animation
+function updateBowCharging() {
+    const chargeOverlay = document.getElementById('chargeOverlay');
+
+    if (!game.equippedBowMesh) {
+        // Hide charge overlay if bow not equipped
+        if (chargeOverlay) {
+            chargeOverlay.style.opacity = '0';
+        }
+        return;
+    }
+
+    if (game.isChargingShot) {
+        // Calculate charge progress (0 to 1) - 10% faster with Faster Charge power
+        const chargeTime = (Date.now() - game.chargeStartTime) / 1000;
+        const effectiveMaxChargeTime = game.hasFasterCharge ? game.maxChargeTime * 0.9 : game.maxChargeTime;
+        const chargeProgress = Math.min(chargeTime / effectiveMaxChargeTime, 1.0);
+
+        // Pulse effect based on charge
+        const pulseSpeed = 8 + (chargeProgress * 12); // Faster pulse as it charges
+        const pulse = Math.sin(Date.now() * 0.01 * pulseSpeed) * 0.5 + 0.5;
+
+        // Update charge overlay opacity (0 to 1, with pulse)
+        if (chargeOverlay) {
+            const baseOpacity = chargeProgress * 0.6; // 0 to 0.6
+            const pulseOpacity = pulse * 0.2; // 0 to 0.2
+            chargeOverlay.style.opacity = (baseOpacity + pulseOpacity).toString();
+        }
+
+        // Find the barrel and chamber meshes to animate them
+        game.equippedBowMesh.children.forEach(child => {
+            // Animate barrel glow
+            if (child.material && child.material.opacity !== undefined) {
+                child.material.opacity = 0.4 + (chargeProgress * 0.4) + (pulse * 0.2);
+            }
+            // Animate chamber and barrel emissive intensity
+            if (child.material && child.material.emissive !== undefined) {
+                child.material.emissiveIntensity = 1 + (chargeProgress * 1.5) + (pulse * 0.5);
+            }
+        });
+
+        // Scale bow slightly as it charges (1.0 to 1.15)
+        const scale = 1 + (chargeProgress * 0.15);
+        game.equippedBowMesh.scale.set(scale, scale, scale);
+    } else {
+        // Fade out charge overlay
+        if (chargeOverlay) {
+            const currentOpacity = parseFloat(chargeOverlay.style.opacity) || 0;
+            chargeOverlay.style.opacity = Math.max(0, currentOpacity - 0.05).toString();
+        }
+
+        // Reset to normal state
+        game.equippedBowMesh.children.forEach(child => {
+            if (child.material && child.material.opacity !== undefined) {
+                child.material.opacity = THREE.MathUtils.lerp(child.material.opacity, 0.4, 0.1);
+            }
+            if (child.material && child.material.emissive !== undefined) {
+                child.material.emissiveIntensity = THREE.MathUtils.lerp(child.material.emissiveIntensity, 1, 0.1);
+            }
+        });
+
+        // Reset scale
+        const currentScale = game.equippedBowMesh.scale.x;
+        const targetScale = 1.0;
+        const newScale = THREE.MathUtils.lerp(currentScale, targetScale, 0.1);
+        game.equippedBowMesh.scale.set(newScale, newScale, newScale);
+    }
+}
+
+// Spawn floating damage number at enemy position
+function spawnDamageNumber(damage, position) {
+    // Create canvas for damage text
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.width = 128;
+    canvas.height = 64;
+
+    // Draw damage text
+    context.fillStyle = 'rgba(0, 0, 0, 0)';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.font = 'bold 48px Arial';
+    context.fillStyle = '#ff0000'; // Red color for damage
+    context.strokeStyle = '#000000'; // Black outline
+    context.lineWidth = 4;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+
+    const text = damage.toString();
+    context.strokeText(text, 64, 32);
+    context.fillText(text, 64, 32);
+
+    // Create sprite from canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true
+    });
+    const sprite = new THREE.Sprite(material);
+
+    // Position sprite at enemy position, slightly above
+    sprite.position.set(
+        position.x + (Math.random() - 0.5) * 1.5, // Random X offset
+        position.y + 2, // Above enemy
+        position.z + (Math.random() - 0.5) * 1.5  // Random Z offset
+    );
+    sprite.scale.set(2, 1, 1);
+
+    // Add animation data
+    sprite.userData = {
+        velocity: new THREE.Vector3(
+            (Math.random() - 0.5) * 2, // Random horizontal drift
+            8, // Upward velocity
+            (Math.random() - 0.5) * 2  // Random horizontal drift
+        ),
+        lifetime: 0,
+        maxLifetime: 1.0 // 1 second lifetime
+    };
+
+    game.scene.add(sprite);
+    game.damageNumbers.push(sprite);
+}
+
+// Update damage numbers animation
+function updateDamageNumbers(delta) {
+    for (let i = game.damageNumbers.length - 1; i >= 0; i--) {
+        const dmgNumber = game.damageNumbers[i];
+
+        // Update lifetime
+        dmgNumber.userData.lifetime += delta;
+
+        // Calculate fade based on lifetime
+        const fadeProgress = dmgNumber.userData.lifetime / dmgNumber.userData.maxLifetime;
+
+        // Update position (move up and drift)
+        dmgNumber.position.x += dmgNumber.userData.velocity.x * delta;
+        dmgNumber.position.y += dmgNumber.userData.velocity.y * delta;
+        dmgNumber.position.z += dmgNumber.userData.velocity.z * delta;
+
+        // Apply gravity to vertical velocity (slow down upward movement)
+        dmgNumber.userData.velocity.y -= 15 * delta;
+
+        // Fade out
+        dmgNumber.material.opacity = 1 - fadeProgress;
+
+        // Remove when lifetime expires
+        if (dmgNumber.userData.lifetime >= dmgNumber.userData.maxLifetime) {
+            game.scene.remove(dmgNumber);
+            dmgNumber.material.map.dispose();
+            dmgNumber.material.dispose();
+            game.damageNumbers.splice(i, 1);
+        }
+    }
+}
+
 // Update projectiles
 function updateProjectiles(delta) {
     for (let i = game.projectiles.length - 1; i >= 0; i--) {
@@ -5995,130 +6986,129 @@ function updateProjectiles(delta) {
         arrow.position.y += arrow.velocity.y * delta;
         arrow.position.z += arrow.velocity.z * delta;
 
-        // Check collision with enemies
+        // Find all targets in range, then hit the closest one
         let hitEnemy = false;
+        const targetsInRange = [];
+
+        // Check collision with enemies
         for (let j = 0; j < game.enemies.length; j++) {
             const enemy = game.enemies[j];
             const distance = arrow.position.distanceTo(enemy.position);
 
             if (distance < 1.5) {
-                // Determine damage based on projectile type
-                let damage = 1; // Arrows deal 1 damage
-                let emoji = '🏹';
-
-                if (arrow.isFireball) {
-                    damage = 3; // Fireballs deal 3 damage
-                    emoji = '🔥';
-                } else if (arrow.isFreezeball) {
-                    damage = 2; // Freezeballs deal 2 damage
-                    emoji = '❄️';
-                    // Freeze effect: freeze enemy
-                    enemy.isFrozen = true;
-                    // Store original color if not already stored
-                    if (!enemy.frozenOriginalColor) {
-                        enemy.frozenOriginalColor = enemy.material.color.getHex();
-                    }
-                    // Turn enemy blue
-                    enemy.material.color.setHex(0x0088ff);
-                    enemy.material.emissive.setHex(0x0044aa);
-
-                    setTimeout(() => {
-                        if (enemy) {
-                            enemy.isFrozen = false;
-                            // Restore original color
-                            if (enemy.frozenOriginalColor !== undefined) {
-                                enemy.material.color.setHex(enemy.frozenOriginalColor);
-                                enemy.material.emissive.setHex(0x330000);
-                                enemy.frozenOriginalColor = undefined;
-                            }
-                        }
-                    }, 3000); // Frozen for 3 seconds
-                }
-
-                // Hit enemy
-                enemy.hp -= damage;
-
-                // Visual feedback
-                const originalColor = enemy.material.color.getHex();
-                enemy.material.color.setHex(0xffffff);
-                enemy.material.emissive.setHex(0xffffff);
-                setTimeout(() => {
-                    if (enemy && enemy.material) {
-                        enemy.material.color.setHex(originalColor);
-                        enemy.material.emissive.setHex(0x330000);
-                    }
-                }, 150);
-
-                showNotification(`${emoji} Hit! Enemy HP: ${Math.max(0, enemy.hp)}/${enemy.maxHP || 5}`);
-
-                if (enemy.hp <= 0) {
-                    defeatEnemy(enemy, j);
-                }
-
-                hitEnemy = true;
-                break;
+                targetsInRange.push({
+                    entity: enemy,
+                    distance: distance,
+                    index: j,
+                    isBoss: false,
+                    hitboxRadius: 1.5
+                });
             }
         }
 
         // Check collision with boss
-        if (!hitEnemy && game.boss) {
+        if (game.boss) {
             const distance = arrow.position.distanceTo(game.boss.position);
             if (distance < 4) { // Boss has larger hitbox
-                // Determine damage based on projectile type
-                let damage = 1; // Arrows deal 1 damage
-                let emoji = '🏹';
+                targetsInRange.push({
+                    entity: game.boss,
+                    distance: distance,
+                    index: -1,
+                    isBoss: true,
+                    hitboxRadius: 4
+                });
+            }
+        }
 
-                if (arrow.isFireball) {
-                    damage = 5; // Fireballs deal 5 damage to boss
-                    emoji = '🔥';
-                } else if (arrow.isFreezeball) {
-                    damage = 3; // Freezeballs deal 3 damage to boss
-                    emoji = '❄️';
-                    // Freeze effect on boss: slow movement and turn bluish
-                    game.boss.isFrozen = true;
-                    // Store original color if not already stored
-                    if (!game.boss.frozenOriginalColor) {
-                        game.boss.frozenOriginalColor = game.boss.material.color.getHex();
-                    }
+        // Sort by distance and hit the closest target
+        if (targetsInRange.length > 0) {
+            targetsInRange.sort((a, b) => a.distance - b.distance);
+            const closestTarget = targetsInRange[0];
+            const target = closestTarget.entity;
+
+            // Determine damage based on projectile type
+            let damage = game.bowDamage; // Arrows use bow damage
+            let emoji = '🔫';
+
+            if (arrow.isFireball) {
+                damage = closestTarget.isBoss ? 5 : 3; // Fireballs deal 5 to boss, 3 to enemies
+                emoji = '🔥';
+            } else if (arrow.isFreezeball) {
+                damage = closestTarget.isBoss ? 3 : 2; // Freezeballs deal 3 to boss, 2 to enemies
+                emoji = '❄️';
+                // Freeze effect
+                target.isFrozen = true;
+                // Store original color if not already stored
+                if (!target.frozenOriginalColor) {
+                    target.frozenOriginalColor = target.material.color.getHex();
+                }
+
+                if (closestTarget.isBoss) {
                     // Turn boss bluish (mix of original red and blue)
-                    game.boss.material.color.setHex(0x6600aa); // Purple-blue
-                    game.boss.material.emissive.setHex(0x3300aa);
+                    target.material.color.setHex(0x6600aa); // Purple-blue
+                    target.material.emissive.setHex(0x3300aa);
 
                     setTimeout(() => {
-                        if (game.boss) {
-                            game.boss.isFrozen = false;
+                        if (target) {
+                            target.isFrozen = false;
                             // Restore original color
-                            if (game.boss.frozenOriginalColor !== undefined) {
-                                game.boss.material.color.setHex(game.boss.frozenOriginalColor);
-                                game.boss.material.emissive.setHex(0x660000);
-                                game.boss.frozenOriginalColor = undefined;
+                            if (target.frozenOriginalColor !== undefined) {
+                                target.material.color.setHex(target.frozenOriginalColor);
+                                target.material.emissive.setHex(0x660000);
+                                target.frozenOriginalColor = undefined;
                             }
                         }
                     }, 5000); // Frozen for 5 seconds
+                } else {
+                    // Turn enemy blue
+                    target.material.color.setHex(0x0088ff);
+                    target.material.emissive.setHex(0x0044aa);
+
+                    setTimeout(() => {
+                        if (target) {
+                            target.isFrozen = false;
+                            // Restore original color
+                            if (target.frozenOriginalColor !== undefined) {
+                                target.material.color.setHex(target.frozenOriginalColor);
+                                target.material.emissive.setHex(0x330000);
+                                target.frozenOriginalColor = undefined;
+                            }
+                        }
+                    }, 3000); // Frozen for 3 seconds
                 }
+            }
 
-                // Hit boss
-                game.boss.hp -= damage;
+            // Hit target
+            target.hp -= damage;
 
-                // Visual feedback
-                const originalColor = game.boss.material.color.getHex();
-                game.boss.material.color.setHex(0xffffff);
-                game.boss.material.emissive.setHex(0xffffff);
-                setTimeout(() => {
-                    if (game.boss && game.boss.material) {
-                        game.boss.material.color.setHex(originalColor);
-                        game.boss.material.emissive.setHex(0x660000);
-                    }
-                }, 150);
+            // Spawn damage number
+            spawnDamageNumber(damage, target.position);
 
-                showNotification(`${emoji} BOSS Hit! HP: ${Math.max(0, game.boss.hp)}/${game.boss.maxHP || 100}`);
+            // Visual feedback
+            const originalColor = target.material.color.getHex();
+            const originalEmissive = closestTarget.isBoss ? 0x660000 : 0x330000;
+            target.material.color.setHex(0xffffff);
+            target.material.emissive.setHex(0xffffff);
+            setTimeout(() => {
+                if (target && target.material) {
+                    target.material.color.setHex(originalColor);
+                    target.material.emissive.setHex(originalEmissive);
+                }
+            }, 150);
 
-                if (game.boss.hp <= 0) {
+            if (closestTarget.isBoss) {
+                showNotification(`${emoji} BOSS Hit! HP: ${Math.max(0, target.hp)}/${target.maxHP || 100}`);
+                if (target.hp <= 0) {
                     defeatBoss();
                 }
-
-                hitEnemy = true; // Use same flag to remove projectile
+            } else {
+                showNotification(`${emoji} Hit! Virus HP: ${Math.max(0, target.hp)}/${target.maxHP || 5}`);
+                if (target.hp <= 0) {
+                    defeatEnemy(target, closestTarget.index);
+                }
             }
+
+            hitEnemy = true;
         }
 
         // Remove arrow if it hit, hit the ground, or traveled too far
@@ -6144,6 +7134,7 @@ function animate() {
         checkBowPickup();
         checkAxePickup();
         checkFoodPickup();
+        checkRedPotionPickup();
         checkSpellBookPickup();
         checkPortalPickup();
         checkShopProximity();
@@ -6151,6 +7142,8 @@ function animate() {
         updateEnemyProjectiles(delta);
         updateBossProjectiles(delta);
         updateSwordBobbing();
+        updateBowCharging();
+        updateDamageNumbers(delta);
         updatePortal(delta);
         updateCodeFragments(delta);
 
@@ -6173,6 +7166,26 @@ function animate() {
         if (game.spirals && game.currentWorld === 2) {
             game.spirals.forEach(spiral => {
                 spiral.rotation.y += spiral.userData.rotationSpeed * delta;
+            });
+        }
+
+        // Animate wormhole shop - rotate rings and swirl particles
+        if (game.shop) {
+            const time = Date.now() * 0.001;
+            game.shop.children.forEach(child => {
+                // Rotate rings
+                if (child.userData.rotationSpeed !== undefined) {
+                    child.rotation.z += child.userData.rotationSpeed * delta;
+                }
+                // Swirl particles in circular motion
+                if (child.userData.angle !== undefined) {
+                    child.userData.angle += child.userData.speed * delta;
+                    child.position.x = Math.cos(child.userData.angle) * child.userData.radius;
+                    child.position.y = Math.sin(child.userData.angle) * child.userData.radius;
+                    // Add pulsing effect
+                    const scale = 1 + Math.sin(time * 2 + child.userData.angle) * 0.2;
+                    child.scale.set(scale, scale, scale);
+                }
             });
         }
 
@@ -6236,8 +7249,8 @@ function animate() {
             }
         }
 
-        // Enemy spawner
-        if (!game.isGameOver) {
+        // Enemy spawner (only when game is not paused)
+        if (!game.isGameOver && !game.inventory.isOpen && !game.isShopOpen && game.isPointerLocked) {
             game.enemySpawnTimer += delta;
             if (game.enemySpawnTimer >= game.enemySpawnInterval) {
                 spawnEnemy();
