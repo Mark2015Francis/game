@@ -5671,11 +5671,16 @@ function updateWorld2Boss(delta) {
     // Update teleport timer
     boss.teleportTimer -= delta;
     if (boss.teleportTimer <= 0) {
-        // Teleport to a new position 15 units away in a random direction
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 15;
-        const newX = game.camera.position.x + Math.cos(angle) * distance;
-        const newZ = game.camera.position.z + Math.sin(angle) * distance;
+        // Teleport 40 units behind the player
+        const distance = 40;
+
+        // Calculate direction player is facing (from camera rotation)
+        const playerForwardX = -Math.sin(game.rotation.y);
+        const playerForwardZ = -Math.cos(game.rotation.y);
+
+        // Teleport behind player (opposite of forward direction)
+        const newX = game.camera.position.x - playerForwardX * distance;
+        const newZ = game.camera.position.z - playerForwardZ * distance;
 
         // Create teleport effect at old position
         createTeleportEffect(boss.position.x, boss.position.z);
@@ -5687,7 +5692,7 @@ function updateWorld2Boss(delta) {
         createTeleportEffect(newX, newZ);
 
         boss.teleportTimer = game.bossTeleportCooldown;
-        showNotification('⚡ Boss teleported!');
+        showNotification('⚡ Boss teleported behind you!');
     }
 
     // Update shoot timer
