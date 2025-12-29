@@ -79,13 +79,70 @@ function init() {
     directionalLight.shadow.camera.bottom = -100;
     game.scene.add(directionalLight);
 
-    // Create ground - WAY BIGGER
-    const groundGeometry = new THREE.PlaneGeometry(1000, 1000);
-    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x3d8c40 });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    // Load grass texture
+    var groundTexture = new THREE.TextureLoader().load('seamlessly-repeating-zeros.jpg');
+    groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
+    groundTexture.repeat.set(200, 200);
+    groundTexture.anisotropy = 4;
+    groundTexture.encoding = THREE.sRGBEncoding;
+    var groundMaterial = new THREE.MeshStandardMaterial({ map: groundTexture });
+    var ground = new THREE.Mesh(new THREE.PlaneBufferGeometry(10000, 10000), groundMaterial);
+    ground.position.y = 0.0;
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     game.scene.add(ground);
+
+    // Load building/wall texture (big-0-1.jpg)
+    const buildingTextureLoader = new THREE.TextureLoader();
+    const buildingTextureFormats = [
+        'big-0-1.jpg',
+        'big-0-1.png'
+    ];
+
+    let buildingTextureLoaded = false;
+    let currentBuildingFormatIndex = 0;
+
+    function tryLoadBuildingTexture() {
+        if (currentBuildingFormatIndex >= buildingTextureFormats.length || buildingTextureLoaded) return;
+
+        const texturePath = buildingTextureFormats[currentBuildingFormatIndex];
+        console.log(`Attempting to load building texture: ${texturePath}`);
+
+        buildingTextureLoader.load(
+            texturePath,
+            // onLoad - texture loaded successfully
+            function(texture) {
+                buildingTextureLoaded = true;
+                console.log(`✓ Building texture loaded successfully: ${texturePath}`);
+
+                // Set texture to repeat for tiling
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+
+                // Store texture globally for use in createBox and createWall
+                game.buildingTexture = texture;
+
+                // Update all existing boxes and walls with the texture
+                game.objects.forEach(obj => {
+                    if (obj.geometry && obj.geometry.type === 'BoxGeometry' && obj.material) {
+                        obj.material.map = texture;
+                        obj.material.needsUpdate = true;
+                    }
+                });
+            },
+            // onProgress
+            undefined,
+            // onError - texture failed to load, try next format
+            function(error) {
+                console.log(`⚠ Failed to load ${texturePath}, trying next format...`);
+                currentBuildingFormatIndex++;
+                tryLoadBuildingTexture(); // Try next format
+            }
+        );
+    }
+
+    // Start loading building texture
+    tryLoadBuildingTexture();
 
     // Add sun and clouds to World 1 sky
     createSun();

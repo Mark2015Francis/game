@@ -515,7 +515,10 @@ function updateMovement(delta) {
 
     game.direction.z = moveZ;
     game.direction.x = moveX;
-    game.direction.normalize();
+    // Only normalize if direction has magnitude to avoid NaN
+    if (game.direction.length() > 0) {
+        game.direction.normalize();
+    }
 
     // Track if player is moving (keyboard or joystick)
     game.isMoving = game.controls.moveForward || game.controls.moveBackward ||
