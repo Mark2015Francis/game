@@ -134,7 +134,7 @@ function createProjectileEnemy(x, z) {
     // Antenna
     const antenna = createMesh(
         createCylinder(0.03, 0.03, 1.2, 6),
-        createBasicMaterial(0x00ff00, { emissiveIntensity: 0 })
+        createBasicMaterial(0x00ff00)
     );
     antenna.position.set(0, 1.5, 0);
     enemy.add(antenna);
@@ -256,10 +256,14 @@ function createWarriorEnemy(x, z) {
     }
 
     // Add orbiting pentagons
+    const pentagonMaterial = new THREE.MeshBasicMaterial({
+        color: 0x8800ff,
+        side: THREE.DoubleSide
+    });
     const pentagons = createOrbitingObjects(
         5,
         () => new THREE.CircleGeometry(0.25, 5),
-        createBasicMaterial(0x8800ff, { side: THREE.DoubleSide, emissiveIntensity: 0.8 }),
+        pentagonMaterial,
         2.2,
         { isPentagon: true }
     );
@@ -4541,6 +4545,48 @@ function createShockwave(x, z) {
 
 // Create teleport effect
 function createTeleportEffect(x, z) {
+    // Create purple particle effect
+    for (let i = 0; i < 10; i++) {
+        const particle = new THREE.Mesh(
+            createSphere(0.3, 8),
+            createBasicMaterial(0xff00ff, { transparent: true, opacity: 0.8 })
+        );
+
+        particle.position.set(
+            x + (Math.random() - 0.5) * 2,
+            Math.random() * 3,
+            z + (Math.random() - 0.5) * 2
+        );
+
+        particle.velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 5,
+            Math.random() * 5 + 2,
+            (Math.random() - 0.5) * 5
+        );
+
+        game.scene.add(particle);
+
+        // Animate and remove particle
+        let life = 1.0;
+        const particleInterval = setInterval(() => {
+            particle.position.x += particle.velocity.x * 0.016;
+            particle.position.y += particle.velocity.y * 0.016;
+            particle.position.z += particle.velocity.z * 0.016;
+            particle.velocity.y -= 9.8 * 0.016; // Gravity
+
+            life -= 0.016 * 2;
+            particle.material.opacity = life * 0.8;
+
+            if (life <= 0) {
+                clearInterval(particleInterval);
+                game.scene.remove(particle);
+                particle.geometry.dispose();
+                particle.material.dispose();
+            }
+        }, 16);
+    }
+}
+
 function defeatBoss() {
     if (!game.boss) return;
 

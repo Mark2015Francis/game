@@ -143,7 +143,7 @@ function createSpellBook(x, z) {
     // Book cover star
     const star = new THREE.Mesh(
         new THREE.CircleGeometry(0.2, 5),
-        createBasicMaterial(0xffd700, { emissiveIntensity: 0 })
+        createBasicMaterial(0xffd700)
     );
     star.position.set(0, 0, 0.08);
     game.spellBook.add(star);

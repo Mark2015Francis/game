@@ -11,15 +11,17 @@ function createLambertMaterial(color, emissive, emissiveIntensity = 0.5) {
 }
 
 function createBasicMaterial(color, options = {}) {
-    return new THREE.MeshBasicMaterial({
+    const materialConfig = {
         color: color,
-        emissive: options.emissive || color,
-        emissiveIntensity: options.emissiveIntensity || 1,
         transparent: options.transparent || false,
         opacity: options.opacity || 1,
         wireframe: options.wireframe || false,
         side: options.side || THREE.FrontSide
-    });
+    };
+
+    // MeshBasicMaterial doesn't support emissive/emissiveIntensity
+    // Only add if explicitly needed (shouldn't be used with BasicMaterial)
+    return new THREE.MeshBasicMaterial(materialConfig);
 }
 
 function createGlowMaterial(color, opacity = 0.3) {
