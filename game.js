@@ -6188,6 +6188,17 @@ function setupControls() {
         }
     });
 
+    // Prevent shop menu clicks from propagating to body (prevents unpausing on mobile)
+    const shopMenu = document.getElementById('shopMenu');
+    if (shopMenu) {
+        shopMenu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        shopMenu.addEventListener('touchend', (event) => {
+            event.stopPropagation();
+        });
+    }
+
     // Mouse movement
     document.addEventListener('mousemove', (event) => {
         if (!game.isPointerLocked) return;
