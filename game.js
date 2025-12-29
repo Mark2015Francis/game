@@ -4256,10 +4256,22 @@ function checkShopProximity() {
     if (!game.shop) return;
 
     const distance = game.camera.position.distanceTo(game.shop.position);
+    const mobileInteractBtn = document.getElementById('mobileInteractBtn');
+
     if (distance < 10) {
         // Show prompt if not already showing
         if (!game.isShopOpen) {
             showNotification('Press E to open Shopping Network');
+        }
+
+        // Show mobile interact button when near shop
+        if (mobileInteractBtn && game.isMobile) {
+            mobileInteractBtn.style.display = 'flex';
+        }
+    } else {
+        // Hide mobile interact button when far from shop
+        if (mobileInteractBtn) {
+            mobileInteractBtn.style.display = 'none';
         }
     }
 }
@@ -6471,6 +6483,16 @@ function setupControls() {
                 event.preventDefault();
                 event.stopPropagation();
                 toggleInventory();
+            });
+        }
+
+        // Interact button (for shop)
+        const mobileInteractBtn = document.getElementById('mobileInteractBtn');
+        if (mobileInteractBtn) {
+            mobileInteractBtn.addEventListener('touchstart', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                toggleShop();
             });
         }
 
