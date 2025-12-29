@@ -569,239 +569,107 @@ function updatePortal(delta) {
     }
 }
 
-// Enter world two
-function enterWorldTwo() {
-    // Prevent entering World 2 if already in World 2
-    if (game.currentWorld === 2) {
-        console.log('Already in World 2');
+// Consolidated world transition function
+function enterWorld(worldNum) {
+    if (game.currentWorld === worldNum) {
+        console.log(`Already in World ${worldNum}`);
         return;
     }
 
-    showNotification('🌀 Entering World 2...');
+    const worldConfigs = {
+        2: {
+            bgColor: 0x6a0dad,
+            message: '🎮 Welcome to World 2! Enemies are stronger here!',
+            shields: 3,
+            food: 4,
+            enemies: 5,
+            skySetup: () => { createGalaxy(); createColoredSpirals(); },
+            skyCleanup: () => {
+                if (game.sun) { game.scene.remove(game.sun); game.sun = null; }
+                if (game.sunGlow) { game.scene.remove(game.sunGlow); game.sunGlow = null; }
+                if (game.clouds) { game.clouds.forEach(c => game.scene.remove(c)); game.clouds = []; }
+            },
+            specialItem: () => {
+                const pos = randomPosition(400);
+                createSpellBook(pos.x, pos.z);
+            }
+        },
+        3: {
+            bgColor: 0xff4400,
+            message: '🔥 Welcome to World 3! The heat is on!',
+            shields: 2,
+            food: 3,
+            enemies: 7,
+            skySetup: () => createAshClouds(),
+            skyCleanup: () => {
+                if (game.galaxy) { game.scene.remove(game.galaxy); game.galaxy = null; }
+                if (game.spirals) { game.spirals.forEach(s => game.scene.remove(s)); game.spirals = []; }
+            },
+            specialItem: () => {
+                if (!game.axeCollected && !game.axe) {
+                    const pos = randomPosition(400);
+                    createAxePickup(pos.x, pos.z);
+                }
+            }
+        }
+    };
+
+    const config = worldConfigs[worldNum];
+    showNotification('🌀 Entering World ' + worldNum + '...');
 
     setTimeout(() => {
-        // Clear all enemies
-        game.enemies.forEach(enemy => game.scene.remove(enemy));
+        // Clear all enemies and boss
+        game.enemies.forEach(e => game.scene.remove(e));
         game.enemies = [];
+        if (game.boss) { game.scene.remove(game.boss); game.boss = null; }
+        if (game.portal) { game.scene.remove(game.portal); game.portal = null; game.portalSpawned = false; }
 
-        // Remove boss if it exists
-        if (game.boss) {
-            game.scene.remove(game.boss);
-            game.boss = null;
-        }
-
-        // Remove portal
-        if (game.portal) {
-            game.scene.remove(game.portal);
-            game.portal = null;
-            game.portalSpawned = false;
-        }
-
-        // Clear all World 1 items
-        // Remove all shields
-        game.shields.forEach(shield => game.scene.remove(shield));
+        // Clear all items
+        game.shields.forEach(s => game.scene.remove(s));
         game.shields = [];
-
-        // Remove all foods
-        game.foods.forEach(food => game.scene.remove(food));
+        game.foods.forEach(f => game.scene.remove(f));
         game.foods = [];
+        [game.bow, game.shop, game.spellBook].forEach((item, idx) => {
+            if (item) {
+                game.scene.remove(item);
+                if (idx === 0) game.bow = null;
+                else if (idx === 1) game.shop = null;
+                else game.spellBook = null;
+            }
+        });
 
-        // Remove bow if it exists
-        if (game.bow) {
-            game.scene.remove(game.bow);
-            game.bow = null;
-        }
-
-        // Remove shop if it exists
-        if (game.shop) {
-            game.scene.remove(game.shop);
-            game.shop = null;
-        }
-
-        // Remove spell book if it exists (prevent duplicates)
-        if (game.spellBook) {
-            game.scene.remove(game.spellBook);
-            game.spellBook = null;
-        }
-
-        // Reset boss spawn state
+        // Reset state
         game.bossSpawned = false;
         game.totalEnemiesSpawned = 0;
-
-        // Teleport player to spawn
         game.camera.position.set(0, game.playerHeight, 0);
+        game.currentWorld = worldNum;
 
-        // Change world
-        game.currentWorld = 2;
+        // Update environment
+        game.scene.background = new THREE.Color(config.bgColor);
+        game.scene.fog = new THREE.Fog(config.bgColor, 0, 200);
+        config.skyCleanup();
+        config.skySetup();
 
-        // Change scene background to indicate new world
-        game.scene.background = new THREE.Color(0x6a0dad); // Bright purple sky for world 2
-        game.scene.fog = new THREE.Fog(0x6a0dad, 0, 200); // Purple fog
-
-        // Remove World 1 sky elements
-        if (game.sun) {
-            game.scene.remove(game.sun);
-            game.sun = null;
+        // Spawn items
+        for (let i = 0; i < config.shields; i++) {
+            const pos = randomPosition();
+            createShieldPickup(pos.x, pos.z);
         }
-        if (game.sunGlow) {
-            game.scene.remove(game.sunGlow);
-            game.sunGlow = null;
+        for (let i = 0; i < config.food; i++) {
+            const pos = randomPosition();
+            createFoodPickup(pos.x, pos.z);
         }
-        if (game.clouds) {
-            game.clouds.forEach(cloud => game.scene.remove(cloud));
-            game.clouds = [];
-        }
-
-        // Add World 2 galaxy and colored spirals
-        createGalaxy();
-        createColoredSpirals();
-
-        // Spawn shields in World 2 (limited to 3)
-        for (let i = 0; i < 3; i++) {
-            const randomX = (Math.random() * 600 - 300);
-            const randomZ = (Math.random() * 600 - 300);
-            createShieldPickup(randomX, randomZ);
-        }
-
-        // Spawn food in World 2 (limited to 4)
-        for (let i = 0; i < 4; i++) {
-            const foodX = (Math.random() * 600 - 300);
-            const foodZ = (Math.random() * 600 - 300);
-            createFoodPickup(foodX, foodZ);
-        }
-
-        // Spawn spell book in World 2
-        const spellBookX = (Math.random() * 400 - 200);
-        const spellBookZ = (Math.random() * 400 - 200);
-        createSpellBook(spellBookX, spellBookZ);
-
-        // Create shop in World 2
+        config.specialItem();
         createShop(350, 0);
 
-        // Spawn initial enemies in World 2
-        spawnEnemy();
-        spawnEnemy();
-        spawnEnemy();
-        spawnEnemy();
-        spawnEnemy(); // 5 initial enemies in World 2 (more than World 1's 3)
+        // Spawn enemies
+        for (let i = 0; i < config.enemies; i++) spawnEnemy();
 
-        showNotification('🎮 Welcome to World 2! Enemies are stronger here!');
-        console.log('Entered World 2');
+        showNotification(config.message);
+        console.log('Entered World ' + worldNum);
     }, 1000);
 }
 
-// Enter world three
-function enterWorldThree() {
-    // Prevent entering World 3 if already in World 3
-    if (game.currentWorld === 3) {
-        console.log('Already in World 3');
-        return;
-    }
-
-    showNotification('🌀 Entering World 3...');
-
-    setTimeout(() => {
-        // Clear all enemies
-        game.enemies.forEach(enemy => game.scene.remove(enemy));
-        game.enemies = [];
-
-        // Remove boss if it exists
-        if (game.boss) {
-            game.scene.remove(game.boss);
-            game.boss = null;
-        }
-
-        // Remove portal
-        if (game.portal) {
-            game.scene.remove(game.portal);
-            game.portal = null;
-            game.portalSpawned = false;
-        }
-
-        // Clear all World 2 items
-        // Remove all shields
-        game.shields.forEach(shield => game.scene.remove(shield));
-        game.shields = [];
-
-        // Remove all foods
-        game.foods.forEach(food => game.scene.remove(food));
-        game.foods = [];
-
-        // Remove bow if it exists
-        if (game.bow) {
-            game.scene.remove(game.bow);
-            game.bow = null;
-        }
-
-        // Remove shop if it exists
-        if (game.shop) {
-            game.scene.remove(game.shop);
-            game.shop = null;
-        }
-
-        // Remove spell book if it exists
-        if (game.spellBook) {
-            game.scene.remove(game.spellBook);
-            game.spellBook = null;
-        }
-
-        // Remove World 2 sky elements (galaxy and spirals)
-        if (game.galaxy) {
-            game.scene.remove(game.galaxy);
-            game.galaxy = null;
-        }
-        if (game.spirals) {
-            game.spirals.forEach(spiral => game.scene.remove(spiral));
-            game.spirals = [];
-        }
-
-        // Add World 3 ash clouds
-        createAshClouds();
-
-        // Reset boss spawn state
-        game.bossSpawned = false;
-        game.totalEnemiesSpawned = 0;
-
-        // Teleport player to spawn
-        game.camera.position.set(0, game.playerHeight, 0);
-
-        // Change world
-        game.currentWorld = 3;
-
-        // Change scene background to indicate World 3 - volcanic/hellish theme
-        game.scene.background = new THREE.Color(0xff4400); // Bright orange/red sky
-        game.scene.fog = new THREE.Fog(0xff4400, 0, 200); // Orange fog
-
-        // Spawn shields in World 3 (limited to 2)
-        for (let i = 0; i < 2; i++) {
-            const randomX = (Math.random() * 600 - 300);
-            const randomZ = (Math.random() * 600 - 300);
-            createShieldPickup(randomX, randomZ);
-        }
-
-        // Spawn food in World 3 (limited to 3)
-        for (let i = 0; i < 3; i++) {
-            const foodX = (Math.random() * 600 - 300);
-            const foodZ = (Math.random() * 600 - 300);
-            createFoodPickup(foodX, foodZ);
-        }
-
-        // Create shop in World 3
-        createShop(350, 0);
-
-        // Create axe pickup in World 3 at a random location (only if not collected yet)
-        if (!game.axeCollected && !game.axe) {
-            const axeX = (Math.random() * 400 - 200);
-            const axeZ = (Math.random() * 400 - 200);
-            createAxePickup(axeX, axeZ);
-        }
-
-        // Spawn initial enemies in World 3 (7 enemies - more than World 2)
-        for (let i = 0; i < 7; i++) {
-            spawnEnemy();
-        }
-
-        showNotification('🔥 Welcome to World 3! The heat is on!');
-        console.log('Entered World 3');
-    }, 1000);
-}
+// Wrapper functions for compatibility
+function enterWorldTwo() { enterWorld(2); }
+function enterWorldThree() { enterWorld(3); }
