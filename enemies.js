@@ -47,65 +47,36 @@ function createEnemy(x, z) {
     enemy.castShadow = true;
 
     // Scale HP based on world
-    let baseHP = 5;
-    if (game.currentWorld === 2 || game.currentWorld === 3) {
-        baseHP = 7; // Stronger in World 2 and 3
-    }
-
-    enemy.hp = baseHP;
-    enemy.maxHP = baseHP;
+    enemy.hp = getEnemyHP(5, 'normal');
+    enemy.maxHP = enemy.hp;
 
     // Main virus body - octahedron (geometric diamond shape)
-    const bodyGeometry = new THREE.OctahedronGeometry(1, 0);
-    const bodyMaterial = new THREE.MeshLambertMaterial({
-        color: 0xff0000,
-        emissive: 0x660000,
-        emissiveIntensity: 0.5
-    });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.castShadow = true;
+    const bodyMaterial = createLambertMaterial(0xff0000, 0x660000, 0.5);
+    const body = createMesh(createOctahedron(1, 0), bodyMaterial);
     enemy.add(body);
+    enemy.material = bodyMaterial; // Store for hit effects
 
-    // Store material reference for hit effects
-    enemy.material = bodyMaterial;
-
-    // Add wireframe overlay for digital look
-    const wireframeGeometry = new THREE.OctahedronGeometry(1.05, 0);
-    const wireframeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff3333,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.6
-    });
-    const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
-    enemy.add(wireframe);
+    // Add wireframe overlay
+    enemy.add(new THREE.Mesh(
+        createOctahedron(1.05, 0),
+        createBasicMaterial(0xff3333, { wireframe: true, transparent: true, opacity: 0.6 })
+    ));
 
     // Add inner glowing core
-    const coreGeometry = new THREE.OctahedronGeometry(0.4, 0);
-    const coreMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        emissive: 0xff0000,
-        transparent: true,
-        opacity: 0.9
-    });
-    const core = new THREE.Mesh(coreGeometry, coreMaterial);
-    enemy.add(core);
+    enemy.add(new THREE.Mesh(
+        createOctahedron(0.4, 0),
+        createBasicMaterial(0xff0000, { transparent: true, opacity: 0.9 })
+    ));
 
-    // Add orbiting data cubes (like corrupted data packets)
-    const cubeGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-    const cubeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        emissive: 0xff0000
-    });
-
-    for (let i = 0; i < 4; i++) {
-        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-        const angle = (i / 4) * Math.PI * 2;
-        cube.position.set(Math.cos(angle) * 1.5, 0, Math.sin(angle) * 1.5);
-        cube.userData.orbitAngle = angle;
-        cube.userData.isOrbitCube = true;
-        enemy.add(cube);
-    }
+    // Add orbiting data cubes
+    const cubes = createOrbitingObjects(
+        4,
+        () => createBox(0.2, 0.2, 0.2),
+        createBasicMaterial(0xff0000),
+        1.5,
+        { isOrbitCube: true }
+    );
+    cubes.forEach(cube => enemy.add(cube));
 
     game.scene.add(enemy);
     game.enemies.push(enemy);
@@ -118,101 +89,76 @@ function createProjectileEnemy(x, z) {
     const enemy = new THREE.Group();
     enemy.position.set(x, 1, z);
 
-    // Scale HP based on world (projectile enemies are weaker but dangerous)
-    let projectileHP = 1;
-    if (game.currentWorld === 3) {
-        projectileHP = 2; // Slightly stronger in World 3
-    }
-    // World 1 and 2 both have 1 HP projectile enemies
-
-    enemy.hp = projectileHP;
-    enemy.maxHP = projectileHP;
-    enemy.isProjectileEnemy = true; // Mark as projectile enemy
-    enemy.shootTimer = 2; // Shoot every 2 seconds
+    // Scale HP based on world (projectile enemies are weaker)
+    enemy.hp = game.currentWorld === 3 ? 2 : 1;
+    enemy.maxHP = enemy.hp;
+    enemy.isProjectileEnemy = true;
+    enemy.shootTimer = 2;
     enemy.shootCooldown = 2;
 
-    // Main body - segmented worm virus (green to differentiate)
+    // Segmented worm body
     const segmentCount = 3;
+    const segmentMaterial = createLambertMaterial(0x00ff00, 0x006600, 0.5);
     for (let i = 0; i < segmentCount; i++) {
-        const segmentGeometry = new THREE.CylinderGeometry(0.3 - i * 0.05, 0.3 - i * 0.05, 0.4, 8);
-        const segmentMaterial = new THREE.MeshLambertMaterial({
-            color: 0x00ff00, // Green color
-            emissive: 0x006600,
-            emissiveIntensity: 0.5
-        });
-        const segment = new THREE.Mesh(segmentGeometry, segmentMaterial);
+        const segment = createMesh(
+            createCylinder(0.3 - i * 0.05, 0.3 - i * 0.05, 0.4, 8),
+            segmentMaterial
+        );
         segment.position.set(0, i * 0.35, 0);
-        segment.castShadow = true;
         enemy.add(segment);
-
-        // Store material reference on first segment
-        if (i === 0) {
-            enemy.material = segmentMaterial;
-        }
+        if (i === 0) enemy.material = segmentMaterial;
     }
 
-    // Add wireframe bands around segments
+    // Wireframe bands
     for (let i = 0; i < segmentCount; i++) {
-        const wireGeometry = new THREE.CylinderGeometry(0.32 - i * 0.05, 0.32 - i * 0.05, 0.1, 8);
-        const wireMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ff00,
-            wireframe: true,
-            transparent: true,
-            opacity: 0.6
-        });
-        const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+        const wire = new THREE.Mesh(
+            createCylinder(0.32 - i * 0.05, 0.32 - i * 0.05, 0.1, 8),
+            createBasicMaterial(0x00ff00, { wireframe: true, transparent: true, opacity: 0.6 })
+        );
         wire.position.set(0, i * 0.35, 0);
         enemy.add(wire);
     }
 
-    // Add pulsating signal rings (transmission effect)
+    // Pulsating signal rings
     for (let i = 0; i < 2; i++) {
-        const ringGeometry = new THREE.TorusGeometry(0.6, 0.05, 8, 16);
-        const ringMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ff00,
-            transparent: true,
-            opacity: 0.4
-        });
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        const ring = new THREE.Mesh(
+            createTorus(0.6, 0.05, 8, 16),
+            createBasicMaterial(0x00ff00, { transparent: true, opacity: 0.4 })
+        );
         ring.position.set(0, 0.5, 0);
         ring.userData.isPulseRing = true;
-        ring.userData.offset = i * Math.PI; // Offset for alternating pulse
+        ring.userData.offset = i * Math.PI;
         enemy.add(ring);
     }
 
-    // Add antenna for transmitting - taller and thinner
-    const antennaGeometry = new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6);
-    const antennaMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-    const antenna = new THREE.Mesh(antennaGeometry, antennaMaterial);
+    // Antenna
+    const antenna = createMesh(
+        createCylinder(0.03, 0.03, 1.2, 6),
+        createBasicMaterial(0x00ff00, { emissiveIntensity: 0 })
+    );
     antenna.position.set(0, 1.5, 0);
     enemy.add(antenna);
 
-    // Antenna top with glowing ball
-    const antennaTopGeometry = new THREE.SphereGeometry(0.15, 8, 8);
-    const antennaTopMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ff00,
-        emissive: 0x00ff00,
-        emissiveIntensity: 1
-    });
-    const antennaTop = new THREE.Mesh(antennaTopGeometry, antennaTopMaterial);
+    // Antenna top
+    const antennaTop = new THREE.Mesh(
+        createSphere(0.15, 8),
+        createBasicMaterial(0x00ff00)
+    );
     antennaTop.position.set(0, 2.1, 0);
     enemy.add(antennaTop);
 
-    // Add orbiting data packets (like transmitted data)
-    const packetGeometry = new THREE.BoxGeometry(0.15, 0.15, 0.15);
-    const packetMaterial = new THREE.MeshBasicMaterial({
-        color: 0x00ff00,
-        emissive: 0x00ff00
+    // Orbiting data packets
+    const packets = createOrbitingObjects(
+        3,
+        () => createBox(0.15, 0.15, 0.15),
+        createBasicMaterial(0x00ff00),
+        1.2,
+        { isOrbitPacket: true }
+    );
+    packets.forEach(p => {
+        p.position.y = 0.5;
+        enemy.add(p);
     });
-
-    for (let i = 0; i < 3; i++) {
-        const packet = new THREE.Mesh(packetGeometry, packetMaterial);
-        const angle = (i / 3) * Math.PI * 2;
-        packet.position.set(Math.cos(angle) * 1.2, 0.5, Math.sin(angle) * 1.2);
-        packet.userData.orbitAngle = angle;
-        packet.userData.isOrbitPacket = true;
-        enemy.add(packet);
-    }
 
     game.scene.add(enemy);
     game.enemies.push(enemy);
@@ -237,30 +183,17 @@ function createWarriorEnemy(x, z) {
     enemy.dashDuration = 0;
     enemy.dashDirection = new THREE.Vector3(); // Direction to dash in
 
-    // Main warrior body - larger dodecahedron with dark purple color (bigger and more angular than regular enemies)
-    const bodyGeometry = new THREE.DodecahedronGeometry(1.3, 0);
-    const bodyMaterial = new THREE.MeshLambertMaterial({
-        color: 0x3a0e3e, // Dark purple
-        emissive: 0x1a0a1e,
-        emissiveIntensity: 0.6
-    });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.castShadow = true;
+    // Main warrior body
+    const bodyMaterial = createLambertMaterial(0x3a0e3e, 0x1a0a1e, 0.6);
+    const body = createMesh(new THREE.DodecahedronGeometry(1.3, 0), bodyMaterial);
     enemy.add(body);
-
-    // Store material reference for hit effects
     enemy.material = bodyMaterial;
 
-    // Add subtle dark edge glow for menacing appearance
-    const glowGeometry = new THREE.DodecahedronGeometry(1.35, 0);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x550055,
-        wireframe: true,
-        transparent: true,
-        opacity: 0.4
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    enemy.add(glow);
+    // Add dark edge glow
+    enemy.add(new THREE.Mesh(
+        new THREE.DodecahedronGeometry(1.35, 0),
+        createBasicMaterial(0x550055, { wireframe: true, transparent: true, opacity: 0.4 })
+    ));
 
     // Add 6 legs - 3 on each side (left and right)
     enemy.legs = [];
@@ -323,21 +256,17 @@ function createWarriorEnemy(x, z) {
     }
 
     // Add orbiting pentagons
-    for (let i = 0; i < 5; i++) {
-        const pentagonGeometry = new THREE.CircleGeometry(0.25, 5);
-        const pentagonMaterial = new THREE.MeshBasicMaterial({
-            color: 0x8800ff,
-            emissive: 0x8800ff,
-            emissiveIntensity: 0.8,
-            side: THREE.DoubleSide
-        });
-        const pentagon = new THREE.Mesh(pentagonGeometry, pentagonMaterial);
-        const angle = (i / 5) * Math.PI * 2;
-        pentagon.position.set(Math.cos(angle) * 2.2, 0.3, Math.sin(angle) * 2.2);
-        pentagon.userData.orbitAngle = angle;
-        pentagon.userData.isPentagon = true;
-        enemy.add(pentagon);
-    }
+    const pentagons = createOrbitingObjects(
+        5,
+        () => new THREE.CircleGeometry(0.25, 5),
+        createBasicMaterial(0x8800ff, { side: THREE.DoubleSide, emissiveIntensity: 0.8 }),
+        2.2,
+        { isPentagon: true }
+    );
+    pentagons.forEach(p => {
+        p.position.y = 0.3;
+        enemy.add(p);
+    });
 
     game.scene.add(enemy);
     game.enemies.push(enemy);
