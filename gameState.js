@@ -53,6 +53,10 @@ const game = {
     bow: null,
     bowCollected: false,
     equippedBow: false,
+    bowDamage: 1,
+    isChargingShot: false,
+    chargeStartTime: 0,
+    maxChargeTime: 2.0, // Max charge time in seconds for fully charged shot
     axe: null,
     axeCollected: false,
     equippedAxe: false,
@@ -78,11 +82,13 @@ const game = {
     portalSpawned: false,
     currentWorld: 1,
     foods: [],
+    redPotions: [],
     coins: 0,
     shop: null,
     isShopOpen: false,
     shieldCount: 0,
     foodCount: 0,
+    redPotionCount: 0,
     spellBook: null,
     spellBookCollected: false,
     equippedSpellBook: false,
@@ -91,6 +97,7 @@ const game = {
     hasBigJump: false,
     hasFreezeball: false,
     hasDash: false,
+    hasFasterCharge: false,
     fireballCooldown: 0,
     freezeballCooldown: 0,
     dashCooldown: 0,
@@ -101,6 +108,8 @@ const game = {
     dashTimer: 0,
     dashDuration: 0.3, // 0.3 seconds dash
     dashSpeed: 150, // Very fast speed during dash
+    dashDirectionX: 0,
+    dashDirectionZ: 0,
     playerFrozen: false,
     freezeDuration: 0,
     // Mobile touch controls
@@ -113,7 +122,9 @@ const game = {
     // Joystick controls
     joystickActive: false,
     joystickDeltaX: 0,
-    joystickDeltaY: 0
+    joystickDeltaY: 0,
+    // Damage numbers
+    damageNumbers: []
 };
 
 // Detect if running on mobile device
